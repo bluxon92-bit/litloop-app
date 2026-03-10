@@ -194,24 +194,50 @@ export default function Home({ onNavigate }) {
 
       {/* ── Currently Reading ── */}
       {reading.length > 0 && (
-        <div className="rt-card" style={{ marginBottom: '1.25rem' }}>
-          <div className="rt-section-heading" style={{ marginBottom: '0.85rem' }}>Currently Reading</div>
-          {reading.map(book => (
-            <div
-              key={book.id}
-              className="rt-reading-card"
-              style={{ cursor: 'pointer', marginBottom: '0.6rem' }}
-              onClick={() => openDetail(book, 'home-reading')}
-            >
-              <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="M" />
+        <div style={{ marginBottom: '1.25rem' }}>
+          <div className="rt-section-heading" style={{ marginBottom: '0.75rem' }}>Currently Reading</div>
+
+          {/* Single book: full-width card */}
+          {reading.length === 1 ? (
+            <div className="rt-card" style={{ display: 'flex', gap: '0.85rem', alignItems: 'center', cursor: 'pointer' }}
+              onClick={() => openDetail(reading[0], 'home-reading')}>
+              <CoverImage coverId={reading[0].coverId} olKey={reading[0].olKey} title={reading[0].title} size="M" />
               <div className="rt-reading-card-body">
                 <div className="rt-reading-badge">Currently reading</div>
-                <div className="rt-reading-title">{book.title}</div>
-                {book.author && <div className="rt-reading-author">{book.author}</div>}
-                {book.dateStarted && <div className="rt-reading-meta">Started {fmtDate(book.dateStarted)}</div>}
+                <div className="rt-reading-title">{reading[0].title}</div>
+                {reading[0].author && <div className="rt-reading-author">{reading[0].author}</div>}
+                {reading[0].dateStarted && <div className="rt-reading-meta">Started {fmtDate(reading[0].dateStarted)}</div>}
               </div>
             </div>
-          ))}
+          ) : (
+            /* Multiple books: horizontal carousel */
+            <div style={{ display: 'flex', gap: '0.75rem', overflowX: 'auto', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
+              {reading.map(book => (
+                <div key={book.id}
+                  onClick={() => openDetail(book, 'home-reading')}
+                  style={{
+                    flexShrink: 0, width: 130,
+                    background: 'var(--rt-white)', borderRadius: 'var(--rt-r3)',
+                    border: '1px solid var(--rt-border)', padding: '0.7rem',
+                    cursor: 'pointer', boxShadow: 'var(--rt-s1)',
+                    display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem',
+                  }}>
+                  <div style={{ width: 72, height: 104, borderRadius: 6, overflow: 'hidden', background: 'var(--rt-surface)', flexShrink: 0 }}>
+                    {book.coverId
+                      ? <img src={`https://covers.openlibrary.org/b/id/${book.coverId}-M.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+                      : book.olKey
+                        ? <img src={`https://covers.openlibrary.org/b/olid/${book.olKey.replace('/works/','')}-M.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" onError={e => e.target.style.display='none'} />
+                        : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>📚</div>
+                    }
+                  </div>
+                  <div style={{ width: '100%' }}>
+                    <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center' }}>{book.title}</div>
+                    {book.author && <div style={{ fontSize: '0.62rem', color: 'var(--rt-t3)', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{book.author}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

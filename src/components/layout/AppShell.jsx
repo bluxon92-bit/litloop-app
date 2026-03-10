@@ -178,18 +178,34 @@ export default function AppShell() {
       <header className="rt-topnav-mobile" style={{
         position: 'fixed', top: 0, left: 0, right: 0,
         background: 'var(--rt-white)', borderBottom: '1px solid var(--rt-border)',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        display: 'grid', gridTemplateColumns: '1fr auto 1fr',
+        alignItems: 'center',
         padding: '0.65rem 1rem', zIndex: 100, boxShadow: '0 1px 6px rgba(26,39,68,0.06)'
       }}>
-        <h1 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.25rem', fontWeight: 700, color: 'var(--rt-navy)', margin: 0 }}>LitLoop</h1>
+        {/* Left: profile avatar */}
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <button
+            onClick={() => setActiveTab('profile')}
+            style={{
+              background: avatarBg,
+              border: (activeTab==='profile'||activeTab==='account') ? '2px solid var(--rt-amber)' : '2px solid transparent',
+              borderRadius: '50%', width: 32, height: 32,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', fontFamily: 'var(--rt-font-display)',
+              fontWeight: 700, color: '#fff', fontSize: '0.75rem', transition: 'border-color 0.15s'
+            }}
+          >{avatarLetter}</button>
+        </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          {/* Stats */}
+        {/* Centre: LitLoop wordmark */}
+        <h1 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.2rem', fontWeight: 700, color: 'var(--rt-navy)', margin: 0, textAlign: 'center' }}>LitLoop</h1>
+
+        {/* Right: stats + bell */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'flex-end' }}>
           <button onClick={() => setActiveTab('stats')} style={{ background: activeTab==='stats' ? 'var(--rt-amber-pale)' : 'none', border: 'none', borderRadius: 'var(--rt-r2)', padding: '0.45rem', display: 'flex', alignItems: 'center', cursor: 'pointer', color: activeTab==='stats' ? 'var(--rt-amber)' : '#9ca3af' }}>
             <IcoStats />
           </button>
 
-          {/* Bell with popup */}
           <div ref={bellRef} style={{ position: 'relative' }}>
             <button
               onClick={() => setNotifOpen(v => !v)}
@@ -201,7 +217,6 @@ export default function AppShell() {
               )}
             </button>
 
-            {/* Notification popup */}
             {notifOpen && (
               <div style={{
                 position: 'absolute', top: 'calc(100% + 8px)', right: 0,
@@ -219,9 +234,7 @@ export default function AppShell() {
                   </div>
                 ) : (
                   notifications.map(n => (
-                    <div
-                      key={n.id}
-                      onClick={n.action}
+                    <div key={n.id} onClick={n.action}
                       style={{ display: 'flex', gap: '0.65rem', padding: '0.75rem 1rem', borderBottom: '1px solid var(--rt-border)', cursor: 'pointer', alignItems: 'flex-start' }}
                       onMouseEnter={e => e.currentTarget.style.background = 'var(--rt-surface)'}
                       onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -237,19 +250,6 @@ export default function AppShell() {
               </div>
             )}
           </div>
-
-          {/* Profile avatar */}
-          <button
-            onClick={() => setActiveTab('profile')}
-            style={{
-              background: avatarBg,
-              border: (activeTab==='profile'||activeTab==='account') ? '2px solid var(--rt-amber)' : '2px solid transparent',
-              borderRadius: '50%', width: 32, height: 32,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', fontFamily: 'var(--rt-font-display)',
-              fontWeight: 700, color: '#fff', fontSize: '0.75rem', transition: 'border-color 0.15s'
-            }}
-          >{avatarLetter}</button>
         </div>
       </header>
 

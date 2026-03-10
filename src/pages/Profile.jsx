@@ -72,6 +72,7 @@ export default function Profile({ onNavigate }) {
         padding: '1.5rem 1.25rem 1.4rem',
         position: 'relative',
         marginBottom: '1.25rem',
+        borderRadius: '0 0 20px 20px',
       }}>
         {/* Cog → settings */}
         <button
