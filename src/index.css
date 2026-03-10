@@ -2677,3 +2677,11 @@
   border:1.5px solid var(--rt-border-md);
 }
 .rt-done-action-btn--secondary:hover { background:var(--rt-cream-md); }
+/* ── RESPONSIVE SHELL ── */
+@media (max-width: 768px) {
+  .rt-sidebar-desktop { display: none !important; }
+  .rt-main-desktop { margin-left: 0 !important; max-width: 100vw !important; }
+}
+@media (min-width: 769px) {
+  .rt-tabbar-mobile { display: none !important; }
+}

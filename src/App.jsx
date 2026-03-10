@@ -1,20 +1,27 @@
 import { useAuthContext } from './context/AuthContext'
 import AuthForms from './components/auth/AuthForms'
+import AppShell from './components/layout/AppShell'
 
 function App() {
-  const { user, loading, signOut } = useAuthContext()
+  const { user, loading } = useAuthContext()
 
-  if (loading) return <div style={{ padding: '2rem' }}>Loading…</div>
+  if (loading) return (
+    <div style={{
+      minHeight: '100vh',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background: 'var(--rt-cream)',
+      fontFamily: 'var(--rt-font-body)',
+      color: 'var(--rt-t3)'
+    }}>
+      Loading…
+    </div>
+  )
 
   if (!user) return <AuthForms />
 
-  return (
-    <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
-      <h1>LitLoop</h1>
-      <p>Logged in as: {user.email}</p>
-      <button onClick={signOut}>Sign out</button>
-    </div>
-  )
+  return <AppShell />
 }
 
 export default App
