@@ -117,7 +117,7 @@ export default function Chat({ onNavigate }) {
     const otherUsers   = participants.filter(p => p.userId !== user?.id)
 
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 56px)', background: 'var(--rt-cream)' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 56px)', background: 'var(--rt-cream)', maxWidth: 720, margin: '0 auto', width: '100%' }}>
         {/* Thread header */}
         <div style={{ background: 'var(--rt-white)', borderBottom: '1px solid var(--rt-border)', padding: '0.85rem 1.1rem', display: 'flex', alignItems: 'center', gap: '0.85rem', flexShrink: 0 }}>
           <button onClick={closeThread} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rt-navy)', fontSize: '1.1rem', padding: '0.25rem 0.5rem 0.25rem 0', fontWeight: 700 }}>←</button>
@@ -196,17 +196,17 @@ export default function Chat({ onNavigate }) {
         </div>
 
         {/* Input */}
-        <div style={{ background: 'var(--rt-white)', borderTop: '1px solid var(--rt-border)', padding: '0.75rem 1.1rem', display: 'flex', gap: '0.6rem', flexShrink: 0 }}>
-          <input
-            className="rt-input"
-            style={{ flex: 1 }}
-            placeholder="Message…"
-            value={msgInput}
-            onChange={e => setMsgInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-          />
-          <button className="rt-submit-btn" onClick={handleSend} disabled={!msgInput.trim()}>Send</button>
-        </div>
+      <div className="rt-chat-input-row" style={{ background: 'var(--rt-white)', borderTop: '1px solid var(--rt-border)', padding: '0.75rem 1.1rem', display: 'flex', gap: '0.6rem', flexShrink: 0 }}>
+  <input
+    className="rt-input"
+    style={{ flex: 1 }}
+    placeholder="Message…"
+    value={msgInput}
+    onChange={e => setMsgInput(e.target.value)}
+    onKeyDown={handleKeyDown}
+  />
+  <button className="rt-submit-btn" onClick={handleSend} disabled={!msgInput.trim()}>Send</button>
+</div>
 
         {/* Book detail from thread header click */}
         {detailBook && (

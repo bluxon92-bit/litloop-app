@@ -62,9 +62,14 @@
     max-width: calc(100vw - 220px);
     box-sizing: border-box;
   }
-  .rt-main-mobile   { display: none; }
-  .rt-topnav-mobile { display: none; }
-  .rt-tabbar-mobile { display: none; }
+  .rt-main-mobile   { display: none !important; }
+  .rt-topnav-mobile { display: none !important; }
+  .rt-tabbar-mobile { display: none !important; }
+}
+
+@media (max-width: 767px) {
+  .rt-sidebar-desktop { display: none !important; }
+  .rt-main-desktop    { display: none !important; }
 }
 
 /* ── APP SHELL ─────────────────────────────────────────────── */
@@ -1195,6 +1200,10 @@
 .rt-chat-empty { padding: 2rem 1rem; text-align: center; }
 .rt-chat-empty-icon { font-size: 2rem; margin-bottom: 0.5rem; }
 .rt-chat-empty-text { font-size: 0.83rem; color: var(--rt-t3); line-height: 1.6; }
+.rt-chat-input-row .rt-submit-btn {
+  width: auto;
+  flex-shrink: 0;
+}
 
 @media (max-width: 700px) {
   #rt-chat-list-view {
