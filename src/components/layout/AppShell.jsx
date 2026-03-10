@@ -53,8 +53,8 @@ const SIDEBAR_TABS = [
   { id: 'chat',     label: 'Chat',    icon: IcoChat    },
   { id: 'mylist',   label: 'My List', icon: IcoList    },
   { id: 'discover', label: 'Discover',icon: IcoDiscover},
-  { id: 'profile',  label: 'Profile', icon: IcoProfile },
   { id: 'stats',    label: 'Stats',   icon: null       },
+  { id: 'profile',  label: 'Profile', icon: IcoProfile },
 ]
 
 export default function AppShell() {
@@ -170,7 +170,7 @@ export default function AppShell() {
       </nav>
 
       {/* Desktop main */}
-      <main className="rt-main-desktop" style={{ marginLeft: 220, flex: 1, width: 'calc(100vw - 220px)', minHeight: '100vh', paddingBottom: '2rem', boxSizing: 'border-box', overflow: 'hidden' }}>
+      <main className="rt-main-desktop" style={{ marginLeft: 220, flex: 1, minWidth: 0, minHeight: '100vh', paddingBottom: '2rem', boxSizing: 'border-box' }}>
         {renderPage()}
       </main>
 

@@ -137,42 +137,44 @@ export default function Home({ onNavigate }) {
             </div>
           </div>
 
-          {/* ── Recent reads ── */}
-          <div className="rt-card rt-home-fav-card">
-            <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.85rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.75rem' }}>
+        </div>
+      )}
+
+      {/* ── Recent Reads carousel (desktop full-width, mobile hidden) ── */}
+      {read.length > 0 && (
+        <div className="rt-home-fav-desktop" style={{ marginBottom: '1.25rem' }}>
+          <div className="rt-card" style={{ padding: '1rem 1.25rem' }}>
+            <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.85rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.85rem' }}>
               Recent reads
             </div>
-
-            {/* Mobile: compact count only */}
-            <div className="rt-home-fav-mobile">
-              <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '2.5rem', fontWeight: 700, color: 'var(--rt-navy)', lineHeight: 1 }}>{read.length}</div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--rt-t3)', marginTop: '0.3rem' }}>books read</div>
-            </div>
-
-            {/* Desktop: covers with titles */}
-            <div className="rt-home-fav-desktop">
-              {read.length === 0 ? (
-                <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)', fontStyle: 'italic' }}>No books finished yet.</div>
-              ) : (
-                <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap' }}>
-                  {[...read].sort((a, b) => new Date(b.dateRead || b.added || 0) - new Date(a.dateRead || a.added || 0)).slice(0, 6).map(book => (
-                    <div key={book.id}
-                      onClick={() => openDetail(book, 'mylist-history')}
-                      style={{ cursor: 'pointer', width: 52, flexShrink: 0 }}
-                    >
-                      <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="S" />
-                      <div style={{
-                        fontSize: '0.55rem', color: 'var(--rt-t2)', marginTop: '0.3rem',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                        maxWidth: 52, lineHeight: 1.25, fontWeight: 500
-                      }}>{book.title}</div>
+            <div style={{
+              display: 'flex', gap: '0.85rem',
+              overflowX: 'auto', overflowY: 'visible',
+              paddingBottom: '0.5rem',
+              scrollbarWidth: 'none', msOverflowStyle: 'none',
+            }}
+              className="rt-recent-carousel"
+            >
+              {[...read]
+                .sort((a, b) => new Date(b.dateRead || b.added || 0) - new Date(a.dateRead || a.added || 0))
+                .slice(0, 10)
+                .map(book => (
+                  <div key={book.id}
+                    onClick={() => openDetail(book, 'mylist-history')}
+                    style={{ cursor: 'pointer', flexShrink: 0, width: 64 }}
+                  >
+                    <div style={{ width: 64, height: 90, borderRadius: 6, overflow: 'hidden', boxShadow: '0 2px 8px rgba(26,39,68,0.13)' }}>
+                      <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="S" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </div>
-                  ))}
-                </div>
-              )}
+                    <div style={{
+                      fontSize: '0.6rem', color: 'var(--rt-t2)', marginTop: '0.35rem',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      maxWidth: 64, lineHeight: 1.3, fontWeight: 500
+                    }}>{book.title}</div>
+                  </div>
+                ))}
             </div>
           </div>
-
         </div>
       )}
 
