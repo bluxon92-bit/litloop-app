@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { sb } from '../lib/supabase'
 
 export function useChat(user) {
@@ -8,6 +8,9 @@ export function useChat(user) {
   const [loaded, setLoaded]       = useState(false)
   const cursorRef                 = useRef(null)
   const channelRef                = useRef(null)
+  useEffect(() => {
+  if (user) loadChatList()
+}, [user?.id])
 
   async function loadChatList() {
     if (!user) return
@@ -49,8 +52,9 @@ export function useChat(user) {
           bookTitle:     p.chat.book_title  || p.chat.book_ol_key || 'Unknown book',
           bookAuthor:    p.chat.book_author || '',
           coverId:       p.chat.cover_id,
+          coverIdRaw:       p.chat.cover_id,
+          lastMessagePreview: p.chat.last_message_preview,
           lastMessageAt: p.chat.last_message_at,
-          lastPreview:   p.chat.last_message_preview,
           lastUserId:    p.chat.last_message_user_id,
           unread:        unreadMap[p.chat.id] || 0
         }))
@@ -68,14 +72,18 @@ export function useChat(user) {
     }
   }
 
-  async function openThread(chat) {
-    setActiveChat(chat)
-    setMessages([])
-    cursorRef.current = null
-    await fetchMessages(chat.id, false)
-    markChatRead(chat.id)
-    subscribeToThread(chat.id)
-  }
+async function openThread(chatIdOrChat) {
+  const chat = typeof chatIdOrChat === 'string'
+    ? chats.find(c => c.id === chatIdOrChat)
+    : chatIdOrChat
+  if (!chat) return
+  setActiveChat(chat)
+  setMessages([])
+  cursorRef.current = null
+  await fetchMessages(chat.id, false)
+  markChatRead(chat.id)
+  subscribeToThread(chat.id)
+}
 
   function closeThread() {
     if (channelRef.current) { sb.removeChannel(channelRef.current); channelRef.current = null }
