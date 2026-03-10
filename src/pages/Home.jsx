@@ -1,3 +1,389 @@
-export default function Home() {
-  return <div style={{ padding: '2rem' }}><h2>Home</h2></div>
+import { useState } from 'react'
+import { useBooksContext } from '../context/BooksContext'
+import { useSocialContext } from '../context/SocialContext'
+import { useChatContext } from '../context/ChatContext'
+import { useAuthContext } from '../context/AuthContext'
+import { avatarColour, avatarInitial, fmtDate, GENRE_COLOURS, loadGoal, saveGoal } from '../lib/utils'
+import CoverImage from '../components/books/CoverImage'
+import BookDetailPanel from '../components/books/BookDetailPanel'
+import AddBookModal from '../components/books/AddBookModal'
+import BookSheet, { FinishModal } from '../components/books/BookSheet'
+
+export default function Home({ onNavigate }) {
+  const { user } = useAuthContext()
+  const { books, addBook, updateBook } = useBooksContext()
+  const { friends, feed, recs, loaded: socialLoaded } = useSocialContext()
+  const { chats, startOrOpenChat } = useChatContext()
+
+  const [goal, setGoal]                   = useState(loadGoal)
+  const [detailBook, setDetailBook]       = useState(null)
+  const [detailLocation, setDetailLocation] = useState(null)
+  const [finishBook, setFinishBook]       = useState(null)
+  const [addModal, setAddModal]           = useState(false)
+
+  const year     = new Date().getFullYear()
+  const read     = books.filter(b => b.status === 'read')
+  const thisYear = read.filter(b => b.dateRead && b.dateRead.startsWith(String(year)))
+  const pct      = Math.min(100, Math.round((thisYear.length / Math.max(goal, 1)) * 100))
+  const reading  = books.filter(b => b.status === 'reading')
+    .sort((a, b) => new Date(b.dateStarted || b.added || 0) - new Date(a.dateStarted || a.added || 0))
+  const pendingRecs    = (recs || []).filter(r => r.status === 'pending')
+  const fiveStarBooks  = read.filter(b => b.rating === 5)
+
+  // Friends' user IDs — for filtering feed to friends only, not self
+  const friendIds = new Set((friends || []).map(f => f.userId))
+
+  // Genre pie data
+  const genreMap = {}
+  thisYear.forEach(b => { if (b.genre) genreMap[b.genre] = (genreMap[b.genre] || 0) + 1 })
+  const genreEntries = Object.entries(genreMap).sort((a, b) => b[1] - a[1]).slice(0, 6)
+  const genreTotal   = genreEntries.reduce((s, [, n]) => s + n, 0)
+
+  function buildPie() {
+    const R = 44, CX = 50, CY = 50
+    let angle = -Math.PI / 2
+    return genreEntries.map(([, count], i) => {
+      const slice = (count / genreTotal) * 2 * Math.PI
+      const x1 = CX + R * Math.cos(angle), y1 = CY + R * Math.sin(angle)
+      angle += slice
+      const x2 = CX + R * Math.cos(angle), y2 = CY + R * Math.sin(angle)
+      const large = slice > Math.PI ? 1 : 0
+      const colour = GENRE_COLOURS[i % GENRE_COLOURS.length]
+      if (genreEntries.length === 1) return <circle key={i} cx={CX} cy={CY} r={R} fill={colour} />
+      return <path key={i} d={`M${CX},${CY} L${x1.toFixed(1)},${y1.toFixed(1)} A${R},${R} 0 ${large},1 ${x2.toFixed(1)},${y2.toFixed(1)} Z`} fill={colour} />
+    })
+  }
+
+  // Feed: only friends' reviews (not own), must have review_body OR be a posted_review event
+  const reviewEvents = (feed || []).filter(ev =>
+    friendIds.has(ev.user_id) &&
+    (ev.event_type === 'posted_review' || (ev.event_type === 'finished' && ev.review_body))
+  )
+
+  function findExistingChat(olKey) {
+    if (!olKey || !chats) return null
+    return chats.find(c => c.bookOlKey === olKey) || null
+  }
+
+  function openDetail(book, location) { setDetailBook(book); setDetailLocation(location) }
+
+  const showGenreBlock = genreEntries.length > 0
+
+  return (
+    <div style={{ padding: '1.5rem 1.5rem 1.5rem 1.5rem', maxWidth: 760, margin: '0 auto' }}>
+
+      {/* ── Header ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+        <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: 0 }}>Home</h2>
+        <button className="rt-add-fab" onClick={() => setAddModal(true)} title="Add book">+</button>
+      </div>
+
+      {/* ── Reading goal card ── */}
+      <div className="rt-stat-card rt-stat-goal" style={{ marginBottom: '1rem' }}>
+        <div className="rt-stat-label">Reading goal {year}</div>
+        <div className="rt-goal-display">
+          <span className="rt-goal-current">{thisYear.length}</span>
+          <span className="rt-goal-sep">/</span>
+          <input type="number" className="rt-goal-input" value={goal} min="1" max="365"
+            onChange={e => { const v = parseInt(e.target.value) || 12; setGoal(v); saveGoal(v) }} />
+          <span className="rt-goal-unit">books</span>
+        </div>
+        <div className="rt-goal-bar-wrap">
+          <div className="rt-goal-bar"><div className="rt-goal-fill" style={{ width: pct + '%' }} /></div>
+          <span className="rt-goal-pct">{pct}%</span>
+        </div>
+      </div>
+
+      {/* ── Stats row — desktop only ── */}
+      <div className="rt-home-stats-row">
+        <div className="rt-stat-card">
+          <div className="rt-stat-label">{year}</div>
+          <div className="rt-stat-number">{thisYear.length}</div>
+          <div className="rt-stat-sub">books read</div>
+        </div>
+        <div className="rt-stat-card">
+          <div className="rt-stat-label">All time</div>
+          <div className="rt-stat-number">{read.length}</div>
+          <div className="rt-stat-sub">books read</div>
+        </div>
+        <div className="rt-stat-card">
+          <div className="rt-stat-label">5★ favourites</div>
+          <div className="rt-stat-number">{fiveStarBooks.length}</div>
+        </div>
+      </div>
+
+      {/* ── Genres + Favourites row ── */}
+      {showGenreBlock && (
+        <div className="rt-home-visual-row">
+
+          {/* Genre donut */}
+          <div className="rt-card rt-home-genre-card">
+            <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.85rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.75rem' }}>Genres this year</div>
+            <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'center', flex: 1 }}>
+              <svg width="100" height="100" viewBox="0 0 100 100" style={{ flexShrink: 0 }} aria-hidden="true">
+                {buildPie()}
+                <circle cx="50" cy="50" r="20" fill="white" />
+                <text x="50" y="51" textAnchor="middle" dominantBaseline="middle" fontSize="9" fontWeight="700" fill="#1a2744">{genreTotal}</text>
+              </svg>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                {genreEntries.map(([genre, count], i) => (
+                  <div key={genre} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: GENRE_COLOURS[i % GENRE_COLOURS.length], flexShrink: 0 }} />
+                    <span style={{ fontSize: '0.75rem', color: 'var(--rt-navy)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{genre}</span>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--rt-t3)', fontWeight: 600 }}>{count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* ── Recent reads ── */}
+          <div className="rt-card rt-home-fav-card">
+            <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.85rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.75rem' }}>
+              Recent reads
+            </div>
+
+            {/* Mobile: compact count only */}
+            <div className="rt-home-fav-mobile">
+              <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '2.5rem', fontWeight: 700, color: 'var(--rt-navy)', lineHeight: 1 }}>{read.length}</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--rt-t3)', marginTop: '0.3rem' }}>books read</div>
+            </div>
+
+            {/* Desktop: covers with titles */}
+            <div className="rt-home-fav-desktop">
+              {read.length === 0 ? (
+                <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)', fontStyle: 'italic' }}>No books finished yet.</div>
+              ) : (
+                <div style={{ display: 'flex', gap: '0.65rem', flexWrap: 'wrap' }}>
+                  {[...read].sort((a, b) => new Date(b.dateRead || b.added || 0) - new Date(a.dateRead || a.added || 0)).slice(0, 6).map(book => (
+                    <div key={book.id}
+                      onClick={() => openDetail(book, 'mylist-history')}
+                      style={{ cursor: 'pointer', width: 52, flexShrink: 0 }}
+                    >
+                      <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="S" />
+                      <div style={{
+                        fontSize: '0.55rem', color: 'var(--rt-t2)', marginTop: '0.3rem',
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        maxWidth: 52, lineHeight: 1.25, fontWeight: 500
+                      }}>{book.title}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* ── Notification strips ── */}
+      {user && (
+        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem' }}>
+          <button onClick={() => onNavigate('chat')} className="rt-notif-strip-btn">
+            <div className="rt-notif-strip-label">Messages</div>
+            <div className="rt-notif-strip-val" style={{ color: 'var(--rt-t2)' }}>Go to Chat</div>
+          </button>
+          <button onClick={() => onNavigate('discover')} className="rt-notif-strip-btn">
+            <div className="rt-notif-strip-label">Recommendations</div>
+            <div className="rt-notif-strip-val" style={{ color: pendingRecs.length > 0 ? 'var(--rt-amber)' : 'var(--rt-t2)' }}>
+              {pendingRecs.length > 0 ? `${pendingRecs.length} new` : 'Discover books'}
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* ── Currently Reading ── */}
+      {reading.length > 0 && (
+        <div className="rt-card" style={{ marginBottom: '1.25rem' }}>
+          <div className="rt-section-heading" style={{ marginBottom: '0.85rem' }}>Currently Reading</div>
+          {reading.map(book => (
+            <div
+              key={book.id}
+              className="rt-reading-card"
+              style={{ cursor: 'pointer', marginBottom: '0.6rem' }}
+              onClick={() => openDetail(book, 'home-reading')}
+            >
+              <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="M" />
+              <div className="rt-reading-card-body">
+                <div className="rt-reading-badge">Currently reading</div>
+                <div className="rt-reading-title">{book.title}</div>
+                {book.author && <div className="rt-reading-author">{book.author}</div>}
+                {book.dateStarted && <div className="rt-reading-meta">Started {fmtDate(book.dateStarted)}</div>}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Friends' Reviews ── */}
+      {user && (
+        <div className="rt-card" style={{ marginBottom: '1.25rem' }}>
+          <div className="rt-section-heading" style={{ marginBottom: '0.85rem' }}>Friends' Reviews</div>
+
+          {!socialLoaded ? (
+            <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>Loading…</div>
+          ) : reviewEvents.length === 0 ? (
+            <div className="rt-feed-empty">
+              <div className="rt-feed-empty-icon">📖</div>
+              <p>{friends.length === 0 ? 'Add friends to see their reviews here.' : 'No reviews from friends yet.'}</p>
+            </div>
+          ) : (
+            reviewEvents.slice(0, 10).map(ev => {
+              const profile     = ev.profiles || null
+              const username    = profile?.username    || profile?.display_name || 'friend'
+              const displayName = profile?.display_name || profile?.username    || 'friend'
+              const colour      = avatarColour(ev.user_id)
+              const init        = avatarInitial(displayName)
+              const rating      = ev.rating || 0
+              const stars       = rating ? '★'.repeat(rating) + '☆'.repeat(5 - rating) : ''
+              const reviewText  = ev.review_body || ''
+              const coverId     = ev.cover_id || null
+              const olKey       = ev.book_ol_key || null
+
+              const feedBook = {
+                id:         ev.id,
+                title:      ev.book_title  || 'Unknown book',
+                author:     ev.book_author || '',
+                coverId,
+                olKey,
+                status:     null,
+                rating,
+                reviewBody: reviewText,
+              }
+
+              return (
+                <div
+                  key={ev.id}
+                  onClick={() => openDetail(feedBook, 'home-feed')}
+                  style={{
+                    display: 'flex', gap: '0.9rem',
+                    padding: '0.9rem 0',
+                    borderBottom: '1px solid var(--rt-border)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {/* Book cover — larger so it's visible */}
+                  <div style={{
+                    width: 52, height: 74, borderRadius: 7,
+                    overflow: 'hidden', flexShrink: 0,
+                    background: 'var(--rt-surface)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: '0 2px 8px rgba(26,39,68,0.12)',
+                  }}>
+                    {coverId ? (
+                      <img
+                        src={`https://covers.openlibrary.org/b/id/${coverId}-S.jpg`}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                        alt={ev.book_title || ''}
+                        loading="lazy"
+                        onError={e => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '<span style="font-size:1.4rem">📖</span>' }}
+                      />
+                    ) : olKey ? (
+                      <img
+                        src={`https://covers.openlibrary.org/b/olid/${olKey.replace('/works/', '')}-S.jpg`}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                        alt={ev.book_title || ''}
+                        loading="lazy"
+                        onError={e => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '<span style="font-size:1.4rem">📖</span>' }}
+                      />
+                    ) : (
+                      <span style={{ fontSize: '1.4rem' }}>📖</span>
+                    )}
+                  </div>
+
+                  {/* Content */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* Friend byline */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.3rem' }}>
+                      <div style={{
+                        width: 22, height: 22, borderRadius: '50%', background: colour,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '0.55rem', fontWeight: 700, color: '#fff', flexShrink: 0,
+                      }}>{init}</div>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--rt-t2)' }}>
+                        {displayName}{username !== displayName ? ` · @${username}` : ''}
+                      </span>
+                    </div>
+
+                    {/* Book title */}
+                    <div style={{
+                      fontFamily: 'var(--rt-font-display)', fontSize: '0.9rem', fontWeight: 700,
+                      color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap', marginBottom: '0.15rem',
+                    }}>
+                      {ev.book_title || 'Unknown book'}
+                    </div>
+                    {ev.book_author && (
+                      <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.25rem' }}>
+                        {ev.book_author}
+                      </div>
+                    )}
+
+                    {/* Stars */}
+                    {stars && (
+                      <div style={{ fontSize: '0.88rem', color: 'var(--rt-amber)', letterSpacing: '0.5px', marginBottom: '0.3rem' }}>
+                        {stars}
+                      </div>
+                    )}
+
+                    {/* Review text — always show if present */}
+                    {reviewText && (
+                      <div style={{
+                        fontSize: '0.82rem', color: 'var(--rt-t2)', lineHeight: 1.55,
+                        display: '-webkit-box', WebkitLineClamp: 4,
+                        WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                      }}>
+                        {reviewText}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
+
+      {/* ── BookDetailPanel ── */}
+      {detailBook && (
+        <BookDetailPanel
+          book={detailBook}
+          location={detailLocation}
+          user={user}
+          existingChatId={findExistingChat(detailBook.olKey)?.id}
+          onClose={() => setDetailBook(null)}
+          onMarkFinished={() => { setFinishBook(detailBook); setDetailBook(null) }}
+          onAddToTBR={() => {
+            addBook({ title: detailBook.title, author: detailBook.author, status: 'tbr', olKey: detailBook.olKey, coverId: detailBook.coverId })
+            setDetailBook(null)
+          }}
+          onStartChat={() => {
+            const b = detailBook
+            if (b.olKey) startOrOpenChat(b.olKey, b.title, b.author, b.coverId, [])
+            onNavigate('chat'); setDetailBook(null)
+          }}
+          onViewChat={() => { onNavigate('chat'); setDetailBook(null) }}
+        />
+      )}
+
+      {finishBook && (
+        <FinishModal
+          book={finishBook}
+          user={user}
+          onClose={() => setFinishBook(null)}
+          onSaved={changes => { updateBook(finishBook.id, changes); setFinishBook(null) }}
+        />
+      )}
+
+      {addModal && (
+        <AddBookModal
+          defaultStatus="reading"
+          books={books}
+          onAdd={async d => { await addBook(d); setAddModal(false) }}
+          onClose={() => setAddModal(false)}
+          user={user}
+        />
+      )}
+    </div>
+  )
 }

@@ -1,13 +1,22 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { AuthProvider } from './context/AuthContext'
+import { BooksProvider } from './context/BooksContext'
+import { SocialProvider } from './context/SocialContext'
+import { ChatProvider } from './context/ChatContext'
 import App from './App.jsx'
 import './index.css'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <AuthProvider>
-      <App />
+      <BooksProvider>
+        <SocialProvider>
+          <ChatProvider>
+            <App />
+          </ChatProvider>
+        </SocialProvider>
+      </BooksProvider>
     </AuthProvider>
   </StrictMode>
 )

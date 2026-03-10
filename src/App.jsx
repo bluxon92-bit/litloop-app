@@ -7,20 +7,15 @@ function App() {
 
   if (loading) return (
     <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'var(--rt-cream)',
-      fontFamily: 'var(--rt-font-body)',
-      color: 'var(--rt-t3)'
+      minHeight: '100vh', display: 'flex', alignItems: 'center',
+      justifyContent: 'center', background: 'var(--rt-cream)',
+      fontFamily: 'var(--rt-font-body)', color: 'var(--rt-t3)'
     }}>
       Loading…
     </div>
   )
 
   if (!user) return <AuthForms />
-
   return <AppShell />
 }
 
