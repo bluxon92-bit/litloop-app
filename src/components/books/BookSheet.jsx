@@ -304,6 +304,43 @@ function AmberBtn({ onClick, disabled, children }) {
 // ─────────────────────────────────────────────────────────────
 const FINISH_STEPS = ['RATE IT', 'WRITE', 'SHARE']
 
+// ── FriendItem — must be defined outside FinishModal to avoid React #310 ──
+function FriendItem({ friend, dateRead, selected, onToggle }) {
+  const colour = avatarColour(friend.userId)
+  return (
+    <div
+      onClick={() => onToggle(friend.userId)}
+      style={{
+        display: 'flex', alignItems: 'center', gap: '0.75rem',
+        padding: '0.65rem 0.85rem',
+        border: `1.5px solid ${selected ? 'var(--rt-navy)' : 'var(--rt-border-md)'}`,
+        borderRadius: 'var(--rt-r3)', cursor: 'pointer', marginBottom: '0.4rem',
+        background: selected ? 'rgba(26,39,68,0.03)' : 'var(--rt-white)',
+        transition: 'border-color 0.15s',
+      }}
+    >
+      <div style={{
+        width: 34, height: 34, borderRadius: '50%', background: colour,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: '0.85rem', fontWeight: 700, color: '#fff', flexShrink: 0,
+      }}>{avatarInitial(friend.displayName)}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--rt-navy)' }}>{friend.displayName}</div>
+        <div style={{ fontSize: '0.7rem', color: 'var(--rt-t3)' }}>
+          {dateRead ? `✓ Finished ${fmtDate(dateRead)}` : friend.username ? `@${friend.username}` : ''}
+        </div>
+      </div>
+      <div style={{
+        width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+        border: `2px solid ${selected ? 'var(--rt-navy)' : 'var(--rt-border-md)'}`,
+        background: selected ? 'var(--rt-navy)' : 'transparent',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: '#fff', fontSize: '0.65rem', fontWeight: 700, transition: 'all 0.15s',
+      }}>{selected && '✓'}</div>
+    </div>
+  )
+}
+
 export function FinishModal({ book, user, onClose, onSaved }) {
   const { friends, sendRecommendation, feed } = useSocialContext()
 
@@ -534,43 +571,6 @@ const [saving, setSaving]             = useState(false)
     setSaving(false)
   }
 
-  function FriendItem({ friend, dateRead }) {
-    const selected = selectedIds.includes(friend.userId)
-    const colour   = avatarColour(friend.userId)
-    return (
-      <div
-        onClick={() => toggleFriend(friend.userId)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: '0.75rem',
-          padding: '0.65rem 0.85rem',
-          border: `1.5px solid ${selected ? 'var(--rt-navy)' : 'var(--rt-border-md)'}`,
-          borderRadius: 'var(--rt-r3)', cursor: 'pointer', marginBottom: '0.4rem',
-          background: selected ? 'rgba(26,39,68,0.03)' : 'var(--rt-white)',
-          transition: 'border-color 0.15s',
-        }}
-      >
-        <div style={{
-          width: 34, height: 34, borderRadius: '50%', background: colour,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: '0.85rem', fontWeight: 700, color: '#fff', flexShrink: 0,
-        }}>{avatarInitial(friend.displayName)}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--rt-navy)' }}>{friend.displayName}</div>
-          <div style={{ fontSize: '0.7rem', color: 'var(--rt-t3)' }}>
-            {dateRead ? `✓ Finished ${fmtDate(dateRead)}` : friend.username ? `@${friend.username}` : ''}
-          </div>
-        </div>
-        <div style={{
-          width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-          border: `2px solid ${selected ? 'var(--rt-navy)' : 'var(--rt-border-md)'}`,
-          background: selected ? 'var(--rt-navy)' : 'transparent',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          color: '#fff', fontSize: '0.65rem', fontWeight: 700, transition: 'all 0.15s',
-        }}>{selected && '✓'}</div>
-      </div>
-    )
-  }
-
   return (
     <ModalShell onClose={onClose} maxWidth={520}>
       <SheetHeader book={book} onClose={onClose}
@@ -604,7 +604,7 @@ const [saving, setSaving]             = useState(false)
                   Also read this
                 </div>
                 {friendsWhoRead.filter(matchesSearch).map(f =>
-                  <FriendItem key={f.userId} friend={f} dateRead={f.dateRead} />
+                  <FriendItem key={f.userId} friend={f} dateRead={f.dateRead} selected={selectedIds.includes(f.userId)} onToggle={toggleFriend} />
                 )}
                 {friendsNotRead.filter(matchesSearch).length > 0 && (
                   <div style={{ height: 1, background: 'var(--rt-border)', margin: '0.85rem 0' }} />
@@ -621,7 +621,7 @@ const [saving, setSaving]             = useState(false)
                   </div>
                 )}
                 {friendsNotRead.filter(matchesSearch).map(f =>
-                  <FriendItem key={f.userId} friend={f} dateRead={null} />
+                  <FriendItem key={f.userId} friend={f} dateRead={null} selected={selectedIds.includes(f.userId)} onToggle={toggleFriend} />
                 )}
               </>
             )}

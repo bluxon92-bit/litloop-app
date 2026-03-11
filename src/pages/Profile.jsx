@@ -67,9 +67,10 @@ export default function Profile({ onNavigate }) {
     <div style={{ maxWidth: 720, margin: '0 auto' }}>
 
       {/* ── Navy hero header ── */}
-      <div style={{
+      <div className="rt-page" style={{
         background: 'linear-gradient(160deg, var(--rt-navy) 0%, #243A5E 100%)',
-        padding: '1.5rem 1.25rem 1.4rem',
+        paddingTop: '1.5rem',
+        paddingBottom: '1.4rem',
         position: 'relative',
         marginBottom: '1.25rem',
         borderRadius: '0 0 20px 20px',
@@ -105,7 +106,7 @@ export default function Profile({ onNavigate }) {
         </div>
       </div>
 
-      <div style={{ padding: '0 1.25rem 2rem' }}>
+      <div className="rt-page" style={{ paddingTop: 0, paddingBottom: '2rem' }}>
 
         {/* ── Currently reading (most recently started) ── */}
         {reading.length > 0 && (() => {

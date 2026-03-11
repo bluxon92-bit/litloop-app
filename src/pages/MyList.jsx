@@ -63,7 +63,7 @@ export default function MyList({ onNavigate }) {
   const historyVisible = showAll ? history : history.slice(0, 20)
 
   return (
-    <div style={{ padding: '1.5rem', maxWidth: 720, margin: '0 auto' }}>
+    <div className="rt-page" style={{ maxWidth: 720, margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
         <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: 0 }}>My List</h2>
         <button className="rt-add-fab" onClick={() => setAddModal(true)} title="Add book">+</button>

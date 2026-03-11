@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuthContext } from '../../context/AuthContext'
 import { useChatContext } from '../../context/ChatContext'
 import { useSocialContext } from '../../context/SocialContext'
+import { useBooksContext } from '../../context/BooksContext'
 import Home from '../../pages/Home'
 import MyList from '../../pages/MyList'
 import Stats from '../../pages/Stats'
@@ -9,6 +10,7 @@ import Discover from '../../pages/Discover'
 import Chat, { ChatThreadModal } from '../../pages/Chat'
 import Profile from '../../pages/Profile'
 import AccountSettings from '../../pages/AccountSettings'
+import AddBookModal from '../books/AddBookModal'
 import { avatarColour, avatarInitial, timeAgo } from '../../lib/utils'
 
 // ── SVG icons ─────────────────────────────────────────────────
@@ -63,9 +65,11 @@ export default function AppShell() {
           sendMessage, deleteMessage, loadEarlier, startOrOpenChat,
           loadParticipants, updateChatName, addParticipants } = useChatContext()
   const { pending, feed, recs, friends } = useSocialContext()
+  const { books, addBook } = useBooksContext()
   const [activeTab, setActiveTab]         = useState('home')
   const [notifOpen, setNotifOpen]         = useState(false)
   const [activeChatModal, setActiveChatModal] = useState(null)
+  const [addModal, setAddModal]           = useState(false)
   const bellRef = useRef(null)
 
   function onNavigate(tab) { setActiveTab(tab) }
@@ -332,6 +336,24 @@ export default function AppShell() {
           updateChatName={updateChatName}
           addParticipants={addParticipants}
           findExistingChat={findExistingChat}
+        />
+      )}
+
+      {/* ── Global Add Book FAB ── */}
+      <button
+        className="rt-global-fab"
+        onClick={() => setAddModal(true)}
+        title="Add book"
+        aria-label="Add book"
+      >+</button>
+
+      {addModal && (
+        <AddBookModal
+          defaultStatus="tbr"
+          books={books}
+          onAdd={async d => { await addBook(d); setAddModal(false) }}
+          onClose={() => setAddModal(false)}
+          user={user}
         />
       )}
     </div>

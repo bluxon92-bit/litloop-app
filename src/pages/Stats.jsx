@@ -48,7 +48,7 @@ export default function Stats() {
   }
 
   return (
-    <div style={{ padding: '1.5rem', maxWidth: 720, margin: '0 auto' }}>
+    <div className="rt-page" style={{ maxWidth: 720, margin: '0 auto' }}>
       <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 1.5rem' }}>Stats</h2>
 
       {/* Reading goal card */}
