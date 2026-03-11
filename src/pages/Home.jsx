@@ -15,8 +15,11 @@ export default function Home({ onNavigate, onOpenChatModal }) {
   const { friends, feed, recs, loaded: socialLoaded, myDisplayName } = useSocialContext()
   const { chats, startOrOpenChat } = useChatContext()
 
-  const [goal, setGoal]                   = useState(loadGoal)
-  const [detailBook, setDetailBook]       = useState(null)
+  const [goal, setGoal]                     = useState(loadGoal)
+  const [detailBook, setDetailBook]         = useState(null)
+  const [detailLocation, setDetailLocation] = useState(null)
+  const [finishBook, setFinishBook]         = useState(null)
+  const [addModal, setAddModal]             = useState(false)
 
   const year     = new Date().getFullYear()
   const read     = books.filter(b => b.status === 'read')
