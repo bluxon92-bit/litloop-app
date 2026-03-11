@@ -72,6 +72,38 @@
   .rt-main-desktop    { display: none !important; }
 }
 
+/* ── MOBILE PAGE PADDING ────────────────────────────────────── */
+.rt-page {
+  padding: 1.5rem;
+}
+@media (max-width: 767px) {
+  .rt-page {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+}
+
+/* ── GLOBAL FAB ─────────────────────────────────────────────── */
+.rt-global-fab {
+  position: fixed;
+  bottom: 5rem;
+  right: 1.25rem;
+  width: 52px; height: 52px; border-radius: 50%;
+  background: var(--rt-amber); color: #fff; border: none;
+  font-size: 1.8rem; line-height: 1; font-weight: 300;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 16px rgba(200,137,26,0.45);
+  z-index: 100;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.rt-global-fab:hover {
+  transform: scale(1.08);
+  box-shadow: 0 6px 20px rgba(200,137,26,0.55);
+}
+@media (min-width: 768px) {
+  .rt-global-fab { bottom: 2rem; right: 2rem; }
+}
+
 /* ── APP SHELL ─────────────────────────────────────────────── */
 .rt-app {
   background: var(--rt-cream);
@@ -154,30 +186,6 @@
   font-size: 1.4rem; line-height: 1; font-weight: 300;
   cursor: pointer; display: flex; align-items: center; justify-content: center;
   box-shadow: 0 2px 8px rgba(200,137,26,0.35); flex-shrink: 0;
-}
-
-/* Global fixed FAB — bottom right, above tab bar on mobile */
-.rt-global-fab {
-  position: fixed;
-  bottom: 5rem;   /* above mobile tab bar */
-  right: 1.25rem;
-  width: 52px; height: 52px; border-radius: 50%;
-  background: var(--rt-amber); color: #fff; border: none;
-  font-size: 1.8rem; line-height: 1; font-weight: 300;
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 4px 16px rgba(200,137,26,0.45);
-  z-index: 100;
-  transition: transform 0.15s, box-shadow 0.15s;
-}
-.rt-global-fab:hover {
-  transform: scale(1.08);
-  box-shadow: 0 6px 20px rgba(200,137,26,0.55);
-}
-@media (min-width: 768px) {
-  .rt-global-fab {
-    bottom: 2rem;  /* no tab bar on desktop */
-    right: 2rem;
-  }
 }
 .rt-show-more-btn {
   background: none; border: 1px solid var(--rt-border-md);

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { useBooksContext } from '../context/BooksContext'
 import { useSocialContext } from '../context/SocialContext'
 import { useChatContext } from '../context/ChatContext'
@@ -10,6 +10,105 @@ import BookSheet, { FinishModal } from '../components/books/BookSheet'
 
 const TABS = ['to-read', 'history', 'dnf']
 const TAB_LABELS = { 'to-read': 'To Read', history: 'History', dnf: 'DNF' }
+
+// ── Drag-to-reorder TBR list ─────────────────────────────────────
+// Uses pointer events for reliable cross-browser reorder (HTML5 drag
+// API loses state in React closures; pointer events read refs directly)
+function TBRList({ tbr, updateBook, deleteBook, openDetail }) {
+  const [overIdx, setOverIdx]   = useState(null)
+  const dragIdxRef              = useRef(null)
+  const itemsRef                = useRef([])
+
+  function handlePointerDown(e, i) {
+    // Only respond to the drag handle
+    if (!e.currentTarget.dataset.handle) return
+    e.preventDefault()
+    dragIdxRef.current = i
+    document.addEventListener('pointermove', onMove, { passive: false })
+    document.addEventListener('pointerup', onUp, { once: true })
+  }
+
+  const onMove = useCallback((e) => {
+    e.preventDefault()
+    const y = e.clientY
+    let target = null
+    itemsRef.current.forEach((el, idx) => {
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      if (y >= rect.top && y <= rect.bottom) target = idx
+    })
+    if (target !== null) setOverIdx(target)
+  }, [])
+
+  const onUp = useCallback(() => {
+    document.removeEventListener('pointermove', onMove)
+    const from = dragIdxRef.current
+    const to   = overIdx ?? dragIdxRef.current
+    dragIdxRef.current = null
+    setOverIdx(null)
+    if (from !== null && to !== null && from !== to) {
+      const reordered = [...tbr]
+      const [moved] = reordered.splice(from, 1)
+      reordered.splice(to, 0, moved)
+      reordered.forEach((b, pos) => updateBook(b.id, { tbrPosition: pos }))
+    }
+  }, [overIdx, tbr, updateBook, onMove])
+
+  if (tbr.length === 0) {
+    return (
+      <div className="rt-empty-state">
+        <div className="rt-empty-icon">📚</div>
+        <p>Your reading list is empty — tap + to add a book.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      {tbr.map((book, i) => (
+        <div
+          key={book.id}
+          ref={el => itemsRef.current[i] = el}
+          className="rt-tbr-item"
+          style={{
+            outline: overIdx === i && dragIdxRef.current !== i ? '2px solid var(--rt-amber)' : 'none',
+            transition: 'outline 0.1s',
+            opacity: overIdx !== null && dragIdxRef.current === i ? 0.4 : 1,
+          }}
+          onClick={() => openDetail(book, 'mylist-tbr')}
+        >
+          <div
+            className="rt-tbr-drag-handle"
+            data-handle="true"
+            style={{ touchAction: 'none', cursor: 'grab' }}
+            onPointerDown={e => {
+              e.stopPropagation()
+              dragIdxRef.current = i
+              document.addEventListener('pointermove', onMove, { passive: false })
+              document.addEventListener('pointerup', onUp, { once: true })
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <span/><span/><span/>
+          </div>
+          <span className="rt-tbr-num">{i + 1}</span>
+          <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="S" />
+          <div className="rt-tbr-item-body">
+            <div className="rt-book-title">{book.title}</div>
+            {book.author && <div className="rt-book-author">{book.author}</div>}
+          </div>
+          <div className="rt-tbr-item-actions" onClick={e => e.stopPropagation()}>
+            <button
+              className="rt-start-reading-btn"
+              onClick={() => updateBook(book.id, { status: 'reading', dateStarted: new Date().toISOString().split('T')[0] })}
+            >Start</button>
+            <button className="rt-delete rt-delete--quiet" onClick={() => deleteBook(book.id)}>×</button>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 export default function MyList({ onNavigate, onOpenChatModal }) {
   const { user }                                   = useAuthContext()
@@ -23,10 +122,6 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
   const [editBook, setEditBook]               = useState(null)
   const [sortHistory, setSortHistory]         = useState('date-desc')
   const [showAll, setShowAll]                 = useState(false)
-  const [overIdx, setOverIdx]                 = useState(null)
-
-  // Use a ref for dragIdx to avoid stale closure in drop handler
-  const dragIdxRef = useRef(null)
 
   const tbr = books
     .filter(b => b.status === 'tbr')
@@ -55,42 +150,6 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
 
   function openDetail(book, location) { setDetailBook(book); setDetailLocation(location) }
 
-  // ── TBR drag-to-reorder ───────────────────────────────────────
-  function handleDragStart(e, i) {
-    dragIdxRef.current = i
-    e.dataTransfer.effectAllowed = 'move'
-    // Small delay so ghost image renders before we change opacity
-    setTimeout(() => { if (e.target) e.target.style.opacity = '0.4' }, 0)
-  }
-
-  function handleDragOver(e, i) {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    setOverIdx(i)
-  }
-
-  function handleDrop(e, i) {
-    e.preventDefault()
-    const from = dragIdxRef.current
-    if (from === null || from === i) {
-      dragIdxRef.current = null
-      setOverIdx(null)
-      return
-    }
-    const reordered = [...tbr]
-    const [moved] = reordered.splice(from, 1)
-    reordered.splice(i, 0, moved)
-    reordered.forEach((b, pos) => updateBook(b.id, { tbrPosition: pos }))
-    dragIdxRef.current = null
-    setOverIdx(null)
-  }
-
-  function handleDragEnd(e) {
-    if (e.target) e.target.style.opacity = '1'
-    dragIdxRef.current = null
-    setOverIdx(null)
-  }
-
   const historyVisible = showAll ? history : history.slice(0, 20)
 
   function tabPill(t) {
@@ -106,12 +165,13 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
   return (
     <div className="rt-page" style={{ maxWidth: 720, margin: '0 auto' }}>
 
-      {/* ── Tabs as page header — no title, no FAB ── */}
-      <div style={{
-        display: 'flex',
-        borderBottom: '1px solid var(--rt-border)',
-        marginBottom: '1.25rem',
-      }}>
+      {/* ── Page title ── */}
+      <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 1rem' }}>
+        My List
+      </h2>
+
+      {/* ── Tabs ── */}
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--rt-border)', marginBottom: '1.25rem' }}>
         {TABS.map(t => (
           <button
             key={t}
@@ -137,7 +197,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
         ))}
       </div>
 
-      {/* ── Currently reading strip (always visible above tabs) ── */}
+      {/* ── Currently reading strip (always visible) ── */}
       {reading.length > 0 && (
         <div style={{ marginBottom: '1.25rem' }}>
           <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-teal)', marginBottom: '0.5rem' }}>Currently reading</div>
@@ -162,48 +222,12 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
 
       {/* ── TO READ TAB ── */}
       {tab === 'to-read' && (
-        <div>
-          {tbr.length === 0 ? (
-            <div className="rt-empty-state">
-              <div className="rt-empty-icon">📚</div>
-              <p>Your reading list is empty — tap + to add a book.</p>
-            </div>
-          ) : (
-            tbr.map((book, i) => (
-              <div
-                key={book.id}
-                className="rt-tbr-item"
-                draggable
-                onDragStart={e => handleDragStart(e, i)}
-                onDragOver={e => handleDragOver(e, i)}
-                onDrop={e => handleDrop(e, i)}
-                onDragEnd={handleDragEnd}
-                style={{
-                  outline: overIdx === i && dragIdxRef.current !== i ? '2px solid var(--rt-amber)' : 'none',
-                  transition: 'outline 0.1s',
-                }}
-                onClick={() => openDetail(book, 'mylist-tbr')}
-              >
-                <div className="rt-tbr-drag-handle" onClick={e => e.stopPropagation()}>
-                  <span/><span/><span/>
-                </div>
-                <span className="rt-tbr-num">{i + 1}</span>
-                <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="S" />
-                <div className="rt-tbr-item-body">
-                  <div className="rt-book-title">{book.title}</div>
-                  {book.author && <div className="rt-book-author">{book.author}</div>}
-                </div>
-                <div className="rt-tbr-item-actions" onClick={e => e.stopPropagation()}>
-                  <button
-                    className="rt-start-reading-btn"
-                    onClick={() => updateBook(book.id, { status: 'reading', dateStarted: new Date().toISOString().split('T')[0] })}
-                  >Start</button>
-                  <button className="rt-delete rt-delete--quiet" onClick={() => deleteBook(book.id)}>×</button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+        <TBRList
+          tbr={tbr}
+          updateBook={updateBook}
+          deleteBook={deleteBook}
+          openDetail={openDetail}
+        />
       )}
 
       {/* ── HISTORY TAB ── */}
@@ -218,7 +242,6 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
               <option value="title">By title</option>
             </select>
           </div>
-
           {history.length === 0 ? (
             <div className="rt-empty-state">
               <div className="rt-empty-icon">✓</div>
@@ -229,12 +252,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
               {historyVisible.map(book => {
                 const stars = book.rating ? '★'.repeat(book.rating) + '☆'.repeat(5 - book.rating) : ''
                 return (
-                  <div
-                    key={book.id}
-                    className="rt-hist-card"
-                    style={{ cursor: 'pointer', position: 'relative' }}
-                    onClick={() => openDetail(book, 'mylist-history')}
-                  >
+                  <div key={book.id} className="rt-hist-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => openDetail(book, 'mylist-history')}>
                     <div className="rt-hist-card-inner">
                       <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="S" />
                       <div className="rt-hist-body">
@@ -243,15 +261,9 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
                         <div className="rt-hist-meta">
                           {stars && <span className="rt-book-stars">{stars}</span>}
                           {book.dateRead && <span className="rt-book-date">{fmtDate(book.dateRead)}</span>}
-                          {book.genre && (
-                            <span style={{ fontSize: '0.68rem', background: 'var(--rt-surface)', border: '1px solid var(--rt-border)', borderRadius: 99, padding: '0.1em 0.5em', color: 'var(--rt-t2)' }}>
-                              {book.genre}
-                            </span>
-                          )}
+                          {book.genre && <span style={{ fontSize: '0.68rem', background: 'var(--rt-surface)', border: '1px solid var(--rt-border)', borderRadius: 99, padding: '0.1em 0.5em', color: 'var(--rt-t2)' }}>{book.genre}</span>}
                         </div>
-                        {book.notes && (
-                          <div className="rt-hist-notes">{book.notes.slice(0, 120)}{book.notes.length > 120 ? '…' : ''}</div>
-                        )}
+                        {book.notes && <div className="rt-hist-notes">{book.notes.slice(0, 120)}{book.notes.length > 120 ? '…' : ''}</div>}
                       </div>
                     </div>
                     <button className="rt-hist-delete" onClick={e => { e.stopPropagation(); deleteBook(book.id) }}>×</button>
@@ -278,12 +290,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
             </div>
           ) : (
             dnf.map(book => (
-              <div
-                key={book.id}
-                className="rt-hist-card rt-hist-card--dnf"
-                style={{ cursor: 'pointer', position: 'relative' }}
-                onClick={() => openDetail(book, 'mylist-dnf')}
-              >
+              <div key={book.id} className="rt-hist-card rt-hist-card--dnf" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => openDetail(book, 'mylist-dnf')}>
                 <div className="rt-hist-card-inner">
                   <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="S" />
                   <div className="rt-hist-body">
@@ -292,9 +299,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
                       <span className="rt-dnf-label">DNF</span>
                     </div>
                     {book.author && <div className="rt-book-author">{book.author}</div>}
-                    {book.notes && (
-                      <div className="rt-hist-notes">{book.notes.slice(0, 120)}{book.notes.length > 120 ? '…' : ''}</div>
-                    )}
+                    {book.notes && <div className="rt-hist-notes">{book.notes.slice(0, 120)}{book.notes.length > 120 ? '…' : ''}</div>}
                   </div>
                 </div>
                 <button className="rt-hist-delete" onClick={e => { e.stopPropagation(); deleteBook(book.id) }}>×</button>

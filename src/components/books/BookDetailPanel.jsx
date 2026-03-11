@@ -1,5 +1,8 @@
 import { useState, useEffect } from 'react'
 import { ModalShell } from './BookSheet'
+import { useSocialContext } from '../../context/SocialContext'
+import { useChatContext } from '../../context/ChatContext'
+import { avatarColour, avatarInitial } from '../../lib/utils'
 
 const CACHE_KEY = 'litloop_book_desc_v1'
 
@@ -74,6 +77,127 @@ function Stars({ value }) {
   return <span style={{ fontSize: '1.3rem', color: 'var(--rt-amber)', letterSpacing: '1px', lineHeight: 1 }}>{'★'.repeat(value)}{'☆'.repeat(5 - value)}</span>
 }
 
+// ── Inline Recommend modal ────────────────────────────────────
+function RecommendModal({ book, friends, user, sendRecommendation, onClose }) {
+  const [selected, setSelected] = useState(new Set())
+  const [note, setNote]         = useState('')
+  const [sending, setSending]   = useState(false)
+  const [sent, setSent]         = useState(false)
+
+  function toggle(id) {
+    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+
+  async function handleSend() {
+    if (!selected.size) return
+    setSending(true)
+    await sendRecommendation(book, [...selected], note, user)
+    setSending(false); setSent(true)
+    setTimeout(onClose, 1200)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 400, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
+      <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.25rem', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>Recommend to a friend</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--rt-t3)', lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)', marginBottom: '1rem' }}>{book.title}</div>
+
+        {sent ? (
+          <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--rt-teal)', fontWeight: 700, fontSize: '1rem' }}>✓ Sent!</div>
+        ) : (
+          <>
+            <div style={{ overflowY: 'auto', flex: 1, marginBottom: '0.75rem' }}>
+              {!friends?.length ? (
+                <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>Add friends first to recommend books.</div>
+              ) : friends.map(f => {
+                const sel = selected.has(f.userId)
+                return (
+                  <div key={f.userId} onClick={() => toggle(f.userId)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0', borderBottom: '1px solid var(--rt-border)', cursor: 'pointer' }}>
+                    <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarColour(f.userId), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                      {avatarInitial(f.displayName || f.username || '?')}
+                    </div>
+                    <span style={{ flex: 1, fontSize: '0.9rem', fontWeight: 600, color: 'var(--rt-navy)' }}>{f.displayName || f.username}</span>
+                    <div style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${sel ? 'var(--rt-amber)' : 'var(--rt-border-md)'}`, background: sel ? 'var(--rt-amber)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {sel && <span style={{ color: '#fff', fontSize: '0.72rem', fontWeight: 700 }}>✓</span>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <textarea value={note} onChange={e => setNote(e.target.value)}
+              placeholder="Add a note (optional)…"
+              style={{ width: '100%', borderRadius: 'var(--rt-r3)', border: '1px solid var(--rt-border-md)', padding: '0.6rem 0.75rem', fontSize: '0.85rem', fontFamily: 'inherit', resize: 'none', marginBottom: '0.75rem', boxSizing: 'border-box', minHeight: 68 }} />
+            <button onClick={handleSend} disabled={!selected.size || sending}
+              style={{ width: '100%', background: selected.size ? 'var(--rt-navy)' : 'var(--rt-surface)', color: selected.size ? '#fff' : 'var(--rt-t3)', border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.85rem', fontWeight: 700, fontSize: '0.9rem', cursor: selected.size ? 'pointer' : 'default' }}>
+              {sending ? 'Sending…' : `Send to ${selected.size || ''} friend${selected.size !== 1 ? 's' : ''}`}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Inline Chat friend picker ─────────────────────────────────
+function ChatFriendPicker({ book, friends, startOrOpenChat, onOpenChatModal, onClose }) {
+  const [selected, setSelected] = useState(new Set())
+  const [starting, setStarting] = useState(false)
+
+  function toggle(id) {
+    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+
+  async function handleStart() {
+    if (!selected.size || !book.olKey) return
+    setStarting(true)
+    const chatId = await startOrOpenChat(book.olKey, book.title, book.author, book.coverId, [...selected])
+    setStarting(false)
+    onClose()
+    setTimeout(() => onOpenChatModal?.(chatId, book), 300)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 400, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
+      <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.25rem', maxHeight: '75vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>Start a chat</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--rt-t3)', lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)', marginBottom: '1rem' }}>{book.title}</div>
+
+        <div style={{ overflowY: 'auto', flex: 1, marginBottom: '0.75rem' }}>
+          {!friends?.length ? (
+            <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>Add friends to start a chat.</div>
+          ) : friends.map(f => {
+            const sel = selected.has(f.userId)
+            return (
+              <div key={f.userId} onClick={() => toggle(f.userId)}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0', borderBottom: '1px solid var(--rt-border)', cursor: 'pointer' }}>
+                <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarColour(f.userId), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                  {avatarInitial(f.displayName || f.username || '?')}
+                </div>
+                <span style={{ flex: 1, fontSize: '0.9rem', fontWeight: 600, color: 'var(--rt-navy)' }}>{f.displayName || f.username}</span>
+                <div style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${sel ? 'var(--rt-amber)' : 'var(--rt-border-md)'}`, background: sel ? 'var(--rt-amber)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {sel && <span style={{ color: '#fff', fontSize: '0.72rem', fontWeight: 700 }}>✓</span>}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <button onClick={handleStart} disabled={!selected.size || starting || !book.olKey}
+          style={{ width: '100%', background: selected.size && book.olKey ? 'var(--rt-navy)' : 'var(--rt-surface)', color: selected.size && book.olKey ? '#fff' : 'var(--rt-t3)', border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.85rem', fontWeight: 700, fontSize: '0.9rem', cursor: selected.size && book.olKey ? 'pointer' : 'default' }}>
+          {starting ? 'Starting…' : !book.olKey ? 'Book has no Open Library key' : `Start chat with ${selected.size || ''} friend${selected.size !== 1 ? 's' : ''}`}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function BookDetailPanel({
   book,
   location,
@@ -90,9 +214,14 @@ export default function BookDetailPanel({
   onOpenChatModal,
   friendName,
 }) {
-  const [olData, setOlData]     = useState(null)
-  const [loading, setLoading]   = useState(true)
-  const [expanded, setExpanded] = useState(false)
+  const { friends, sendRecommendation } = useSocialContext()
+  const { startOrOpenChat } = useChatContext()
+
+  const [olData, setOlData]               = useState(null)
+  const [loading, setLoading]             = useState(true)
+  const [expanded, setExpanded]           = useState(false)
+  const [showRecommend, setShowRecommend] = useState(false)
+  const [showChatPicker, setShowChatPicker] = useState(false)
 
   useEffect(() => {
     setLoading(true); setOlData(null); setExpanded(false)
@@ -253,7 +382,7 @@ export default function BookDetailPanel({
           <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
             onClick={() => { onClose(); onStartReading?.() }}>📖 Start reading</button>
           {user && <button className="rt-bdp-btn rt-bdp-btn--amber" style={{ flex: 1 }}
-            onClick={() => { onClose(); onRecommend?.() }}>📚 Recommend</button>}
+            onClick={() => setShowRecommend(true)}>📚 Recommend</button>}
         </>}
 
         {/* Currently reading */}
@@ -261,19 +390,19 @@ export default function BookDetailPanel({
           <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
             onClick={() => { onClose(); onMarkFinished?.() }}>✓ Mark finished</button>
           {user && <button className="rt-bdp-btn rt-bdp-btn--amber" style={{ flex: 1 }}
-            onClick={() => { onClose(); onRecommend?.() }}>📚 Recommend</button>}
+            onClick={() => setShowRecommend(true)}>📚 Recommend</button>}
         </>}
 
         {/* History / DNF */}
         {isHistory && <>
           {user && <button className="rt-bdp-btn rt-bdp-btn--amber" style={{ flex: 1 }}
-            onClick={() => { onClose(); onRecommend?.() }}>📚 Recommend</button>}
+            onClick={() => setShowRecommend(true)}>📚 Recommend</button>}
           {user && book.olKey && (
             hasChat
               ? <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
-                  onClick={() => { onClose(); onOpenChatModal ? onOpenChatModal(existingChatId) : onViewChat?.(existingChatId) }}>💬 View chat</button>
+                  onClick={() => { onClose(); onOpenChatModal?.(existingChatId) }}>💬 View chat</button>
               : <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
-                  onClick={() => { onClose(); onOpenChatModal ? onOpenChatModal(null, book) : onStartChat?.() }}>💬 Start chat</button>
+                  onClick={() => setShowChatPicker(true)}>💬 Start chat</button>
           )}
         </>}
 
@@ -284,9 +413,9 @@ export default function BookDetailPanel({
           {user && book.olKey && (
             hasChat
               ? <button className="rt-bdp-btn rt-bdp-btn--amber" style={{ flex: 1 }}
-                  onClick={() => { onClose(); onOpenChatModal ? onOpenChatModal(existingChatId) : onViewChat?.(existingChatId) }}>💬 View chat</button>
+                  onClick={() => { onClose(); onOpenChatModal?.(existingChatId) }}>💬 View chat</button>
               : <button className="rt-bdp-btn rt-bdp-btn--amber" style={{ flex: 1 }}
-                  onClick={() => { onClose(); onOpenChatModal ? onOpenChatModal(null, book) : onStartChat?.() }}>💬 Start chat</button>
+                  onClick={() => setShowChatPicker(true)}>💬 Start chat</button>
           )}
         </>}
 
@@ -295,14 +424,34 @@ export default function BookDetailPanel({
           {user && book.olKey && (
             hasChat
               ? <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
-                  onClick={() => { onClose(); onOpenChatModal ? onOpenChatModal(existingChatId) : onViewChat?.() }}>💬 View chat</button>
+                  onClick={() => { onClose(); onOpenChatModal?.(existingChatId) }}>💬 View chat</button>
               : <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
-                  onClick={() => { onClose(); onOpenChatModal ? onOpenChatModal(null, book) : onStartChat?.() }}>💬 Start chat</button>
+                  onClick={() => setShowChatPicker(true)}>💬 Start chat</button>
           )}
           <button className="rt-bdp-btn rt-bdp-btn--ghost" style={{ flex: 1 }}
             onClick={() => { onClose(); onAddToTBR?.() }}>+ Add to list</button>
         </>}
       </div>
+
+      {/* ── Inline modals ── */}
+      {showRecommend && (
+        <RecommendModal
+          book={book}
+          friends={friends}
+          user={user}
+          sendRecommendation={sendRecommendation}
+          onClose={() => setShowRecommend(false)}
+        />
+      )}
+      {showChatPicker && (
+        <ChatFriendPicker
+          book={book}
+          friends={friends}
+          startOrOpenChat={startOrOpenChat}
+          onOpenChatModal={onOpenChatModal}
+          onClose={() => setShowChatPicker(false)}
+        />
+      )}
     </ModalShell>
   )
 }

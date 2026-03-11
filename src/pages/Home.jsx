@@ -17,9 +17,6 @@ export default function Home({ onNavigate, onOpenChatModal }) {
 
   const [goal, setGoal]                   = useState(loadGoal)
   const [detailBook, setDetailBook]       = useState(null)
-  const [detailLocation, setDetailLocation] = useState(null)
-  const [finishBook, setFinishBook]       = useState(null)
-  const [addModal, setAddModal]           = useState(false)
 
   const year     = new Date().getFullYear()
   const read     = books.filter(b => b.status === 'read')
@@ -90,6 +87,38 @@ export default function Home({ onNavigate, onOpenChatModal }) {
         </h2>
         <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)', fontWeight: 500, letterSpacing: '0.04em' }}>reading tracker</div>
       </div>
+
+      {/* ── Reading goal card ── */}
+      <div className="rt-stat-card rt-stat-goal" style={{ marginBottom: '1rem' }}>
+        <div className="rt-stat-label">Reading goal {year}</div>
+        <div className="rt-goal-display">
+          <span className="rt-goal-current">{thisYear.length}</span>
+          <span className="rt-goal-sep">/</span>
+          <input type="number" className="rt-goal-input" value={goal} min="1" max="365"
+            onChange={e => { const v = parseInt(e.target.value) || 12; setGoal(v); saveGoal(v) }} />
+          <span className="rt-goal-unit">books</span>
+        </div>
+        <div className="rt-goal-bar-wrap">
+          <div className="rt-goal-bar"><div className="rt-goal-fill" style={{ width: pct + '%' }} /></div>
+          <span className="rt-goal-pct">{pct}%</span>
+        </div>
+      </div>
+
+      {/* ── Notification strips ── */}
+      {user && (
+        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem' }}>
+          <button onClick={() => onNavigate('chat')} className="rt-notif-strip-btn">
+            <div className="rt-notif-strip-label">Messages</div>
+            <div className="rt-notif-strip-val" style={{ color: 'var(--rt-t2)' }}>Go to Chat</div>
+          </button>
+          <button onClick={() => onNavigate('discover')} className="rt-notif-strip-btn">
+            <div className="rt-notif-strip-label">Recommendations</div>
+            <div className="rt-notif-strip-val" style={{ color: pendingRecs.length > 0 ? 'var(--rt-amber)' : 'var(--rt-t2)' }}>
+              {pendingRecs.length > 0 ? `${pendingRecs.length} new` : 'Discover books'}
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* ── Stats: favourites 1/3 + genre donut 2/3 ── */}
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
