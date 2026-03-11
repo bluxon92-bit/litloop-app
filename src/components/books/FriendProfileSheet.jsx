@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { sb } from '../../lib/supabase'
 import { avatarColour, avatarInitial } from '../../lib/utils'
+import BookDetailPanel from './BookDetailPanel'
 
 export default function FriendProfileSheet({ friend, chats, user, books: myBooks, onClose, onAddToTBR, onStartChat, onViewChat }) {
   const [entries, setEntries]       = useState(null)
@@ -78,46 +79,33 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
     )
   }
 
-  /* ── Drilled-in book view ── */
+  /* ── Drilled-in book view — use standard BookDetailPanel ── */
   if (detailBook) {
     const chat = existingChat(detailBook.olKey)
-    const listed = onMyList(detailBook.title, detailBook.olKey)
     return (
-      <>
-        <div onClick={() => setDetailBook(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(10,15,30,0.6)', zIndex: 508 }} />
-        <div className="rt-fp-sheet-inner" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 509, background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', boxShadow: '0 -8px 40px rgba(10,15,30,0.18)', maxHeight: '70vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxWidth: 480, margin: '0 auto' }}>
-          <div style={{ width: 36, height: 4, borderRadius: 99, background: 'var(--rt-cream-md)', margin: '10px auto 0', flexShrink: 0 }} />
-          <div style={{ padding: '0.85rem 1.1rem', borderBottom: '1px solid var(--rt-border)', display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
-            <button onClick={() => setDetailBook(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rt-navy)', fontWeight: 600, fontSize: '0.85rem', padding: 0, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-              ← {friend.displayName}
-            </button>
-          </div>
-          <div style={{ overflowY: 'auto', flex: 1, padding: '1.1rem' }}>
-            <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'flex-start', marginBottom: '1.25rem' }}>
-              {detailBook.coverId
-                ? <img src={`https://covers.openlibrary.org/b/id/${detailBook.coverId}-M.jpg`} style={{ width: 72, height: 104, borderRadius: 8, objectFit: 'cover', flexShrink: 0 }} alt="" />
-                : <div style={{ width: 72, height: 104, borderRadius: 8, background: 'var(--rt-surface)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.8rem' }}>📖</div>
-              }
-              <div style={{ flex: 1, minWidth: 0, paddingTop: '0.2rem' }}>
-                <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.25rem' }}>{detailBook.title}</div>
-                {detailBook.author && <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)' }}>{detailBook.author}</div>}
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-              {!listed && (
-                <button onClick={() => { onAddToTBR({ title: detailBook.title, author: detailBook.author, olKey: detailBook.olKey, coverId: detailBook.coverId }); setDetailBook(null) }}
-                  style={{ background: 'var(--rt-amber-pale)', color: 'var(--rt-amber)', border: '1.5px solid rgba(200,137,26,0.2)', borderRadius: 'var(--rt-r3)', padding: '0.55rem 1rem', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}
-                >+ Add to TBR</button>
-              )}
-              {detailBook.olKey && (
-                <button onClick={() => chat ? onViewChat(chat.id) : onStartChat(detailBook)}
-                  style={{ background: chat ? 'var(--rt-navy)' : 'var(--rt-amber)', color: '#fff', border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.55rem 1rem', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}
-                >{chat ? '💬 View chat' : '💬 Start chat'}</button>
-              )}
-            </div>
-          </div>
-        </div>
-      </>
+      <BookDetailPanel
+        book={detailBook}
+        location="friend-profile"
+        user={null}
+        existingChatId={chat?.id || null}
+        onClose={() => setDetailBook(null)}
+        onAddToTBR={() => {
+          onAddToTBR({ title: detailBook.title, author: detailBook.author, olKey: detailBook.olKey, coverId: detailBook.coverId })
+          setDetailBook(null)
+        }}
+        onStartChat={() => {
+          onStartChat(detailBook)
+          setDetailBook(null)
+        }}
+        onViewChat={() => {
+          if (chat) onViewChat(chat.id)
+          setDetailBook(null)
+        }}
+        onMarkFinished={() => setDetailBook(null)}
+        onStartReading={() => setDetailBook(null)}
+        onEdit={() => setDetailBook(null)}
+        onRecommend={() => setDetailBook(null)}
+      />
     )
   }
 

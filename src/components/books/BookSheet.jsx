@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { sb } from '../../lib/supabase'
 import { fmtDate, GENRES, avatarColour, avatarInitial } from '../../lib/utils'
 import { useSocialContext } from '../../context/SocialContext'
-import { useChatContext } from '../../context/ChatContext'
 import CoverImage from './CoverImage'
 
 // ─────────────────────────────────────────────────────────────
@@ -303,11 +302,10 @@ function AmberBtn({ onClick, disabled, children }) {
 // step 0 = Rate  |  step 1 = Write  |  step 2 = Done
 // From step 2: recommend (step 3) or chat (step 4), both return to step 2
 // ─────────────────────────────────────────────────────────────
-const FINISH_STEPS = ['RATE IT', 'WRITE', 'DONE']
+const FINISH_STEPS = ['RATE IT', 'WRITE', 'SHARE']
 
 export function FinishModal({ book, user, onClose, onSaved }) {
-  const { friends, sendRecommendation } = useSocialContext()
-  const { chats, startOrOpenChat }      = useChatContext()
+  const { friends, sendRecommendation, feed } = useSocialContext()
 
   const [step, setStep]         = useState(0)
   const [rating, setRating]     = useState(0)
@@ -319,20 +317,7 @@ export function FinishModal({ book, user, onClose, onSaved }) {
   const [privateNotes, setPrivateNotes] = useState('')
   const [committed, setCommitted] = useState(null)
 
-  // sub-step: 'none' | 'recommend' | 'chat'
-  const [subStep, setSubStep] = useState('none')
-  // recommend state
-  const [recSelected, setRecSelected] = useState([])
-  const [recNote, setRecNote]         = useState('')
-  const [recSending, setRecSending]   = useState(false)
-  const [recError, setRecError]       = useState(null)
-  // chat state
-  const [chatSelected, setChatSelected] = useState([])
-  const [chatMsg, setChatMsg]           = useState('')
-  const [chatStarting, setChatStarting] = useState(false)
 
-  function toggleRec(id)  { setRecSelected(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id]) }
-  function toggleChat(id) { setChatSelected(p => p.includes(id) ? p.filter(x=>x!==id) : [...p,id]) }
 
   async function commitBook() {
     const status = isDnf ? 'dnf' : 'read'
@@ -364,91 +349,6 @@ export function FinishModal({ book, user, onClose, onSaved }) {
     setStep(2)
   }
 
-  async function handleSendRec() {
-    if (!recSelected.length) { setRecError('Select at least one friend.'); return }
-    setRecSending(true); setRecError(null)
-    const { error } = await sendRecommendation(book, recSelected, recNote.trim() || null, user)
-    setRecSending(false)
-    if (error) { setRecError('Could not send — try again.'); return }
-    setSubStep('none')   // back to done slide after sending
-  }
-
-  async function handleStartChat() {
-    if (!chatSelected.length || !book.olKey) return
-    setChatStarting(true)
-    await startOrOpenChat(book.olKey, book.title, book.author, book.coverId, chatSelected, chatMsg.trim() || null)
-    setChatStarting(false)
-    setSubStep('none')   // back to done slide
-  }
-
-  // ── Recommend sub-step ──
-  if (subStep === 'recommend') {
-    return (
-      <ModalShell onClose={onClose} maxWidth={520}>
-        <SheetHeader book={book} onClose={onClose}
-          stepBar={<StepBar steps={FINISH_STEPS} current={3} />}
-        />
-        <div style={{ padding: '1.1rem 1rem 0', flexShrink: 0 }}>
-          <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.15rem' }}>Recommend to friends</div>
-          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.85rem' }}>{book.title}</div>
-        </div>
-        <div style={{ overflowY: 'auto', flex: 1, padding: '0 1rem' }}>
-          <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>Choose friends</div>
-          {friends.length === 0
-            ? <p style={{ fontSize: '0.83rem', color: 'var(--rt-t3)', fontStyle: 'italic' }}>Add friends first to recommend books.</p>
-            : friends.map(f => <FriendRow key={f.userId} friend={f} selected={recSelected.includes(f.userId)} onToggle={toggleRec} />)
-          }
-          <div style={{ marginTop: '0.85rem' }}>
-            <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.4rem' }}>Add a note <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></div>
-            <textarea
-              rows={3} value={recNote} onChange={e => setRecNote(e.target.value)}
-              placeholder="Why do you think they'd love this?"
-              style={{ width: '100%', boxSizing: 'border-box', border: '1.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)', padding: '0.65rem 0.8rem', fontFamily: 'var(--rt-font-body)', fontSize: '0.85rem', color: 'var(--rt-navy)', background: 'var(--rt-cream)', resize: 'none', outline: 'none' }}
-            />
-          </div>
-          {recError && <p style={{ fontSize: '0.78rem', color: '#991b1b', marginTop: '0.35rem' }}>{recError}</p>}
-        </div>
-        <SheetFooter
-          left={<GhostBtn onClick={() => setSubStep('none')}>Cancel</GhostBtn>}
-          right={<PrimaryBtn onClick={handleSendRec} disabled={recSending || !recSelected.length}>{recSending ? 'Sending…' : 'Send recommendation →'}</PrimaryBtn>}
-        />
-      </ModalShell>
-    )
-  }
-
-  // ── Chat sub-step ──
-  if (subStep === 'chat') {
-    return (
-      <ModalShell onClose={onClose} maxWidth={520}>
-        <SheetHeader book={book} onClose={onClose}
-          stepBar={<StepBar steps={FINISH_STEPS} current={3} />}
-        />
-        <div style={{ padding: '1.1rem 1rem 0', flexShrink: 0 }}>
-          <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.15rem' }}>Start a chat about</div>
-          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.85rem' }}>{book.title}</div>
-        </div>
-        <div style={{ overflowY: 'auto', flex: 1, padding: '0 1rem' }}>
-          <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>Select friends to add</div>
-          {friends.length === 0
-            ? <p style={{ fontSize: '0.83rem', color: 'var(--rt-t3)', fontStyle: 'italic' }}>Add friends first to start a chat.</p>
-            : friends.map(f => <FriendRow key={f.userId} friend={f} selected={chatSelected.includes(f.userId)} onToggle={toggleChat} />)
-          }
-          <div style={{ marginTop: '0.85rem' }}>
-            <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.4rem' }}>First message <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span></div>
-            <textarea
-              rows={2} value={chatMsg} onChange={e => setChatMsg(e.target.value)}
-              placeholder="What do you want to say about this book?"
-              style={{ width: '100%', boxSizing: 'border-box', border: '1.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)', padding: '0.65rem 0.8rem', fontFamily: 'var(--rt-font-body)', fontSize: '0.85rem', color: 'var(--rt-navy)', background: 'var(--rt-cream)', resize: 'none', outline: 'none' }}
-            />
-          </div>
-        </div>
-        <SheetFooter
-          left={<GhostBtn onClick={() => setSubStep('none')}>Cancel</GhostBtn>}
-          right={<PrimaryBtn onClick={handleStartChat} disabled={chatStarting || !chatSelected.length || !book.olKey}>{chatStarting ? 'Starting…' : '💬 Start chat →'}</PrimaryBtn>}
-        />
-      </ModalShell>
-    )
-  }
 
   // ── Step 0 — Rate it ──
   if (step === 0) {
@@ -573,90 +473,205 @@ export function FinishModal({ book, user, onClose, onSaved }) {
         </div>
         <SheetFooter
           left={<GhostBtn onClick={() => setStep(0)}>← Back</GhostBtn>}
-          right={<PrimaryBtn onClick={commitBook}>Save →</PrimaryBtn>}
+          right={<PrimaryBtn onClick={() => setStep(2)}>Next →</PrimaryBtn>}
         />
       </ModalShell>
     )
   }
 
-  // ── Step 2 — Done ──
+  // ── Step 2 — Share ──
+  // Friends who've read this book (matched by olKey in feed)
+  const friendsWhoRead = book.olKey
+    ? friends.filter(f =>
+        feed.some(ev =>
+          ev.user_id === f.userId &&
+          ev.event_type === 'finished' &&
+          ev.book_ol_key === book.olKey
+        )
+      ).map(f => {
+        const ev = feed.find(e => e.user_id === f.userId && e.book_ol_key === book.olKey)
+        return { ...f, dateRead: ev?.created_at || null }
+      })
+    : []
+  const friendsNotRead = friends.filter(f => !friendsWhoRead.find(r => r.userId === f.userId))
+
+  // unified selection state
+  const [selectedIds, setSelectedIds]   = useState([])
+  const [friendSearch, setFriendSearch] = useState('')
+  // message box — shown when any friend is selected
+  const [shareMsg, setShareMsg]         = useState('')
+  const [shareSent, setShareSent]       = useState(false)  // shows ✓ confirmation
+  const [shareSending, setShareSending] = useState(false)
+  const [shareError, setShareError]     = useState(null)
+  const [saving, setSaving]             = useState(false)
+
+  function toggleFriend(id) {
+    setSelectedIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])
+    setShareSent(false)
+    setShareError(null)
+  }
+
+  const searchLower = friendSearch.toLowerCase()
+  function matchesSearch(f) {
+    if (!searchLower) return true
+    return (f.displayName || '').toLowerCase().includes(searchLower) ||
+           (f.username    || '').toLowerCase().includes(searchLower)
+  }
+
+  async function handleSendRecs() {
+    if (!selectedIds.length) return
+    setShareSending(true); setShareError(null)
+    const { error } = await sendRecommendation(book, selectedIds, shareMsg.trim() || null, user)
+    setShareSending(false)
+    if (error) { setShareError('Could not send — try again.'); return }
+    setShareSent(true)
+    setSelectedIds([])
+    setShareMsg('')
+  }
+
+  async function handleSave() {
+    setSaving(true)
+    await commitBook()
+    setSaving(false)
+  }
+
+  function FriendItem({ friend, dateRead }) {
+    const selected = selectedIds.includes(friend.userId)
+    const colour   = avatarColour(friend.userId)
+    return (
+      <div
+        onClick={() => toggleFriend(friend.userId)}
+        style={{
+          display: 'flex', alignItems: 'center', gap: '0.75rem',
+          padding: '0.65rem 0.85rem',
+          border: `1.5px solid ${selected ? 'var(--rt-navy)' : 'var(--rt-border-md)'}`,
+          borderRadius: 'var(--rt-r3)', cursor: 'pointer', marginBottom: '0.4rem',
+          background: selected ? 'rgba(26,39,68,0.03)' : 'var(--rt-white)',
+          transition: 'border-color 0.15s',
+        }}
+      >
+        <div style={{
+          width: 34, height: 34, borderRadius: '50%', background: colour,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: '0.85rem', fontWeight: 700, color: '#fff', flexShrink: 0,
+        }}>{avatarInitial(friend.displayName)}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--rt-navy)' }}>{friend.displayName}</div>
+          <div style={{ fontSize: '0.7rem', color: 'var(--rt-t3)' }}>
+            {dateRead ? `✓ Finished ${fmtDate(dateRead)}` : friend.username ? `@${friend.username}` : ''}
+          </div>
+        </div>
+        <div style={{
+          width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+          border: `2px solid ${selected ? 'var(--rt-navy)' : 'var(--rt-border-md)'}`,
+          background: selected ? 'var(--rt-navy)' : 'transparent',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          color: '#fff', fontSize: '0.65rem', fontWeight: 700, transition: 'all 0.15s',
+        }}>{selected && '✓'}</div>
+      </div>
+    )
+  }
+
   return (
     <ModalShell onClose={onClose} maxWidth={520}>
       <SheetHeader book={book} onClose={onClose}
         stepBar={<StepBar steps={FINISH_STEPS} current={2} />}
       />
-      <div style={{ overflowY: 'auto', flex: 1, padding: '1.5rem 1rem', textAlign: 'center' }}>
-        {/* Done label */}
-        <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '1.25rem' }}>DONE</div>
+      <div style={{ overflowY: 'auto', flex: 1, padding: '1.1rem 1rem 0.5rem' }}>
+        <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.85rem' }}>SHARE</div>
 
-        {/* Cover with tick badge */}
-        <div style={{ position: 'relative', display: 'inline-block', marginBottom: '0.85rem' }}>
-          {(book.coverId || book.olKey) ? (
-            <img
-              src={book.coverId
-                ? `https://covers.openlibrary.org/b/id/${book.coverId}-M.jpg`
-                : `https://covers.openlibrary.org/b/olid/${(book.olKey||'').replace('/works/','')}-M.jpg`}
-              style={{ width: 96, height: 140, borderRadius: 8, objectFit: 'cover', boxShadow: '0 4px 20px rgba(0,0,0,0.18)' }}
-              alt=""
-            />
-          ) : (
-            <div style={{ width: 96, height: 140, borderRadius: 8, background: 'var(--rt-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.5rem' }}>📖</div>
-          )}
-          {/* Green tick */}
-          <div style={{
-            position: 'absolute', bottom: -8, right: -8,
-            width: 28, height: 28, borderRadius: '50%',
-            background: '#22c55e', border: '2px solid #fff',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: '#fff', fontSize: '0.85rem', fontWeight: 700,
-          }}>✓</div>
-        </div>
-
-        {/* Title + stars */}
-        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.35rem' }}>
-          {book.title}
-        </div>
-        {(committed?.rating || 0) > 0 && (
-          <div style={{ fontSize: '1.25rem', color: 'var(--rt-amber)', letterSpacing: '1px', marginBottom: '0.35rem' }}>
-            {'★'.repeat(committed.rating)}{'☆'.repeat(5 - committed.rating)}
-          </div>
+        {/* Search bar */}
+        {friends.length > 3 && (
+          <input
+            className="rt-input"
+            style={{ width: '100%', marginBottom: '0.85rem', boxSizing: 'border-box' }}
+            placeholder="Search friends…"
+            value={friendSearch}
+            onChange={e => setFriendSearch(e.target.value)}
+          />
         )}
-        <div style={{ fontSize: '0.82rem', color: 'var(--rt-t3)', marginBottom: '1.5rem' }}>
-          {committed?.status === 'dnf' ? 'Marked as DNF — logged to history.' : 'Logged to your reading history.'}
-        </div>
 
-        {/* Action buttons — Recommend + Start a chat */}
-        <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'center', flexWrap: 'wrap' }}>
-          <AmberBtn onClick={() => setSubStep('recommend')}>
-            📚 Recommend to a friend
-          </AmberBtn>
-          {book.olKey && (
-            <button
-              onClick={() => setSubStep('chat')}
-              style={{
-                flex: 1, background: 'var(--rt-cream)',
-                border: '1.5px solid var(--rt-border-md)',
-                borderRadius: 'var(--rt-r3)', padding: '0.75rem 1rem',
-                fontFamily: 'var(--rt-font-body)', fontSize: '0.88rem', fontWeight: 700,
-                color: 'var(--rt-t2)', cursor: 'pointer',
-              }}
-            >
-              💬 Start a chat
-            </button>
-          )}
-        </div>
+        {friends.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '1.5rem 0', color: 'var(--rt-t3)', fontSize: '0.83rem' }}>
+            <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📚</div>
+            Add friends to recommend books or start chats.
+          </div>
+        ) : (
+          <>
+            {/* Friends who've read this */}
+            {friendsWhoRead.filter(matchesSearch).length > 0 && (
+              <>
+                <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-teal)', marginBottom: '0.5rem' }}>
+                  Also read this
+                </div>
+                {friendsWhoRead.filter(matchesSearch).map(f =>
+                  <FriendItem key={f.userId} friend={f} dateRead={f.dateRead} />
+                )}
+                {friendsNotRead.filter(matchesSearch).length > 0 && (
+                  <div style={{ height: 1, background: 'var(--rt-border)', margin: '0.85rem 0' }} />
+                )}
+              </>
+            )}
 
-        {/* Close text link */}
-        <button
-          onClick={onClose}
-          style={{ display: 'block', margin: '1.1rem auto 0', background: 'none', border: 'none', fontSize: '0.82rem', color: 'var(--rt-t3)', cursor: 'pointer', textDecoration: 'underline' }}
-        >Close</button>
+            {/* Rest of friends */}
+            {friendsNotRead.filter(matchesSearch).length > 0 && (
+              <>
+                {friendsWhoRead.length > 0 && (
+                  <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>
+                    Recommend to
+                  </div>
+                )}
+                {friendsNotRead.filter(matchesSearch).map(f =>
+                  <FriendItem key={f.userId} friend={f} dateRead={null} />
+                )}
+              </>
+            )}
+
+            {/* Message box — appears when friends selected */}
+            {selectedIds.length > 0 && (
+              <div style={{ marginTop: '0.85rem' }}>
+                <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.4rem' }}>
+                  Add a message <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>(optional)</span>
+                </div>
+                <textarea
+                  rows={3}
+                  value={shareMsg}
+                  onChange={e => setShareMsg(e.target.value)}
+                  placeholder="Why do you think they'd love this?"
+                  style={{ width: '100%', boxSizing: 'border-box', border: '1.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)', padding: '0.65rem 0.8rem', fontFamily: 'var(--rt-font-body)', fontSize: '0.85rem', color: 'var(--rt-navy)', background: 'var(--rt-cream)', resize: 'none', outline: 'none' }}
+                />
+                {shareError && <p style={{ fontSize: '0.78rem', color: '#991b1b', margin: '0.25rem 0 0' }}>{shareError}</p>}
+                <button
+                  onClick={handleSendRecs}
+                  disabled={shareSending}
+                  style={{
+                    marginTop: '0.5rem', width: '100%',
+                    background: 'var(--rt-amber-lt)', border: 'none',
+                    borderRadius: 'var(--rt-r3)', padding: '0.7rem 1rem',
+                    fontFamily: 'var(--rt-font-body)', fontSize: '0.85rem', fontWeight: 700,
+                    color: '#fff', cursor: shareSending ? 'default' : 'pointer',
+                    opacity: shareSending ? 0.7 : 1,
+                  }}
+                >
+                  {shareSending ? 'Sending…' : `📚 Send recommendation${selectedIds.length > 1 ? `s (${selectedIds.length})` : ''} →`}
+                </button>
+              </div>
+            )}
+
+            {/* Sent confirmation */}
+            {shareSent && (
+              <div style={{ marginTop: '0.75rem', padding: '0.6rem 0.85rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 'var(--rt-r2)', fontSize: '0.8rem', color: '#166534' }}>
+                ✓ Recommendation sent!
+              </div>
+            )}
+          </>
+        )}
       </div>
 
-      {/* Done button at bottom */}
-      <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--rt-border)', flexShrink: 0 }}>
-        <PrimaryBtn onClick={onClose}>Done</PrimaryBtn>
-      </div>
+      <SheetFooter
+        left={<GhostBtn onClick={() => setStep(1)}>← Back</GhostBtn>}
+        right={<PrimaryBtn onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save →'}</PrimaryBtn>}
+      />
     </ModalShell>
   )
 }

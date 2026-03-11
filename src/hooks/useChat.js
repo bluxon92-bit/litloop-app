@@ -18,7 +18,7 @@ export function useChat(user) {
       // chat_participants → book_chats join (exact schema from original)
       const { data: participations, error } = await sb
         .from('chat_participants')
-        .select('chat_id, last_read_at, chat:book_chats(id, book_ol_key, book_title, book_author, cover_id, last_message_at, last_message_preview, last_message_user_id)')
+        .select('chat_id, last_read_at, chat:book_chats(id, book_ol_key, book_title, book_author, cover_id, chat_name, last_message_at, last_message_preview, last_message_user_id)')
         .eq('user_id', user.id)
         .order('joined_at', { ascending: false })
 
@@ -53,6 +53,7 @@ export function useChat(user) {
           bookAuthor:    p.chat.book_author || '',
           coverId:       p.chat.cover_id,
           coverIdRaw:       p.chat.cover_id,
+          chatName:      p.chat.chat_name   || null,
           lastMessagePreview: p.chat.last_message_preview,
           lastMessageAt: p.chat.last_message_at,
           lastUserId:    p.chat.last_message_user_id,
@@ -154,6 +155,47 @@ async function openThread(chatIdOrChat) {
     return data || []
   }
 
+  async function loadParticipants(chatId) {
+    try {
+      const { data: parts } = await sb
+        .from('chat_participants')
+        .select('user_id')
+        .eq('chat_id', chatId)
+      const ids = (parts || []).map(p => p.user_id)
+      if (!ids.length) return []
+      const { data: profiles } = await sb.rpc('get_profiles_by_ids', { user_ids: ids })
+      return (profiles || []).map(p => ({
+        userId:      p.id,
+        displayName: p.display_name || p.username || 'Friend',
+        username:    p.username || null,
+      }))
+    } catch(e) {
+      console.error('[Chat] loadParticipants:', e)
+      return []
+    }
+  }
+
+  async function updateChatName(chatId, name) {
+    const { error } = await sb
+      .from('book_chats')
+      .update({ chat_name: name.trim() || null })
+      .eq('id', chatId)
+    if (!error) {
+      setChats(prev => prev.map(c => c.id === chatId ? { ...c, chatName: name.trim() || null } : c))
+      setActiveChat(prev => prev?.id === chatId ? { ...prev, chatName: name.trim() || null } : prev)
+    }
+    return { error }
+  }
+
+  async function addParticipants(chatId, friendIds) {
+    for (const fid of friendIds) {
+      await sb.from('chat_participants').upsert(
+        { chat_id: chatId, user_id: fid },
+        { onConflict: 'chat_id,user_id', ignoreDuplicates: true }
+      )
+    }
+  }
+
   function subscribeToThread(chatId) {
     if (channelRef.current) { sb.removeChannel(channelRef.current); channelRef.current = null }
     const ch = sb.channel(`chat_${chatId}`)
@@ -221,6 +263,7 @@ async function openThread(chatIdOrChat) {
     loadChatList, openThread, closeThread,
     fetchMessages, loadEarlier,
     sendMessage, deleteMessage, markChatRead,
-    getParticipants, startOrOpenChat
+    getParticipants, loadParticipants, startOrOpenChat,
+    updateChatName, addParticipants,
   }
 }

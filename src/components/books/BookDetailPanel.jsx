@@ -87,6 +87,7 @@ export default function BookDetailPanel({
   onEdit,
   existingChatId,
   user,
+  onOpenChatModal,
 }) {
   const [olData, setOlData]     = useState(null)
   const [loading, setLoading]   = useState(true)
@@ -254,9 +255,9 @@ export default function BookDetailPanel({
           {user && book.olKey && (
             hasChat
               ? <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
-                  onClick={() => { onClose(); onViewChat?.(existingChatId) }}>💬 View chat</button>
+                  onClick={() => { onClose(); onOpenChatModal ? onOpenChatModal(existingChatId) : onViewChat?.(existingChatId) }}>💬 View chat</button>
               : <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
-                  onClick={() => { onClose(); onStartChat?.() }}>💬 Start chat</button>
+                  onClick={() => { onClose(); onOpenChatModal ? onOpenChatModal(null, book) : onStartChat?.() }}>💬 Start chat</button>
           )}
         </>}
 
@@ -267,9 +268,9 @@ export default function BookDetailPanel({
           {user && book.olKey && (
             hasChat
               ? <button className="rt-bdp-btn rt-bdp-btn--amber" style={{ flex: 1 }}
-                  onClick={() => { onClose(); onViewChat?.(existingChatId) }}>💬 View chat</button>
+                  onClick={() => { onClose(); onOpenChatModal ? onOpenChatModal(existingChatId) : onViewChat?.(existingChatId) }}>💬 View chat</button>
               : <button className="rt-bdp-btn rt-bdp-btn--amber" style={{ flex: 1 }}
-                  onClick={() => { onClose(); onStartChat?.() }}>💬 Start chat</button>
+                  onClick={() => { onClose(); onOpenChatModal ? onOpenChatModal(null, book) : onStartChat?.() }}>💬 Start chat</button>
           )}
         </>}
 
@@ -278,9 +279,9 @@ export default function BookDetailPanel({
           {user && book.olKey && (
             hasChat
               ? <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
-                  onClick={() => { onClose(); onViewChat?.() }}>💬 View chat</button>
+                  onClick={() => { onClose(); onOpenChatModal ? onOpenChatModal(existingChatId) : onViewChat?.() }}>💬 View chat</button>
               : <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
-                  onClick={() => { onClose(); onStartChat?.() }}>💬 Start chat</button>
+                  onClick={() => { onClose(); onOpenChatModal ? onOpenChatModal(null, book) : onStartChat?.() }}>💬 Start chat</button>
           )}
           <button className="rt-bdp-btn rt-bdp-btn--ghost" style={{ flex: 1 }}
             onClick={() => { onClose(); onAddToTBR?.() }}>+ Add to list</button>
