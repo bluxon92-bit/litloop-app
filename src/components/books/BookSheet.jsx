@@ -307,15 +307,24 @@ const FINISH_STEPS = ['RATE IT', 'WRITE', 'SHARE']
 export function FinishModal({ book, user, onClose, onSaved }) {
   const { friends, sendRecommendation, feed } = useSocialContext()
 
-  const [step, setStep]         = useState(0)
-  const [rating, setRating]     = useState(0)
-  const [isDnf, setIsDnf]       = useState(false)
-  const [date, setDate]         = useState(new Date().toISOString().split('T')[0])
-  const [genre, setGenre]       = useState(book.genre || '')
-  const [shareReview, setShareReview] = useState(false)
-  const [reviewText, setReviewText]   = useState('')
-  const [privateNotes, setPrivateNotes] = useState('')
-  const [committed, setCommitted] = useState(null)
+const [step, setStep]         = useState(0)
+const [rating, setRating]     = useState(0)
+const [isDnf, setIsDnf]       = useState(false)
+const [date, setDate]         = useState(new Date().toISOString().split('T')[0])
+const [genre, setGenre]       = useState(book.genre || '')
+const [shareReview, setShareReview] = useState(false)
+const [reviewText, setReviewText]   = useState('')
+const [privateNotes, setPrivateNotes] = useState('')
+const [committed, setCommitted] = useState(null)
+
+// Step 2 state (must be declared before any returns)
+const [selectedIds, setSelectedIds]   = useState([])
+const [friendSearch, setFriendSearch] = useState('')
+const [shareMsg, setShareMsg]         = useState('')
+const [shareSent, setShareSent]       = useState(false)
+const [shareSending, setShareSending] = useState(false)
+const [shareError, setShareError]     = useState(null)
+const [saving, setSaving]             = useState(false)
 
 
 
@@ -494,16 +503,6 @@ export function FinishModal({ book, user, onClose, onSaved }) {
       })
     : []
   const friendsNotRead = friends.filter(f => !friendsWhoRead.find(r => r.userId === f.userId))
-
-  // unified selection state
-  const [selectedIds, setSelectedIds]   = useState([])
-  const [friendSearch, setFriendSearch] = useState('')
-  // message box — shown when any friend is selected
-  const [shareMsg, setShareMsg]         = useState('')
-  const [shareSent, setShareSent]       = useState(false)  // shows ✓ confirmation
-  const [shareSending, setShareSending] = useState(false)
-  const [shareError, setShareError]     = useState(null)
-  const [saving, setSaving]             = useState(false)
 
   function toggleFriend(id) {
     setSelectedIds(p => p.includes(id) ? p.filter(x => x !== id) : [...p, id])

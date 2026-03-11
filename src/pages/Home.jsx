@@ -403,7 +403,11 @@ export default function Home({ onNavigate, onOpenChatModal }) {
           book={finishBook}
           user={user}
           onClose={() => setFinishBook(null)}
-          onSaved={changes => { updateBook(finishBook.id, changes); setFinishBook(null) }}
+          onSaved={changes => {
+  const id = finishBook?.id
+  if (id) updateBook(id, changes)
+  setFinishBook(null)
+}}
         />
       )}
 
