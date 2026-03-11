@@ -28,8 +28,6 @@ function toCloudRow(bookData, userId) {
     date_finished:    bookData.dateRead     || null,
     date_started:     bookData.dateStarted  || null,
     tbr_position:     bookData.tbrPosition  || null,
-    cover_id:         bookData.coverId      || null,
-    ol_key:           bookData.olKey        || null,
     updated_at:       new Date().toISOString(),
   }
 }
@@ -155,8 +153,6 @@ export function useBooks(user) {
       if (changes.dateStarted  !== undefined) cloudChanges.date_started       = changes.dateStarted
       if (changes.tbrPosition  !== undefined) cloudChanges.tbr_position       = changes.tbrPosition
       if (changes.genre        !== undefined) cloudChanges.genre              = changes.genre
-      if (changes.coverId      !== undefined) cloudChanges.cover_id           = changes.coverId
-      if (changes.olKey        !== undefined) cloudChanges.ol_key             = changes.olKey
       if (changes.favourite    !== undefined) cloudChanges.favourite          = changes.favourite
       if (changes.favOrder     !== undefined) cloudChanges.fav_order          = changes.favOrder
 
