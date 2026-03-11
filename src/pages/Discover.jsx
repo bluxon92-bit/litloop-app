@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useBooksContext } from '../context/BooksContext'
 import { useSocialContext } from '../context/SocialContext'
 import { useAuthContext } from '../context/AuthContext'
@@ -100,6 +100,36 @@ function Carousel({ children }) {
 
 // ── Book detail modal ─────────────────────────────────────────────
 function BookModal({ book, added, onClose, onAddToTBR, onRecommend }) {
+  const [desc, setDesc]           = useState('')
+  const [descLoading, setDescLoading] = useState(true)
+
+  useEffect(() => {
+    setDesc(''); setDescLoading(true)
+    let cancelled = false
+    async function load() {
+      try {
+        let olKey = book.olKey
+        if (!olKey) {
+          const q = book.author ? `${book.title} ${book.author.split(',')[0]}` : book.title
+          const r = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&fields=key&limit=1`)
+          const d = await r.json()
+          olKey = d.docs?.[0]?.key
+        }
+        if (!olKey) { if (!cancelled) setDescLoading(false); return }
+        const r = await fetch(`https://openlibrary.org${olKey}.json`)
+        const d = await r.json()
+        let description = d.description
+          ? (typeof d.description === 'string' ? d.description : d.description.value || '')
+          : ''
+        description = description.replace(/\r\n/g, '\n').replace(/\[.*?\]\(.*?\)/g, '').replace(/----------\n.*/s, '').trim()
+        if (!cancelled) setDesc(description)
+      } catch {}
+      if (!cancelled) setDescLoading(false)
+    }
+    load()
+    return () => { cancelled = true }
+  }, [book.olKey, book.title])
+
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
       <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
@@ -125,20 +155,28 @@ function BookModal({ book, added, onClose, onAddToTBR, onRecommend }) {
 
         {/* Body */}
         <div style={{ padding: '1.25rem', overflowY: 'auto', flex: 1 }}>
-          {book.desc && <p style={{ fontSize: '0.92rem', color: 'var(--rt-navy)', lineHeight: 1.6, margin: '0 0 1.25rem' }}>{book.desc}</p>}
-          {book.message && <p style={{ fontSize: '0.85rem', color: 'var(--rt-t2)', fontStyle: 'italic', margin: '0 0 1.25rem' }}>"{book.message}"</p>}
+          {/* AI pick reason or friend message */}
+          {book.desc && <p style={{ fontSize: '0.85rem', color: 'var(--rt-navy)', lineHeight: 1.6, margin: '0 0 1rem', fontStyle: 'italic', borderLeft: '3px solid var(--rt-amber)', paddingLeft: '0.75rem' }}>{book.desc}</p>}
+          {book.message && <p style={{ fontSize: '0.85rem', color: 'var(--rt-t2)', fontStyle: 'italic', margin: '0 0 1rem' }}>"{book.message}"</p>}
+
+          {/* OL description */}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.4rem' }}>About this book</div>
+            {descLoading
+              ? <div style={{ color: 'var(--rt-t3)', fontSize: '0.82rem' }}>Loading…</div>
+              : desc
+              ? <p style={{ fontSize: '0.88rem', color: 'var(--rt-t2)', lineHeight: 1.65, margin: 0 }}>{desc.length > 500 ? desc.slice(0, 500) + '…' : desc}</p>
+              : <p style={{ fontSize: '0.85rem', color: 'var(--rt-t3)', fontStyle: 'italic', margin: 0 }}>No description available.</p>
+            }
+          </div>
 
           <div style={{ display: 'flex', gap: '0.6rem' }}>
-            <button
-              onClick={onAddToTBR} disabled={added}
-              style={{ flex: 1, background: added ? 'var(--rt-surface)' : 'var(--rt-navy)', color: added ? 'var(--rt-t3)' : '#fff', border: 'none', borderRadius: 12, padding: '0.85rem 1rem', fontWeight: 700, fontSize: '0.9rem', cursor: added ? 'default' : 'pointer', transition: 'all 0.2s' }}
-            >
+            <button onClick={onAddToTBR} disabled={added}
+              style={{ flex: 1, background: added ? 'var(--rt-surface)' : 'var(--rt-navy)', color: added ? 'var(--rt-t3)' : '#fff', border: 'none', borderRadius: 12, padding: '0.85rem 1rem', fontWeight: 700, fontSize: '0.9rem', cursor: added ? 'default' : 'pointer', transition: 'all 0.2s' }}>
               {added ? '✓ Added to To Read' : '+ Add to To Read'}
             </button>
-            <button
-              onClick={onRecommend}
-              style={{ background: 'var(--rt-amber-pale)', color: 'var(--rt-amber)', border: 'none', borderRadius: 12, padding: '0.85rem 1rem', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
-            >
+            <button onClick={onRecommend}
+              style={{ background: 'var(--rt-amber-pale)', color: 'var(--rt-amber)', border: 'none', borderRadius: 12, padding: '0.85rem 1rem', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               Recommend →
             </button>
           </div>

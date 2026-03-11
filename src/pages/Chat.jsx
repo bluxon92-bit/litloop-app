@@ -154,6 +154,7 @@ function AddParticipantsModal({ chat, friends, currentParticipantIds, onAdd, onC
 export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend, onLoadEarlier, onDeleteMessage, loadParticipants, updateChatName, addParticipants, findExistingChat }) {
   const [msgInput, setMsgInput]         = useState('')
   const [participants, setParticipants] = useState([])
+  const [participantsLoaded, setParticipantsLoaded] = useState(false)
   const [editingName, setEditingName]   = useState(false)
   const [chatName, setChatName]         = useState(chat.chatName || '')
   const [nameInput, setNameInput]       = useState(chat.chatName || '')
@@ -162,7 +163,8 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
   const messagesEndRef                  = useRef(null)
 
   useEffect(() => {
-    loadParticipants(chat.id).then(setParticipants)
+    setParticipantsLoaded(false)
+    loadParticipants(chat.id).then(p => { setParticipants(p); setParticipantsLoaded(true) })
   }, [chat.id])
 
   useEffect(() => {
@@ -247,38 +249,43 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
             }
 
             {/* Title + chat name */}
-            <div
-              style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}
-              onClick={() => {
-                const b = { title: chat.bookTitle, author: chat.bookAuthor, coverId: chat.coverIdRaw, olKey: chat.bookOlKey, status: null }
-                setDetailBook(b)
-              }}
-            >
-              {/* Chat name row */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              {/* Chat name row — tappable independently */}
               {editingName ? (
-                <div onClick={e => e.stopPropagation()} style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', marginBottom: '0.2rem' }}>
+                <div style={{ display: 'flex', gap: '0.35rem', alignItems: 'center', marginBottom: '0.3rem' }}>
                   <input
                     autoFocus
                     value={nameInput}
                     onChange={e => setNameInput(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditingName(false) }}
                     placeholder="Chat name…"
-                    style={{ flex: 1, background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 6, padding: '0.2rem 0.5rem', color: '#fff', fontSize: '0.78rem', fontFamily: 'var(--rt-font-body)', outline: 'none' }}
+                    style={{ flex: 1, background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.35)', borderRadius: 8, padding: '0.45rem 0.65rem', color: '#fff', fontSize: '0.85rem', fontFamily: 'var(--rt-font-body)', outline: 'none' }}
                   />
-                  <button onClick={handleSaveName} style={{ background: 'var(--rt-amber-lt)', border: 'none', borderRadius: 5, padding: '0.2rem 0.5rem', color: '#fff', fontSize: '0.7rem', fontWeight: 700, cursor: 'pointer' }}>Save</button>
-                  <button onClick={() => setEditingName(false)} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 5, padding: '0.2rem 0.4rem', color: 'rgba(255,255,255,0.6)', fontSize: '0.7rem', cursor: 'pointer' }}>✕</button>
+                  <button onClick={handleSaveName} style={{ background: 'var(--rt-amber-lt)', border: 'none', borderRadius: 6, padding: '0.4rem 0.6rem', color: '#fff', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>Save</button>
+                  <button onClick={() => setEditingName(false)} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 6, padding: '0.4rem 0.5rem', color: 'rgba(255,255,255,0.6)', fontSize: '0.75rem', cursor: 'pointer' }}>✕</button>
                 </div>
               ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.1rem' }}>
-                  <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.55)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <button
+                  onClick={() => setEditingName(true)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '0.35rem 0.65rem', cursor: 'pointer', marginBottom: '0.3rem', maxWidth: '100%', width: '100%', textAlign: 'left' }}
+                >
+                  <span style={{ fontSize: '0.78rem', color: chatName ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.4)', fontWeight: chatName ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                     {chatName || 'Add a chat name…'}
-                  </div>
-                  <button onClick={e => { e.stopPropagation(); setEditingName(true) }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', fontSize: '0.65rem', padding: 0, flexShrink: 0 }} title="Edit chat name">✎</button>
-                </div>
+                  </span>
+                  <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.7rem', flexShrink: 0 }}>✎</span>
+                </button>
               )}
-              {/* Book title */}
-              <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.bookTitle}</div>
-              {chat.bookAuthor && <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.45)', marginTop: '0.05rem' }}>{chat.bookAuthor}</div>}
+              {/* Book title — separate click target */}
+              <div
+                style={{ cursor: 'pointer' }}
+                onClick={() => {
+                  const b = { title: chat.bookTitle, author: chat.bookAuthor, coverId: chat.coverIdRaw, olKey: chat.bookOlKey, status: null }
+                  setDetailBook(b)
+                }}
+              >
+                <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.bookTitle}</div>
+                {chat.bookAuthor && <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.45)', marginTop: '0.05rem' }}>{chat.bookAuthor}</div>}
+              </div>
             </div>
           </div>
 
@@ -287,7 +294,13 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
             <ParticipantsRow
               participants={participants}
               currentUserId={user?.id}
-              onAdd={() => setShowAddPpl(true)}
+              onAdd={async () => {
+                // Always ensure fresh participants before opening add modal
+                const p = await loadParticipants(chat.id)
+                setParticipants(p)
+                setParticipantsLoaded(true)
+                setShowAddPpl(true)
+              }}
             />
           </div>
         </div>
@@ -457,7 +470,7 @@ export default function Chat({ onNavigate }) {
   }
 
   return (
-    <div className="rt-page" style={{ maxWidth: 720, margin: '0 auto', display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 100px)' }}>
+    <div style={{ padding: '1.5rem', maxWidth: 720, margin: '0 auto', display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 100px)' }}>
       <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 1.25rem' }}>Chat</h2>
 
       {/* Sub-tabs */}
@@ -606,7 +619,9 @@ export default function Chat({ onNavigate }) {
           onStartChat={b => {
             startOrOpenChat(b.olKey, b.title, b.author, b.coverId, [friendSheet.userId])
               .then(chatId => {
-                const chat = chats.find(c => c.id === chatId) || { id: chatId, bookTitle: b.title, bookAuthor: b.author, coverIdRaw: b.coverId, bookOlKey: b.olKey }
+                if (!chatId) return
+                const stub = { id: chatId, bookTitle: b.title, bookAuthor: b.author, coverIdRaw: b.coverId, bookOlKey: b.olKey }
+                const chat = chats.find(c => c.id === chatId) || stub
                 setFriendSheet(null)
                 openChatModal(chat)
               })

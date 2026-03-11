@@ -115,60 +115,56 @@ export function useBooks(user) {
     setBooks(prev => [newBook, ...prev])
 
     // Write to Supabase
-if (user) {
-  let bookId = null
+    if (user) {
+      let bookId = null
 
-  // If this came from OpenLibrary, try to find the book
-  if (bookData.olKey) {
-    const { data: book } = await sb
-      .schema('staging')
-      .from('books')
-      .select('id')
-      .eq('ol_key', bookData.olKey)
-      .maybeSingle()
+      // If this came from OpenLibrary, try to find the book record
+      if (bookData.olKey) {
+        const { data: book } = await sb
+          .from('books')
+          .select('id')
+          .eq('ol_key', bookData.olKey)
+          .maybeSingle()
+        if (book) bookId = book.id
+      }
 
-    if (book) bookId = book.id
-  }
+      const row = {
+        user_id:          user.id,
+        status:           bookData.status       || 'tbr',
+        rating:           bookData.rating       || null,
+        genre:            bookData.genre        || null,
+        notes:            bookData.notes        || null,
+        review_body:      bookData.reviewBody   || null,
+        review_is_public: bookData.reviewPublic || false,
+        date_finished:    bookData.dateRead     || null,
+        date_started:     bookData.dateStarted  || null,
+        tbr_position:     bookData.tbrPosition  || null,
+        added_at:         newBook.added,
+        updated_at:       new Date().toISOString(),
+      }
 
-  const row = {
-    user_id: user.id,
-    status: bookData.status || 'tbr',
-    rating: bookData.rating || null,
-    genre: bookData.genre || null,
-    notes: bookData.notes || null,
-    review_body: bookData.reviewBody || null,
-    review_is_public: bookData.reviewPublic || false,
-    date_finished: bookData.dateRead || null,
-    date_started: bookData.dateStarted || null,
-    tbr_position: bookData.tbrPosition || null,
-    added_at: newBook.added,
-    updated_at: new Date().toISOString()
-  }
+      if (bookId) {
+        row.book_id = bookId
+      } else {
+        row.title_manual  = bookData.title
+        row.author_manual = bookData.author || null
+      }
 
-  if (bookId) {
-    row.book_id = bookId
-  } else {
-    row.title_manual = bookData.title
-    row.author_manual = bookData.author || null
-  }
+      const { data, error } = await sb
+        .from('reading_entries')
+        .insert(row)
+        .select('id')
+        .single()
 
-  const { data, error } = await sb
-    .schema('staging')
-    .from('reading_entries')
-    .insert(row)
-    .select('id')
-    .single()
-
-  if (!error && data) {
-    setBooks(prev => prev.map(b =>
-      b.id === tempId ? { ...b, id: data.id, cloudId: data.id } : b
-    ))
-  } else if (error) {
-    console.error('[Books] addBook cloud error:', error)
-  }
-}
-
-    return newBook
+      if (!error && data) {
+        // Replace temp ID with the real DB id
+        setBooks(prev => prev.map(b =>
+          b.id === tempId ? { ...b, id: data.id, cloudId: data.id } : b
+        ))
+      } else if (error) {
+        console.error('[Books] addBook cloud error:', error)
+      }
+    }
   }
 
   async function updateBook(id, changes) {

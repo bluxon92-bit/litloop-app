@@ -2,7 +2,6 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuthContext } from '../../context/AuthContext'
 import { useChatContext } from '../../context/ChatContext'
 import { useSocialContext } from '../../context/SocialContext'
-import { useBooksContext } from '../../context/BooksContext'
 import Home from '../../pages/Home'
 import MyList from '../../pages/MyList'
 import Stats from '../../pages/Stats'
@@ -10,7 +9,6 @@ import Discover from '../../pages/Discover'
 import Chat, { ChatThreadModal } from '../../pages/Chat'
 import Profile from '../../pages/Profile'
 import AccountSettings from '../../pages/AccountSettings'
-import AddBookModal from '../books/AddBookModal'
 import { avatarColour, avatarInitial, timeAgo } from '../../lib/utils'
 
 // ── SVG icons ─────────────────────────────────────────────────
@@ -65,28 +63,36 @@ export default function AppShell() {
           sendMessage, deleteMessage, loadEarlier, startOrOpenChat,
           loadParticipants, updateChatName, addParticipants } = useChatContext()
   const { pending, feed, recs, friends } = useSocialContext()
-  const { books, addBook } = useBooksContext()
   const [activeTab, setActiveTab]         = useState('home')
   const [notifOpen, setNotifOpen]         = useState(false)
   const [activeChatModal, setActiveChatModal] = useState(null)
-  const [addModal, setAddModal]           = useState(false)
   const bellRef = useRef(null)
 
   function onNavigate(tab) { setActiveTab(tab) }
 
   async function openChatModal(chatIdOrObj, book) {
+    // If a full chat object is passed, use it directly
     let chat = typeof chatIdOrObj === 'object' && chatIdOrObj?.id ? chatIdOrObj : null
-    if (!chat && typeof chatIdOrObj === 'string') chat = chats.find(c => c.id === chatIdOrObj)
-    if (!chat && book) {
-      const chatId = await startOrOpenChat(book.olKey, book.title, book.author, book.coverId, [])
-      // wait briefly for loadChatList to update
-      await new Promise(r => setTimeout(r, 300))
-      chat = chats.find(c => c.id === chatId) || {
-        id: chatId, bookTitle: book.title, bookAuthor: book.author,
-        coverIdRaw: book.coverId, bookOlKey: book.olKey
+
+    if (!chat) {
+      const chatId = typeof chatIdOrObj === 'string' ? chatIdOrObj : null
+      if (!chatId) return
+
+      // Try to find in current list, but don't block on it — list may be stale
+      chat = chats.find(c => c.id === chatId) || null
+
+      // Always build a stub — modal can open immediately and load its own data
+      if (!chat) {
+        chat = {
+          id:          chatId,
+          bookTitle:   book?.title   || '',
+          bookAuthor:  book?.author  || '',
+          coverIdRaw:  book?.coverId || null,
+          bookOlKey:   book?.olKey   || null,
+        }
       }
     }
-    if (!chat) return
+
     openThread(chat.id)
     markChatRead(chat.id)
     setActiveChatModal(chat)
@@ -147,7 +153,7 @@ export default function AppShell() {
       case 'stats':    return <Stats           onNavigate={onNavigate} />
       case 'discover': return <Discover        onNavigate={onNavigate} onOpenChatModal={openChatModal} />
       case 'chat':     return <Chat            onNavigate={onNavigate} onOpenChatModal={openChatModal} />
-      case 'profile':  return <Profile         onNavigate={onNavigate} />
+      case 'profile':  return <Profile         onNavigate={onNavigate} onOpenChatModal={openChatModal} />
       case 'account':  return <AccountSettings onNavigate={onNavigate} />
       default:         return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} />
     }
@@ -217,7 +223,7 @@ export default function AppShell() {
         {/* Left: profile avatar */}
         <div style={{ display: 'flex', alignItems: 'center' }}>
           <button
-            onClick={() => setActiveTab('profile')}
+            onClick={() => setActiveTab('account')}
             style={{
               background: avatarBg,
               border: (activeTab==='profile'||activeTab==='account') ? '2px solid var(--rt-amber)' : '2px solid transparent',
@@ -336,24 +342,6 @@ export default function AppShell() {
           updateChatName={updateChatName}
           addParticipants={addParticipants}
           findExistingChat={findExistingChat}
-        />
-      )}
-
-      {/* ── Global Add Book FAB ── */}
-      <button
-        className="rt-global-fab"
-        onClick={() => setAddModal(true)}
-        title="Add book"
-        aria-label="Add book"
-      >+</button>
-
-      {addModal && (
-        <AddBookModal
-          defaultStatus="tbr"
-          books={books}
-          onAdd={async d => { await addBook(d); setAddModal(false) }}
-          onClose={() => setAddModal(false)}
-          user={user}
         />
       )}
     </div>

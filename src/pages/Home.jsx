@@ -217,7 +217,7 @@ export default function Home({ onNavigate, onOpenChatModal }) {
 
       {/* ── Recently Read carousel ── */}
       {read.length > 0 && (
-        <div style={{ marginBottom: '1.25rem' }}>
+        <div className="rt-card" style={{ marginBottom: '1.25rem', padding: '1rem 1rem 0.75rem' }}>
           <div className="rt-section-heading" style={{ marginBottom: '0.75rem' }}>Recently Read</div>
           <div style={{ display: 'flex', gap: '0.85rem', overflowX: 'auto', paddingBottom: '0.5rem', scrollbarWidth: 'none', msOverflowStyle: 'none' }} className="rt-recent-carousel">
             {[...read]

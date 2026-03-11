@@ -154,11 +154,54 @@ function ChatFriendPicker({ book, friends, startOrOpenChat, onOpenChatModal, onC
   async function handleStart() {
     if (!selected.size || !book.olKey) return
     setStarting(true)
-    const chatId = await startOrOpenChat(book.olKey, book.title, book.author, book.coverId, [...selected])
+    const friendIds = [...selected]
+    // Create the chat with the selected friends included from the start
+    const chatId = await startOrOpenChat(book.olKey, book.title, book.author, book.coverId, friendIds)
     setStarting(false)
     onClose()
-    setTimeout(() => onOpenChatModal?.(chatId, book), 300)
+    if (chatId) {
+      // Pass a synthetic book object with _chatId so AppShell skips re-creating
+      setTimeout(() => onOpenChatModal?.(chatId, { ...book, _friendIds: friendIds }), 300)
+    }
   }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 400, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
+      <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.25rem', maxHeight: '75vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>Start a chat</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--rt-t3)', lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)', marginBottom: '1rem' }}>{book.title}</div>
+
+        <div style={{ overflowY: 'auto', flex: 1, marginBottom: '0.75rem' }}>
+          {!friends?.length ? (
+            <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>Add friends to start a chat.</div>
+          ) : friends.map(f => {
+            const sel = selected.has(f.userId)
+            return (
+              <div key={f.userId} onClick={() => toggle(f.userId)}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0', borderBottom: '1px solid var(--rt-border)', cursor: 'pointer' }}>
+                <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarColour(f.userId), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                  {avatarInitial(f.displayName || f.username || '?')}
+                </div>
+                <span style={{ flex: 1, fontSize: '0.9rem', fontWeight: 600, color: 'var(--rt-navy)' }}>{f.displayName || f.username}</span>
+                <div style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${sel ? 'var(--rt-amber)' : 'var(--rt-border-md)'}`, background: sel ? 'var(--rt-amber)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {sel && <span style={{ color: '#fff', fontSize: '0.72rem', fontWeight: 700 }}>✓</span>}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <button onClick={handleStart} disabled={!selected.size || starting || !book.olKey}
+          style={{ width: '100%', background: selected.size && book.olKey ? 'var(--rt-navy)' : 'var(--rt-surface)', color: selected.size && book.olKey ? '#fff' : 'var(--rt-t3)', border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.85rem', fontWeight: 700, fontSize: '0.9rem', cursor: selected.size && book.olKey ? 'pointer' : 'default' }}>
+          {starting ? 'Starting…' : !book.olKey ? 'Book has no Open Library key' : `Start chat with ${selected.size || ''} friend${selected.size !== 1 ? 's' : ''}`}
+        </button>
+      </div>
+    </div>
+  )
+}
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 400, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
