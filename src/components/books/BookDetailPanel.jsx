@@ -88,6 +88,7 @@ export default function BookDetailPanel({
   existingChatId,
   user,
   onOpenChatModal,
+  friendName,
 }) {
   const [olData, setOlData]     = useState(null)
   const [loading, setLoading]   = useState(true)
@@ -161,6 +162,21 @@ export default function BookDetailPanel({
 
       {/* ── Scrollable body ── */}
       <div style={{ overflowY: 'auto', flex: 1, padding: '1.1rem 1.25rem' }}>
+
+        {/* FRIEND REVIEW — shown when opened from feed */}
+        {(friendName || book.friendName) && (book.rating || book.reviewBody) && (
+          <div style={{ marginBottom: '1.1rem', padding: '0.85rem 1rem', background: '#F5F0E8', borderRadius: 'var(--rt-r3)', border: '1px solid var(--rt-border)' }}>
+            <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.45rem' }}>
+              {friendName || book.friendName}'s review
+            </div>
+            {book.rating > 0 && <div style={{ marginBottom: '0.45rem' }}><Stars value={book.rating} /></div>}
+            {book.reviewBody && (
+              <div style={{ fontSize: '0.88rem', color: 'var(--rt-t2)', lineHeight: 1.6, fontStyle: 'italic', borderLeft: '3px solid var(--rt-border-md)', paddingLeft: '0.75rem' }}>
+                {book.reviewBody}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* MY REVIEW — shown for history/dnf at top, with edit pencil */}
         {isHistory && (book.rating || book.reviewBody) && (

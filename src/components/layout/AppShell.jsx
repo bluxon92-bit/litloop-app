@@ -6,7 +6,7 @@ import Home from '../../pages/Home'
 import MyList from '../../pages/MyList'
 import Stats from '../../pages/Stats'
 import Discover from '../../pages/Discover'
-import Chat from '../../pages/Chat'
+import Chat, { ChatThreadModal } from '../../pages/Chat'
 import Profile from '../../pages/Profile'
 import AccountSettings from '../../pages/AccountSettings'
 import { avatarColour, avatarInitial, timeAgo } from '../../lib/utils'
@@ -59,13 +59,41 @@ const SIDEBAR_TABS = [
 
 export default function AppShell() {
   const { user, signOut }   = useAuthContext()
-  const { totalUnread }     = useChatContext()
-  const { pending, feed, recs } = useSocialContext()
-  const [activeTab, setActiveTab] = useState('home')
-  const [notifOpen, setNotifOpen] = useState(false)
+  const { totalUnread, chats, openThread, closeThread, markChatRead, messages,
+          sendMessage, deleteMessage, loadEarlier, startOrOpenChat,
+          loadParticipants, updateChatName, addParticipants } = useChatContext()
+  const { pending, feed, recs, friends } = useSocialContext()
+  const [activeTab, setActiveTab]         = useState('home')
+  const [notifOpen, setNotifOpen]         = useState(false)
+  const [activeChatModal, setActiveChatModal] = useState(null)
   const bellRef = useRef(null)
 
   function onNavigate(tab) { setActiveTab(tab) }
+
+  async function openChatModal(chatIdOrObj, book) {
+    let chat = typeof chatIdOrObj === 'object' && chatIdOrObj?.id ? chatIdOrObj : null
+    if (!chat && typeof chatIdOrObj === 'string') chat = chats.find(c => c.id === chatIdOrObj)
+    if (!chat && book) {
+      const chatId = await startOrOpenChat(book.olKey, book.title, book.author, book.coverId, [])
+      // wait briefly for loadChatList to update
+      await new Promise(r => setTimeout(r, 300))
+      chat = chats.find(c => c.id === chatId) || {
+        id: chatId, bookTitle: book.title, bookAuthor: book.author,
+        coverIdRaw: book.coverId, bookOlKey: book.olKey
+      }
+    }
+    if (!chat) return
+    openThread(chat.id)
+    markChatRead(chat.id)
+    setActiveChatModal(chat)
+  }
+
+  function closeChatModal() { closeThread(); setActiveChatModal(null) }
+
+  function findExistingChat(olKey) {
+    if (!olKey || !chats) return null
+    return chats.find(c => c.bookOlKey === olKey) || null
+  }
 
   // Close notif popup on outside click
   useEffect(() => {
@@ -110,14 +138,14 @@ export default function AppShell() {
 
   function renderPage() {
     switch (activeTab) {
-      case 'home':     return <Home            onNavigate={onNavigate} />
-      case 'mylist':   return <MyList          onNavigate={onNavigate} />
+      case 'home':     return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} />
+      case 'mylist':   return <MyList          onNavigate={onNavigate} onOpenChatModal={openChatModal} />
       case 'stats':    return <Stats           onNavigate={onNavigate} />
-      case 'discover': return <Discover        onNavigate={onNavigate} />
-      case 'chat':     return <Chat            onNavigate={onNavigate} />
+      case 'discover': return <Discover        onNavigate={onNavigate} onOpenChatModal={openChatModal} />
+      case 'chat':     return <Chat            onNavigate={onNavigate} onOpenChatModal={openChatModal} />
       case 'profile':  return <Profile         onNavigate={onNavigate} />
       case 'account':  return <AccountSettings onNavigate={onNavigate} />
-      default:         return <Home            onNavigate={onNavigate} />
+      default:         return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} />
     }
   }
 
@@ -289,6 +317,23 @@ export default function AppShell() {
           )
         })}
       </nav>
+
+      {activeChatModal && (
+        <ChatThreadModal
+          chat={activeChatModal}
+          user={user}
+          friends={friends}
+          messages={messages}
+          onClose={closeChatModal}
+          onSend={sendMessage}
+          onLoadEarlier={loadEarlier}
+          onDeleteMessage={deleteMessage}
+          loadParticipants={loadParticipants}
+          updateChatName={updateChatName}
+          addParticipants={addParticipants}
+          findExistingChat={findExistingChat}
+        />
+      )}
     </div>
   )
 }

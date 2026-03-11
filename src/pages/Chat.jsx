@@ -151,7 +151,7 @@ function AddParticipantsModal({ chat, friends, currentParticipantIds, onAdd, onC
 }
 
 // ── Chat Thread Modal ─────────────────────────────────────────
-function ChatThreadModal({ chat, user, friends, messages, onClose, onSend, onLoadEarlier, onDeleteMessage, loadParticipants, updateChatName, addParticipants, findExistingChat }) {
+export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend, onLoadEarlier, onDeleteMessage, loadParticipants, updateChatName, addParticipants, findExistingChat }) {
   const [msgInput, setMsgInput]         = useState('')
   const [participants, setParticipants] = useState([])
   const [editingName, setEditingName]   = useState(false)

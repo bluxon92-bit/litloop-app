@@ -9,7 +9,7 @@ import BookDetailPanel from '../components/books/BookDetailPanel'
 import AddBookModal from '../components/books/AddBookModal'
 import BookSheet, { FinishModal } from '../components/books/BookSheet'
 
-export default function Home({ onNavigate }) {
+export default function Home({ onNavigate, onOpenChatModal }) {
   const { user } = useAuthContext()
   const { books, addBook, updateBook } = useBooksContext()
   const { friends, feed, recs, loaded: socialLoaded } = useSocialContext()
@@ -54,10 +54,10 @@ export default function Home({ onNavigate }) {
     })
   }
 
-  // Feed: only friends' reviews (not own), must have review_body OR be a posted_review event
+  // Feed: friends' finished events — show even without review_body
   const reviewEvents = (feed || []).filter(ev =>
     friendIds.has(ev.user_id) &&
-    (ev.event_type === 'posted_review' || (ev.event_type === 'finished' && ev.review_body))
+    (ev.event_type === 'posted_review' || ev.event_type === 'finished')
   )
 
   function findExistingChat(olKey) {
@@ -269,14 +269,16 @@ export default function Home({ onNavigate }) {
               const olKey       = ev.book_ol_key || null
 
               const feedBook = {
-                id:         ev.id,
-                title:      ev.book_title  || 'Unknown book',
-                author:     ev.book_author || '',
+                id:           ev.id,
+                title:        ev.book_title  || 'Unknown book',
+                author:       ev.book_author || '',
                 coverId,
                 olKey,
-                status:     null,
+                status:       null,
                 rating,
-                reviewBody: reviewText,
+                reviewBody:   reviewText,
+                friendName:   displayName,
+                friendUserId: ev.user_id,
               }
 
               return (
@@ -354,14 +356,18 @@ export default function Home({ onNavigate }) {
                       </div>
                     )}
 
-                    {/* Review text — always show if present */}
-                    {reviewText && (
+                    {/* Review text — fallback if no review */}
+                    {reviewText ? (
                       <div style={{
                         fontSize: '0.82rem', color: 'var(--rt-t2)', lineHeight: 1.55,
                         display: '-webkit-box', WebkitLineClamp: 4,
                         WebkitBoxOrient: 'vertical', overflow: 'hidden',
                       }}>
                         {reviewText}
+                      </div>
+                    ) : (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--rt-t3)', fontStyle: 'italic' }}>
+                        finished reading
                       </div>
                     )}
                   </div>
@@ -379,18 +385,16 @@ export default function Home({ onNavigate }) {
           location={detailLocation}
           user={user}
           existingChatId={findExistingChat(detailBook.olKey)?.id}
+          friendName={detailBook.friendName || null}
           onClose={() => setDetailBook(null)}
           onMarkFinished={() => { setFinishBook(detailBook); setDetailBook(null) }}
           onAddToTBR={() => {
             addBook({ title: detailBook.title, author: detailBook.author, status: 'tbr', olKey: detailBook.olKey, coverId: detailBook.coverId })
             setDetailBook(null)
           }}
-          onStartChat={() => {
-            const b = detailBook
-            if (b.olKey) startOrOpenChat(b.olKey, b.title, b.author, b.coverId, [])
-            onNavigate('chat'); setDetailBook(null)
-          }}
-          onViewChat={() => { onNavigate('chat'); setDetailBook(null) }}
+          onOpenChatModal={(chatId, book) => onOpenChatModal?.(chatId, book || detailBook)}
+          onStartChat={() => onOpenChatModal?.(null, detailBook)}
+          onViewChat={(chatId) => onOpenChatModal?.(chatId || findExistingChat(detailBook.olKey)?.id)}
         />
       )}
 
