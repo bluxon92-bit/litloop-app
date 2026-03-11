@@ -631,6 +631,11 @@ export default function Chat({ onNavigate }) {
             if (chat) { openChatModal(chat) }
             setFriendSheet(null)
           }}
+          onOpenChatModal={(chatId, book) => {
+            setFriendSheet(null)
+            const stub = { id: chatId, bookTitle: book?.title, bookAuthor: book?.author, coverIdRaw: book?.coverId, bookOlKey: book?.olKey }
+            openChatModal(chats.find(c => c.id === chatId) || stub)
+          }}
         />
       )}
 

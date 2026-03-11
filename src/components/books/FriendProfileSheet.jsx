@@ -3,7 +3,7 @@ import { sb } from '../../lib/supabase'
 import { avatarColour, avatarInitial } from '../../lib/utils'
 import BookDetailPanel from './BookDetailPanel'
 
-export default function FriendProfileSheet({ friend, chats, user, books: myBooks, onClose, onAddToTBR, onStartChat, onViewChat }) {
+export default function FriendProfileSheet({ friend, chats, user, books: myBooks, onClose, onAddToTBR, onStartChat, onViewChat, onOpenChatModal }) {
   const [entries, setEntries]       = useState(null)
   const [recs, setRecs]             = useState([])
   const [loading, setLoading]       = useState(true)
@@ -85,17 +85,17 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
     return (
       <BookDetailPanel
         book={detailBook}
-        location="friend-profile"
-        user={null}
+        location="home-feed"
+        user={user}
         existingChatId={chat?.id || null}
         onClose={() => setDetailBook(null)}
         onAddToTBR={() => {
           onAddToTBR({ title: detailBook.title, author: detailBook.author, olKey: detailBook.olKey, coverId: detailBook.coverId })
           setDetailBook(null)
         }}
-        onStartChat={() => {
-          onStartChat(detailBook)
+        onOpenChatModal={(chatId, book) => {
           setDetailBook(null)
+          onOpenChatModal ? onOpenChatModal(chatId, book) : onStartChat(detailBook)
         }}
         onViewChat={() => {
           if (chat) onViewChat(chat.id)
