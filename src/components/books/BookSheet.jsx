@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { sb } from '../../lib/supabase'
 import { fmtDate, GENRES, avatarColour, avatarInitial } from '../../lib/utils'
 import { useSocialContext } from '../../context/SocialContext'
 import CoverImage from './CoverImage'
@@ -378,19 +377,7 @@ const [saving, setSaving]             = useState(false)
       updatedAt:    new Date().toISOString(),
     }
     setCommitted(changes)
-    // Write to cloud
-    if (user && book.id) {
-      await sb.from('reading_entries').update({
-        status:           changes.status,
-        rating:           changes.rating,
-        date_finished:    changes.dateRead,
-        notes:            changes.notes,
-        review_body:      changes.reviewBody,
-        review_is_public: changes.reviewPublic,
-        genre:            changes.genre,
-        updated_at:       changes.updatedAt,
-      }).eq('id', book.id).eq('user_id', user.id)
-    }
+    // Persist via context (updateBook handles cloud sync)
     onSaved(changes)   // moves book to history in local state
     setStep(2)
   }
@@ -702,18 +689,6 @@ export default function BookSheet({ book, onClose, onSaved, onDeleted, user }) {
       reviewPublic: isPublic && !!review.trim(),
       genre:        genre || null,
       updatedAt:    new Date().toISOString(),
-    }
-    if (user && book.id) {
-      await sb.from('reading_entries').update({
-        status:           changes.status,
-        rating:           changes.rating,
-        date_finished:    changes.dateRead,
-        notes:            changes.notes,
-        review_body:      changes.reviewBody,
-        review_is_public: changes.reviewPublic,
-        genre:            changes.genre,
-        updated_at:       changes.updatedAt,
-      }).eq('id', book.id).eq('user_id', user.id)
     }
     onSaved(changes)
   }

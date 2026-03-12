@@ -1503,3 +1503,13 @@
   }
   .rt-panels { padding: 0 2rem; max-width: none; }
 }
+/* ── FAB (floating action button) ──────────────────────────── */
+.rt-fab {
+  bottom: calc(64px + 1rem); /* above mobile tab bar */
+}
+@media (min-width: 768px) {
+  .rt-fab {
+    bottom: 1.75rem; /* desktop: no tab bar */
+    right: 2rem;
+  }
+}

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuthContext } from '../../context/AuthContext'
 import { useChatContext } from '../../context/ChatContext'
 import { useSocialContext } from '../../context/SocialContext'
+import { useBooksContext } from '../../context/BooksContext'
 import Home from '../../pages/Home'
 import MyList from '../../pages/MyList'
 import Stats from '../../pages/Stats'
@@ -9,6 +10,7 @@ import Discover from '../../pages/Discover'
 import Chat, { ChatThreadModal } from '../../pages/Chat'
 import Profile from '../../pages/Profile'
 import AccountSettings from '../../pages/AccountSettings'
+import AddBookModal from '../books/AddBookModal'
 import { avatarColour, avatarInitial, timeAgo } from '../../lib/utils'
 
 // ── SVG icons ─────────────────────────────────────────────────
@@ -63,9 +65,11 @@ export default function AppShell() {
           sendMessage, deleteMessage, loadEarlier, startOrOpenChat,
           loadParticipants, updateChatName, addParticipants } = useChatContext()
   const { pending, feed, recs, friends } = useSocialContext()
+  const { books, addBook } = useBooksContext()
   const [activeTab, setActiveTab]         = useState('home')
   const [notifOpen, setNotifOpen]         = useState(false)
   const [activeChatModal, setActiveChatModal] = useState(null)
+  const [fabAddOpen, setFabAddOpen]       = useState(false)
   const bellRef = useRef(null)
 
   function onNavigate(tab) { setActiveTab(tab) }
@@ -172,35 +176,52 @@ export default function AppShell() {
           <h1 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.5rem', fontWeight: 700, color: 'var(--rt-navy)', margin: 0 }}>LitLoop</h1>
         </div>
 
-        {SIDEBAR_TABS.map(tab => {
+        {SIDEBAR_TABS.map((tab, idx) => {
           const isActive = activeTab === tab.id || (tab.id === 'profile' && activeTab === 'account')
+          // Divider before Stats
+          const showDivider = tab.id === 'stats'
           return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '0.75rem',
-                padding: '0.7rem 0.75rem', borderRadius: 'var(--rt-r3)', border: 'none',
-                background: isActive ? 'var(--rt-amber-pale)' : 'none',
-                color: isActive ? 'var(--rt-amber)' : 'var(--rt-t2)',
-                fontFamily: 'var(--rt-font-body)', fontSize: '0.88rem',
-                fontWeight: isActive ? 600 : 400,
-                cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s', position: 'relative'
-              }}
-            >
-              <span style={{ width: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {tab.icon ? tab.icon(isActive) : <IcoStats />}
-              </span>
-              <span>{tab.label}</span>
-              {tab.id === 'chat' && totalUnread > 0 && (
-                <span style={{ position: 'absolute', top: 6, right: 8, background: 'var(--rt-amber)', color: '#fff', borderRadius: 99, fontSize: '0.58rem', padding: '0.1em 0.45em', fontWeight: 700 }}>{totalUnread}</span>
-              )}
-            </button>
+            <div key={tab.id}>
+              {showDivider && <div style={{ height: 1, background: 'var(--rt-border)', margin: '0.4rem 0.5rem 0.65rem' }} />}
+              <button
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.75rem',
+                  padding: '0.7rem 0.75rem', borderRadius: 'var(--rt-r3)', border: 'none',
+                  background: isActive ? 'var(--rt-amber-pale)' : 'none',
+                  color: isActive ? 'var(--rt-amber)' : 'var(--rt-t2)',
+                  fontFamily: 'var(--rt-font-body)', fontSize: '0.88rem',
+                  fontWeight: isActive ? 600 : 400,
+                  cursor: 'pointer', textAlign: 'left', transition: 'all 0.15s', position: 'relative',
+                  width: '100%',
+                }}
+              >
+                <span style={{ width: 22, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {tab.icon ? tab.icon(isActive) : <IcoStats />}
+                </span>
+                <span>{tab.label}</span>
+                {tab.id === 'chat' && totalUnread > 0 && (
+                  <span style={{ position: 'absolute', top: 6, right: 8, background: 'var(--rt-amber)', color: '#fff', borderRadius: 99, fontSize: '0.58rem', padding: '0.1em 0.45em', fontWeight: 700 }}>{totalUnread}</span>
+                )}
+              </button>
+            </div>
           )
         })}
 
         <div style={{ marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--rt-border)' }}>
-          <p style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.5rem', paddingLeft: '0.5rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email}</p>
+          <button
+            onClick={() => setActiveTab('account')}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.5rem 0.5rem 0.75rem', background: 'none', border: 'none', cursor: 'pointer', width: '100%', textAlign: 'left' }}
+          >
+            <div style={{
+              background: avatarBg, borderRadius: '50%', width: 28, height: 28, flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: activeTab === 'account' ? '2px solid var(--rt-amber)' : '2px solid transparent',
+              fontFamily: 'var(--rt-font-display)', fontWeight: 700, color: '#fff', fontSize: '0.7rem',
+              transition: 'border-color 0.15s',
+            }}>{avatarLetter}</div>
+            <p style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{user?.email}</p>
+          </button>
           <button onClick={signOut} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.7rem 0.75rem', borderRadius: 'var(--rt-r3)', border: 'none', background: 'none', color: 'var(--rt-t3)', fontFamily: 'var(--rt-font-body)', fontSize: '0.88rem', cursor: 'pointer', width: '100%' }}>
             ↩ Sign out
           </button>
@@ -342,6 +363,42 @@ export default function AppShell() {
           updateChatName={updateChatName}
           addParticipants={addParticipants}
           findExistingChat={findExistingChat}
+        />
+      )}
+
+      {/* ── Global FAB ── */}
+      <button
+        onClick={() => setFabAddOpen(true)}
+        className="rt-fab"
+        style={{
+          position: 'fixed',
+          right: '1.25rem',
+          zIndex: 200,
+          width: 52, height: 52,
+          borderRadius: '50%',
+          background: 'var(--rt-amber)',
+          color: '#fff',
+          border: 'none',
+          fontSize: '1.65rem',
+          lineHeight: 1,
+          cursor: 'pointer',
+          boxShadow: '0 4px 16px rgba(26,39,68,0.22)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          transition: 'transform 0.15s, box-shadow 0.15s',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.08)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(26,39,68,0.3)' }}
+        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(26,39,68,0.22)' }}
+        aria-label="Add book"
+      >
+        +
+      </button>
+
+      {fabAddOpen && (
+        <AddBookModal
+          books={books}
+          onAdd={async d => { await addBook(d); setFabAddOpen(false) }}
+          onClose={() => setFabAddOpen(false)}
+          user={user}
         />
       )}
     </div>

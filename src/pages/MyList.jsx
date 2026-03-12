@@ -7,6 +7,7 @@ import { fmtDate } from '../lib/utils'
 import CoverImage from '../components/books/CoverImage'
 import BookDetailPanel from '../components/books/BookDetailPanel'
 import BookSheet, { FinishModal } from '../components/books/BookSheet'
+import AddBookModal from '../components/books/AddBookModal'
 
 const TABS = ['to-read', 'history', 'dnf']
 const TAB_LABELS = { 'to-read': 'To Read', history: 'History', dnf: 'DNF' }
@@ -122,6 +123,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
   const [editBook, setEditBook]               = useState(null)
   const [sortHistory, setSortHistory]         = useState('date-desc')
   const [showAll, setShowAll]                 = useState(false)
+  const [addModal, setAddModal]               = useState(false)
 
   const tbr = books
     .filter(b => b.status === 'tbr')
@@ -166,9 +168,14 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
     <div className="rt-page" style={{ maxWidth: 720, margin: '0 auto' }}>
 
       {/* ── Page title ── */}
-      <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 1rem' }}>
-        My List
-      </h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 1rem' }}>
+        <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: 0 }}>
+          My List
+        </h2>
+        <button onClick={() => setAddModal(true)} style={{ background: 'var(--rt-amber-pale)', border: 'none', borderRadius: 99, padding: '0.25rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--rt-amber)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>+</span> Add Book
+        </button>
+      </div>
 
       {/* ── Tabs ── */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--rt-border)', marginBottom: '1.25rem' }}>
@@ -342,6 +349,16 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
           onClose={() => setEditBook(null)}
           onSaved={changes => { updateBook(editBook.id, changes); setEditBook(null) }}
           onDeleted={() => { deleteBook(editBook.id); setEditBook(null) }}
+          user={user}
+        />
+      )}
+
+      {addModal && (
+        <AddBookModal
+          defaultStatus="tbr"
+          books={books}
+          onAdd={async d => { await addBook(d); setAddModal(false) }}
+          onClose={() => setAddModal(false)}
           user={user}
         />
       )}

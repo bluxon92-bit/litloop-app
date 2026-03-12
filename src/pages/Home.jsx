@@ -88,7 +88,6 @@ export default function Home({ onNavigate, onOpenChatModal }) {
         <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 0.1rem' }}>
           Welcome back{myDisplayName ? `, ${myDisplayName}` : ''}
         </h2>
-        <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)', fontWeight: 500, letterSpacing: '0.04em' }}>reading tracker</div>
       </div>
 
       {/* ── Reading goal card ── */}
@@ -106,22 +105,6 @@ export default function Home({ onNavigate, onOpenChatModal }) {
           <span className="rt-goal-pct">{pct}%</span>
         </div>
       </div>
-
-      {/* ── Notification strips ── */}
-      {user && (
-        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem' }}>
-          <button onClick={() => onNavigate('chat')} className="rt-notif-strip-btn">
-            <div className="rt-notif-strip-label">Messages</div>
-            <div className="rt-notif-strip-val" style={{ color: 'var(--rt-t2)' }}>Go to Chat</div>
-          </button>
-          <button onClick={() => onNavigate('discover')} className="rt-notif-strip-btn">
-            <div className="rt-notif-strip-label">Recommendations</div>
-            <div className="rt-notif-strip-val" style={{ color: pendingRecs.length > 0 ? 'var(--rt-amber)' : 'var(--rt-t2)' }}>
-              {pendingRecs.length > 0 ? `${pendingRecs.length} new` : 'Discover books'}
-            </div>
-          </button>
-        </div>
-      )}
 
       {/* ── Stats: favourites 1/3 + genre donut 2/3 ── */}
       <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
@@ -168,11 +151,9 @@ export default function Home({ onNavigate, onOpenChatModal }) {
       <div style={{ marginBottom: '1.25rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
           <div className="rt-section-heading" style={{ margin: 0 }}>Currently Reading</div>
-          {user && pendingRecs.length > 0 && (
-            <button onClick={() => onNavigate('discover')} style={{ background: 'var(--rt-amber-pale)', border: 'none', borderRadius: 99, padding: '0.25rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--rt-amber)', cursor: 'pointer' }}>
-              {pendingRecs.length} new rec{pendingRecs.length > 1 ? 's' : ''} →
-            </button>
-          )}
+          <button onClick={() => setAddModal(true)} style={{ background: 'var(--rt-amber-pale)', border: 'none', borderRadius: 99, padding: '0.25rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--rt-amber)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>+</span> Add Book
+          </button>
         </div>
 
         {reading.length === 0 ? (
@@ -214,6 +195,22 @@ export default function Home({ onNavigate, onOpenChatModal }) {
           </div>
         )}
       </div>
+      
+            {/* ── Notification strips ── */}
+      {user && (
+        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem' }}>
+          <button onClick={() => onNavigate('chat')} className="rt-notif-strip-btn">
+            <div className="rt-notif-strip-label">Messages</div>
+            <div className="rt-notif-strip-val" style={{ color: 'var(--rt-t2)' }}>Go to Chat</div>
+          </button>
+          <button onClick={() => onNavigate('discover')} className="rt-notif-strip-btn">
+            <div className="rt-notif-strip-label">Recommendations</div>
+            <div className="rt-notif-strip-val" style={{ color: pendingRecs.length > 0 ? 'var(--rt-amber)' : 'var(--rt-t2)' }}>
+              {pendingRecs.length > 0 ? `${pendingRecs.length} new` : 'Discover books'}
+            </div>
+          </button>
+        </div>
+      )}
 
       {/* ── Recently Read carousel ── */}
       {read.length > 0 && (

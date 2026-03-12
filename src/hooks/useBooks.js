@@ -189,7 +189,6 @@ export function useBooks(user) {
       cloudChanges.updated_at = new Date().toISOString()
 
       const { error } = await sb
-        .schema('staging')
         .from('reading_entries')
         .update(cloudChanges)
         .eq('id', id)
@@ -203,7 +202,6 @@ export function useBooks(user) {
     setBooks(prev => prev.filter(b => b.id !== id))
     if (user) {
       const { error } = await sb
-        .schema('staging')
         .from('reading_entries')
         .delete()
         .eq('id', id)
