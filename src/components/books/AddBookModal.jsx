@@ -62,7 +62,7 @@ export default function AddBookModal({ defaultStatus, books, onAdd, onClose, use
   }
 
   async function searchOL(q) {
-    if (q.length < 3) { setOlDropdown([]); return }
+    if (q.length < 4) { setOlDropdown([]); return }
     try {
       const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&fields=key,title,author_name,first_publish_year,cover_i&limit=6&language=eng`
       const res = await fetch(url)

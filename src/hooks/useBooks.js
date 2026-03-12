@@ -118,14 +118,19 @@ export function useBooks(user) {
     if (user) {
       let bookId = null
 
-      // If this came from OpenLibrary, try to find the book record
+      // If this came from OpenLibrary, upsert into books table to preserve cover/ol_key
       if (bookData.olKey) {
-        const { data: book } = await sb
+        const { data: upserted } = await sb
           .from('books')
+          .upsert({
+            ol_key:   bookData.olKey,
+            title:    bookData.title   || null,
+            author:   bookData.author  || null,
+            cover_id: bookData.coverId ? Number(bookData.coverId) : null,
+          }, { onConflict: 'ol_key', ignoreDuplicates: false })
           .select('id')
-          .eq('ol_key', bookData.olKey)
-          .maybeSingle()
-        if (book) bookId = book.id
+          .single()
+        if (upserted) bookId = upserted.id
       }
 
       const row = {
@@ -146,6 +151,7 @@ export function useBooks(user) {
       if (bookId) {
         row.book_id = bookId
       } else {
+        // Manual entry — no OL data, store title/author directly
         row.title_manual  = bookData.title
         row.author_manual = bookData.author || null
       }
