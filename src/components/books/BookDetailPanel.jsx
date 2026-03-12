@@ -78,13 +78,32 @@ function Stars({ value }) {
 }
 
 // ── Inline Recommend modal ────────────────────────────────────
-function RecommendModal({ book, friends, user, sendRecommendation, onClose }) {
+// - Friends who've already read the book → show "Chat about it" instead
+// - Friends you've already recommended to → show "Already recommended"
+// - Friends who recommended this to you → shown at top with note
+function RecommendModal({ book, friends, user, sendRecommendation, recs, onClose, onStartChatWith }) {
   const [selected, setSelected] = useState(new Set())
   const [note, setNote]         = useState('')
   const [sending, setSending]   = useState(false)
   const [sent, setSent]         = useState(false)
 
+  // Build sets for quick lookup
+  // recs sent BY me for this book
+  const alreadySentTo = new Set(
+    (recs || [])
+      .filter(r => r.from_user_id === user?.id && (r.book_ol_key === book.olKey || r.book_title === book.title))
+      .map(r => r.to_user_id)
+  )
+  // friends who've read this book (have it in their reading history via feed or social data)
+  // We approximate via the "also read" data already on recs
+  const alreadyReadBy = new Set(
+    (recs || [])
+      .filter(r => r.to_user_id === user?.id && (r.book_ol_key === book.olKey || r.book_title === book.title))
+      .map(r => r.from_user_id)
+  )
+
   function toggle(id) {
+    if (alreadySentTo.has(id) || alreadyReadBy.has(id)) return
     setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   }
 
@@ -113,17 +132,30 @@ function RecommendModal({ book, friends, user, sendRecommendation, onClose }) {
               {!friends?.length ? (
                 <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>Add friends first to recommend books.</div>
               ) : friends.map(f => {
-                const sel = selected.has(f.userId)
+                const sel         = selected.has(f.userId)
+                const sentAlready = alreadySentTo.has(f.userId)
+                const hasRead     = alreadyReadBy.has(f.userId)
+
                 return (
                   <div key={f.userId} onClick={() => toggle(f.userId)}
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0', borderBottom: '1px solid var(--rt-border)', cursor: 'pointer' }}>
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0', borderBottom: '1px solid var(--rt-border)', cursor: sentAlready || hasRead ? 'default' : 'pointer', opacity: sentAlready ? 0.6 : 1 }}>
                     <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarColour(f.userId), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
                       {avatarInitial(f.displayName || f.username || '?')}
                     </div>
                     <span style={{ flex: 1, fontSize: '0.9rem', fontWeight: 600, color: 'var(--rt-navy)' }}>{f.displayName || f.username}</span>
-                    <div style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${sel ? 'var(--rt-amber)' : 'var(--rt-border-md)'}`, background: sel ? 'var(--rt-amber)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      {sel && <span style={{ color: '#fff', fontSize: '0.72rem', fontWeight: 700 }}>✓</span>}
-                    </div>
+
+                    {sentAlready ? (
+                      <span style={{ fontSize: '0.7rem', color: 'var(--rt-t3)', fontStyle: 'italic' }}>Already recommended</span>
+                    ) : hasRead ? (
+                      <button
+                        onClick={e => { e.stopPropagation(); onStartChatWith?.(f.userId); onClose() }}
+                        style={{ fontSize: '0.7rem', background: 'var(--rt-amber-pale)', color: 'var(--rt-amber)', border: 'none', borderRadius: 99, padding: '0.2rem 0.6rem', fontWeight: 700, cursor: 'pointer' }}
+                      >💬 Chat about it</button>
+                    ) : (
+                      <div style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${sel ? 'var(--rt-amber)' : 'var(--rt-border-md)'}`, background: sel ? 'var(--rt-amber)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        {sel && <span style={{ color: '#fff', fontSize: '0.72rem', fontWeight: 700 }}>✓</span>}
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -143,33 +175,164 @@ function RecommendModal({ book, friends, user, sendRecommendation, onClose }) {
 }
 
 // ── Inline Chat friend picker ─────────────────────────────────
-function ChatFriendPicker({ book, friends, startOrOpenChat, onOpenChatModal, onClose }) {
-  const [selected, setSelected] = useState(new Set())
-  const [starting, setStarting] = useState(false)
+// ── Inline Chat friend picker ─────────────────────────────────
+// Three tiers: existing chats on this book → friends who've read it → all other friends
+// If existing chat found for book+friend combo: ask add-to-existing or new chat
+function ChatFriendPicker({ book, friends, startOrOpenChat, onOpenChatModal, onClose, existingChats }) {
+  const { myUsername, myDisplayName } = useSocialContext()
+  const [selected, setSelected]     = useState(new Set())
+  const [starting, setStarting]     = useState(false)
+  // For the "new vs existing" decision step
+  const [pendingFriendIds, setPendingFriendIds] = useState(null)
+  const [chatName, setChatName]     = useState('')
+  const [step, setStep]             = useState('pick') // 'pick' | 'confirm-existing' | 'name-new'
+
+  // Existing chats on this book (any participant overlap)
+  const bookChats = (existingChats || []).filter(c =>
+    book.olKey ? c.bookOlKey === book.olKey : c.bookTitle === book.title
+  )
+  // Friend IDs already in a chat about this book
+  const friendsInChat = new Set(bookChats.flatMap(c => c.participantIds || []))
 
   function toggle(id) {
     setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
   }
 
   async function handleStart() {
-    if (!selected.size || !book.olKey) return
-    setStarting(true)
+    if (!selected.size) return
     const friendIds = [...selected]
-    // Create the chat with the selected friends included from the start
-    const chatId = await startOrOpenChat(book.olKey, book.title, book.author, book.coverId, friendIds)
-    setStarting(false)
-    onClose()
-    if (chatId) {
-      // Pass a synthetic book object with _chatId so AppShell skips re-creating
-      setTimeout(() => onOpenChatModal?.(chatId, { ...book, _friendIds: friendIds }), 300)
+
+    // Check if a chat about this book already exists
+    const hasExisting = bookChats.length > 0
+
+    if (hasExisting) {
+      setPendingFriendIds(friendIds)
+      setStep('confirm-existing')
+      return
     }
+
+    // Auto-name: "me & friend" or "me & friend1 & friend2"
+    const selectedFriends = friends.filter(f => friendIds.includes(f.userId))
+    const myName = myDisplayName || myUsername || 'me'
+    const friendNames = selectedFriends.map(f => f.displayName || f.username || 'friend')
+    const autoName = friendIds.length === 1
+      ? `${myName} & ${friendNames[0]}`
+      : `${myName} & ${friendNames.slice(0, 2).join(' & ')}${friendIds.length > 2 ? ` +${friendIds.length - 2}` : ''}`
+
+    await createChat(friendIds, autoName)
+  }
+
+  async function createChat(friendIds, name) {
+    setStarting(true)
+    const chatId = await startOrOpenChat(book.olKey, book.title, book.author, book.coverId, friendIds, null, name)
+    setStarting(false)
+    if (chatId) {
+      // Build full chat object so AppShell doesn't need to look it up in stale list
+      const chatObj = {
+        id:          chatId,
+        bookOlKey:   book.olKey   || null,
+        bookTitle:   book.title   || '',
+        bookAuthor:  book.author  || '',
+        coverIdRaw:  book.coverId || null,
+        chatName:    name         || null,
+      }
+      onOpenChatModal?.(chatObj, book)
+    }
+    onClose()
+  }
+
+  async function addToExisting() {
+    const chat = bookChats[0]
+    setStarting(true)
+    // Add the new friends to the existing chat
+    const { sb } = await import('../../lib/supabase')
+    for (const fid of pendingFriendIds) {
+      await sb.from('chat_participants').upsert(
+        { chat_id: chat.id, user_id: fid },
+        { onConflict: 'chat_id,user_id', ignoreDuplicates: true }
+      )
+    }
+    setStarting(false)
+    onOpenChatModal?.(chat, book)
+    onClose()
+  }
+
+  // Tier labels
+  const friendsWithChat    = friends.filter(f => friendsInChat.has(f.userId))
+  const friendsWithoutChat = friends.filter(f => !friendsInChat.has(f.userId))
+
+  function FriendRow({ f }) {
+    const sel = selected.has(f.userId)
+    const inChat = friendsInChat.has(f.userId)
+    return (
+      <div onClick={() => toggle(f.userId)}
+        style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0', borderBottom: '1px solid var(--rt-border)', cursor: 'pointer' }}>
+        <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarColour(f.userId), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+          {avatarInitial(f.displayName || f.username || '?')}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--rt-navy)' }}>{f.displayName || f.username}</div>
+          {inChat && <div style={{ fontSize: '0.65rem', color: 'var(--rt-teal)' }}>Already chatting about this book</div>}
+        </div>
+        <div style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${sel ? 'var(--rt-amber)' : 'var(--rt-border-md)'}`, background: sel ? 'var(--rt-amber)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          {sel && <span style={{ color: '#fff', fontSize: '0.72rem', fontWeight: 700 }}>✓</span>}
+        </div>
+      </div>
+    )
+  }
+
+  if (step === 'confirm-existing') {
+    const existingChat = bookChats[0]
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 400, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
+        <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.25rem' }} onClick={e => e.stopPropagation()}>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.4rem' }}>Chat already exists</div>
+          <div style={{ fontSize: '0.82rem', color: 'var(--rt-t3)', marginBottom: '1.25rem' }}>
+            You already have a chat about <strong>{book.title}</strong>{existingChat?.chatName ? ` called "${existingChat.chatName}"` : ''}. What would you like to do?
+          </div>
+          <button onClick={addToExisting} disabled={starting}
+            style={{ width: '100%', background: 'var(--rt-navy)', color: '#fff', border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.85rem', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', marginBottom: '0.65rem' }}>
+            {starting ? 'Adding…' : 'Add to existing chat'}
+          </button>
+          <button onClick={() => setStep('name-new')}
+            style={{ width: '100%', background: 'var(--rt-surface)', color: 'var(--rt-navy)', border: '1px solid var(--rt-border)', borderRadius: 'var(--rt-r3)', padding: '0.85rem', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', marginBottom: '0.65rem' }}>
+            Start a new chat
+          </button>
+          <button onClick={() => setStep('pick')} style={{ width: '100%', background: 'none', border: 'none', color: 'var(--rt-t3)', fontSize: '0.85rem', cursor: 'pointer', padding: '0.4rem' }}>← Back</button>
+        </div>
+      </div>
+    )
+  }
+
+  if (step === 'name-new') {
+    return (
+      <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 400, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
+        <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.25rem' }} onClick={e => e.stopPropagation()}>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.4rem' }}>Name this chat</div>
+          <div style={{ fontSize: '0.82rem', color: 'var(--rt-t3)', marginBottom: '1rem' }}>Give this chat a name to tell it apart from your other {book.title} chats.</div>
+          <input
+            className="rt-input"
+            style={{ width: '100%', marginBottom: '1rem', boxSizing: 'border-box' }}
+            placeholder="e.g. Book club crew, Weekend reads…"
+            value={chatName}
+            onChange={e => setChatName(e.target.value)}
+            autoFocus
+          />
+          <button onClick={() => createChat(pendingFriendIds, chatName.trim() || null)} disabled={starting}
+            style={{ width: '100%', background: 'var(--rt-navy)', color: '#fff', border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.85rem', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer', marginBottom: '0.65rem' }}>
+            {starting ? 'Starting…' : 'Start chat'}
+          </button>
+          <button onClick={() => setStep('confirm-existing')} style={{ width: '100%', background: 'none', border: 'none', color: 'var(--rt-t3)', fontSize: '0.85rem', cursor: 'pointer', padding: '0.4rem' }}>← Back</button>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 400, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
       <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.25rem', maxHeight: '75vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>Start a chat</div>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>Chat about this book</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--rt-t3)', lineHeight: 1 }}>×</button>
         </div>
         <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)', marginBottom: '1rem' }}>{book.title}</div>
@@ -177,26 +340,27 @@ function ChatFriendPicker({ book, friends, startOrOpenChat, onOpenChatModal, onC
         <div style={{ overflowY: 'auto', flex: 1, marginBottom: '0.75rem' }}>
           {!friends?.length ? (
             <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>Add friends to start a chat.</div>
-          ) : friends.map(f => {
-            const sel = selected.has(f.userId)
-            return (
-              <div key={f.userId} onClick={() => toggle(f.userId)}
-                style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0', borderBottom: '1px solid var(--rt-border)', cursor: 'pointer' }}>
-                <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarColour(f.userId), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
-                  {avatarInitial(f.displayName || f.username || '?')}
-                </div>
-                <span style={{ flex: 1, fontSize: '0.9rem', fontWeight: 600, color: 'var(--rt-navy)' }}>{f.displayName || f.username}</span>
-                <div style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${sel ? 'var(--rt-amber)' : 'var(--rt-border-md)'}`, background: sel ? 'var(--rt-amber)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {sel && <span style={{ color: '#fff', fontSize: '0.72rem', fontWeight: 700 }}>✓</span>}
-                </div>
-              </div>
-            )
-          })}
+          ) : (
+            <>
+              {friendsWithChat.length > 0 && (
+                <>
+                  <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--rt-teal)', padding: '0.4rem 0 0.2rem' }}>Already chatting</div>
+                  {friendsWithChat.map(f => <FriendRow key={f.userId} f={f} />)}
+                </>
+              )}
+              {friendsWithoutChat.length > 0 && (
+                <>
+                  {friendsWithChat.length > 0 && <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--rt-t3)', padding: '0.75rem 0 0.2rem' }}>Other friends</div>}
+                  {friendsWithoutChat.map(f => <FriendRow key={f.userId} f={f} />)}
+                </>
+              )}
+            </>
+          )}
         </div>
 
-        <button onClick={handleStart} disabled={!selected.size || starting || !book.olKey}
-          style={{ width: '100%', background: selected.size && book.olKey ? 'var(--rt-navy)' : 'var(--rt-surface)', color: selected.size && book.olKey ? '#fff' : 'var(--rt-t3)', border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.85rem', fontWeight: 700, fontSize: '0.9rem', cursor: selected.size && book.olKey ? 'pointer' : 'default' }}>
-          {starting ? 'Starting…' : !book.olKey ? 'Book has no Open Library key' : `Start chat with ${selected.size || ''} friend${selected.size !== 1 ? 's' : ''}`}
+        <button onClick={handleStart} disabled={!selected.size || starting}
+          style={{ width: '100%', background: selected.size ? 'var(--rt-navy)' : 'var(--rt-surface)', color: selected.size ? '#fff' : 'var(--rt-t3)', border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.85rem', fontWeight: 700, fontSize: '0.9rem', cursor: selected.size ? 'pointer' : 'default' }}>
+          {starting ? 'Starting…' : `Chat with ${selected.size || ''} friend${selected.size !== 1 ? 's' : ''}`}
         </button>
       </div>
     </div>
@@ -219,8 +383,8 @@ export default function BookDetailPanel({
   onOpenChatModal,
   friendName,
 }) {
-  const { friends, sendRecommendation } = useSocialContext()
-  const { startOrOpenChat } = useChatContext()
+  const { friends, sendRecommendation, recs } = useSocialContext()
+  const { startOrOpenChat, chats } = useChatContext()
 
   const [olData, setOlData]               = useState(null)
   const [loading, setLoading]             = useState(true)
@@ -388,6 +552,8 @@ export default function BookDetailPanel({
             onClick={() => { onClose(); onStartReading?.() }}>📖 Start reading</button>
           {user && <button className="rt-bdp-btn rt-bdp-btn--amber" style={{ flex: 1 }}
             onClick={() => setShowRecommend(true)}>📚 Recommend</button>}
+          {user && <button className="rt-bdp-btn rt-bdp-btn--ghost" style={{ flex: 1 }}
+            onClick={() => setShowChatPicker(true)}>💬 Chat</button>}
         </>}
 
         {/* Currently reading */}
@@ -396,43 +562,30 @@ export default function BookDetailPanel({
             onClick={() => { onClose(); onMarkFinished?.() }}>✓ Mark finished</button>
           {user && <button className="rt-bdp-btn rt-bdp-btn--amber" style={{ flex: 1 }}
             onClick={() => setShowRecommend(true)}>📚 Recommend</button>}
+          {user && <button className="rt-bdp-btn rt-bdp-btn--ghost" style={{ flex: 1 }}
+            onClick={() => setShowChatPicker(true)}>💬 Chat</button>}
         </>}
 
         {/* History / DNF */}
         {isHistory && <>
           {user && <button className="rt-bdp-btn rt-bdp-btn--amber" style={{ flex: 1 }}
             onClick={() => setShowRecommend(true)}>📚 Recommend</button>}
-          {user && book.olKey && (
-            hasChat
-              ? <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
-                  onClick={() => { onClose(); onOpenChatModal?.(existingChatId) }}>💬 View chat</button>
-              : <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
-                  onClick={() => setShowChatPicker(true)}>💬 Start chat</button>
-          )}
+          {user && <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
+            onClick={() => setShowChatPicker(true)}>💬 Chat</button>}
         </>}
 
         {/* Home feed — add to list + chat */}
         {location === 'home-feed' && <>
           <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
             onClick={() => { onClose(); onAddToTBR?.() }}>+ Add to list</button>
-          {user && book.olKey && (
-            hasChat
-              ? <button className="rt-bdp-btn rt-bdp-btn--amber" style={{ flex: 1 }}
-                  onClick={() => { onClose(); onOpenChatModal?.(existingChatId) }}>💬 View chat</button>
-              : <button className="rt-bdp-btn rt-bdp-btn--amber" style={{ flex: 1 }}
-                  onClick={() => setShowChatPicker(true)}>💬 Start chat</button>
-          )}
+          {user && <button className="rt-bdp-btn rt-bdp-btn--amber" style={{ flex: 1 }}
+            onClick={() => setShowChatPicker(true)}>💬 Chat</button>}
         </>}
 
         {/* Community chat view */}
         {location === 'community-chat' && <>
-          {user && book.olKey && (
-            hasChat
-              ? <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
-                  onClick={() => { onClose(); onOpenChatModal?.(existingChatId) }}>💬 View chat</button>
-              : <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
-                  onClick={() => setShowChatPicker(true)}>💬 Start chat</button>
-          )}
+          {user && <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
+            onClick={() => setShowChatPicker(true)}>💬 Chat</button>}
           <button className="rt-bdp-btn rt-bdp-btn--ghost" style={{ flex: 1 }}
             onClick={() => { onClose(); onAddToTBR?.() }}>+ Add to list</button>
         </>}
@@ -444,8 +597,13 @@ export default function BookDetailPanel({
           book={book}
           friends={friends}
           user={user}
+          recs={recs}
           sendRecommendation={sendRecommendation}
           onClose={() => setShowRecommend(false)}
+          onStartChatWith={(friendId) => {
+            setShowRecommend(false)
+            setShowChatPicker(true)
+          }}
         />
       )}
       {showChatPicker && (
@@ -455,6 +613,7 @@ export default function BookDetailPanel({
           startOrOpenChat={startOrOpenChat}
           onOpenChatModal={onOpenChatModal}
           onClose={() => setShowChatPicker(false)}
+          existingChats={chats}
         />
       )}
     </ModalShell>

@@ -4,6 +4,7 @@ import { useSocialContext } from '../context/SocialContext'
 import { useAuthContext } from '../context/AuthContext'
 import { fmtDate, avatarColour, avatarInitial } from '../lib/utils'
 import { ModalShell } from '../components/books/BookSheet'
+import BookSheet, { FinishModal } from '../components/books/BookSheet'
 import CoverImage from '../components/books/CoverImage'
 import BookDetailPanel from '../components/books/BookDetailPanel'
 
@@ -28,6 +29,8 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
   const [detailLocation, setDetailLocation] = useState(null)
   const [favEditorOpen, setFavEditorOpen] = useState(false)
   const [favSelected, setFavSelected]     = useState([])
+  const [editBook, setEditBook]           = useState(null)
+  const [finishBook, setFinishBook]       = useState(null)
 
   const read    = books.filter(b => b.status === 'read')
   const reading = books.filter(b => b.status === 'reading')
@@ -208,12 +211,32 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
           location={detailLocation || (detailBook.status === 'reading' ? 'mylist-reading' : 'mylist-history')}
           user={user}
           onClose={() => setDetailBook(null)}
-          onMarkFinished={() => setDetailBook(null)}
-          onEdit={() => setDetailBook(null)}
+          onMarkFinished={() => { setFinishBook(detailBook); setDetailBook(null) }}
+          onStartReading={() => { updateBook(detailBook.id, { status: 'reading', dateStarted: new Date().toISOString().split('T')[0] }); setDetailBook(null) }}
+          onEdit={() => { setEditBook(detailBook); setDetailBook(null) }}
           onRecommend={() => setDetailBook(null)}
-          onOpenChatModal={(chatId, book) => { setDetailBook(null); onOpenChatModal?.(chatId, book) }}
-          onStartChat={() => setDetailBook(null)}
-          onViewChat={() => setDetailBook(null)}
+          onOpenChatModal={(chatId, book) => { onOpenChatModal?.(chatId, book || detailBook); setDetailBook(null) }}
+          onStartChat={() => { setDetailBook(null); onOpenChatModal?.(null, detailBook) }}
+          onViewChat={(chatId) => { setDetailBook(null); onOpenChatModal?.(chatId) }}
+        />
+      )}
+
+      {finishBook && (
+        <FinishModal
+          book={finishBook}
+          user={user}
+          onClose={() => setFinishBook(null)}
+          onSaved={changes => { updateBook(finishBook.id, changes); setFinishBook(null) }}
+        />
+      )}
+
+      {editBook && !editBook._finishMode && (
+        <BookSheet
+          book={editBook}
+          onClose={() => setEditBook(null)}
+          onSaved={changes => { updateBook(editBook.id, changes); setEditBook(null) }}
+          onDeleted={() => { setEditBook(null) }}
+          user={user}
         />
       )}
 

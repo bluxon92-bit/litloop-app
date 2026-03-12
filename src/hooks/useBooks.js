@@ -192,6 +192,11 @@ export function useBooks(user) {
       if (changes.favourite    !== undefined) cloudChanges.favourite          = changes.favourite
       if (changes.favOrder     !== undefined) cloudChanges.fav_order          = changes.favOrder
 
+      // Set reviewed_at to now whenever a public review is being written/updated
+      if (changes.reviewBody !== undefined && changes.reviewPublic) {
+        cloudChanges.reviewed_at = new Date().toISOString()
+      }
+
       cloudChanges.updated_at = new Date().toISOString()
 
       const { error } = await sb

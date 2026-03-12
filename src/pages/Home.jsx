@@ -306,6 +306,9 @@ export default function Home({ onNavigate, onOpenChatModal }) {
           friendName={detailBook.friendName || null}
           onClose={() => setDetailBook(null)}
           onMarkFinished={() => { setFinishBook(detailBook); setDetailBook(null) }}
+          onStartReading={() => { updateBook(detailBook.id, { status: 'reading', dateStarted: new Date().toISOString().split('T')[0] }); setDetailBook(null) }}
+          onEdit={() => { setDetailBook(null) }}
+          onRecommend={() => setDetailBook(null)}
           onAddToTBR={() => { addBook({ title: detailBook.title, author: detailBook.author, status: 'tbr', olKey: detailBook.olKey, coverId: detailBook.coverId }); setDetailBook(null) }}
           onOpenChatModal={(chatId, book) => onOpenChatModal?.(chatId, book || detailBook)}
           onStartChat={() => onOpenChatModal?.(null, detailBook)}

@@ -18,7 +18,7 @@ export function useChat(user) {
       // chat_participants → book_chats join (exact schema from original)
       const { data: participations, error } = await sb
         .from('chat_participants')
-        .select('chat_id, last_read_at, chat:book_chats(id, book_ol_key, book_title, book_author, cover_id, chat_name, last_message_at, last_message_preview, last_message_user_id)')
+        .select('chat_id, last_read_at, chat:book_chats(id, book_ol_key, book_title, book_author, cover_id, chat_name, last_message_at, last_message_preview, last_message_user_id, participants:chat_participants(user_id))')
         .eq('user_id', user.id)
         .order('joined_at', { ascending: false })
 
@@ -47,17 +47,18 @@ export function useChat(user) {
       const mapped = (participations || [])
         .filter(p => p.chat)
         .map(p => ({
-          id:            p.chat.id,
-          bookOlKey:     p.chat.book_ol_key,
-          bookTitle:     p.chat.book_title  || p.chat.book_ol_key || 'Unknown book',
-          bookAuthor:    p.chat.book_author || '',
-          coverId:       p.chat.cover_id,
-          coverIdRaw:       p.chat.cover_id,
-          chatName:      p.chat.chat_name   || null,
+          id:             p.chat.id,
+          bookOlKey:      p.chat.book_ol_key,
+          bookTitle:      p.chat.book_title  || p.chat.book_ol_key || 'Unknown book',
+          bookAuthor:     p.chat.book_author || '',
+          coverId:        p.chat.cover_id,
+          coverIdRaw:     p.chat.cover_id,
+          chatName:       p.chat.chat_name   || null,
           lastMessagePreview: p.chat.last_message_preview,
-          lastMessageAt: p.chat.last_message_at,
-          lastUserId:    p.chat.last_message_user_id,
-          unread:        unreadMap[p.chat.id] || 0
+          lastMessageAt:  p.chat.last_message_at,
+          lastUserId:     p.chat.last_message_user_id,
+          unread:         unreadMap[p.chat.id] || 0,
+          participantIds: (p.chat.participants || []).map(pp => pp.user_id)
         }))
         .sort((a, b) => {
           if (!a.lastMessageAt && !b.lastMessageAt) return 0
@@ -212,37 +213,19 @@ async function openThread(chatIdOrChat) {
   }
 
   // start or open a chat for a book; friendIds = array of friend user IDs to add
-  async function startOrOpenChat(olKey, title, author, coverId, friendIds, firstMessage = null) {
+  async function startOrOpenChat(olKey, title, author, coverId, friendIds, firstMessage = null, chatName = null) {
     if (!user) return null
     try {
-      // Check if we already have a chat for this OL key
-      const { data: existing } = await sb
-        .from('chat_participants')
-        .select('chat_id, chat:book_chats(id, book_ol_key)')
-        .eq('user_id', user.id)
-
-      const found = olKey ? (existing || []).find(p => p.chat?.book_ol_key === olKey) : null
-      let chatId
-
-      if (found) {
-        chatId = found.chat_id
-        for (const fid of friendIds) {
-          await sb.from('chat_participants').upsert(
-            { chat_id: chatId, user_id: fid },
-            { onConflict: 'chat_id,user_id', ignoreDuplicates: true }
-          )
-        }
-      } else {
-        const { data: nc, error } = await sb
-          .from('book_chats')
-          .insert({ book_ol_key: olKey, book_title: title, book_author: author, cover_id: coverId })
-          .select('id').single()
-        if (error) throw error
-        chatId = nc.id
-        await sb.from('chat_participants').insert(
-          [user.id, ...friendIds].map(uid => ({ chat_id: chatId, user_id: uid }))
-        )
-      }
+      // Always create a new chat — caller handles existing-chat logic via ChatFriendPicker
+      const { data: nc, error } = await sb
+        .from('book_chats')
+        .insert({ book_ol_key: olKey, book_title: title, book_author: author, cover_id: coverId, chat_name: chatName || null })
+        .select('id').single()
+      if (error) throw error
+      const chatId = nc.id
+      await sb.from('chat_participants').insert(
+        [user.id, ...friendIds].map(uid => ({ chat_id: chatId, user_id: uid }))
+      )
 
       if (firstMessage) {
         await sb.from('chat_messages').insert({ chat_id: chatId, user_id: user.id, body: firstMessage })
