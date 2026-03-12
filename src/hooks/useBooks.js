@@ -193,6 +193,28 @@ export function useBooks(user) {
       if (changes.favourite    !== undefined) cloudChanges.favourite          = changes.favourite
       if (changes.favOrder     !== undefined) cloudChanges.fav_order          = changes.favOrder
 
+      // coverId lives on books table (not reading_entries) — write separately via ol_key.
+      // changes._olKey may be passed as a fallback when book.olKey is null (eg. Goodreads imports
+      // where olKey is discovered during the OL search, not stored at import time).
+      if (changes.coverId !== undefined) {
+        const book = books.find(b => b.id === id)
+        const writeKey = book?.olKey || changes._olKey
+        if (writeKey) {
+          // Also persist the discovered olKey onto the book so future lookups work
+          if (!book?.olKey && changes._olKey) {
+            sb.from('books')
+              .update({ cover_id: Number(changes.coverId), ol_key: changes._olKey })
+              .eq('ol_key', changes._olKey)
+              .then(({ error: e }) => { if (e) console.error('[Books] cover+olkey writeback error:', e) })
+          } else {
+            sb.from('books')
+              .update({ cover_id: Number(changes.coverId) })
+              .eq('ol_key', writeKey)
+              .then(({ error: e }) => { if (e) console.error('[Books] cover writeback error:', e) })
+          }
+        }
+      }
+
       // Set reviewed_at only on first publish — not on subsequent edits.
       // Re-fetch current book state AFTER optimistic update to avoid stale closure.
       if (changes.reviewBody !== undefined || changes.reviewPublic !== undefined) {

@@ -343,7 +343,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
           onStartChat={() => onOpenChatModal?.(null, detailBook)}
           onViewChat={(chatId) => onOpenChatModal?.(chatId || findExistingChat(detailBook.olKey)?.id)}
           onRecommend={() => setDetailBook(null)}
-          onCoverUpdate={(id, coverId) => updateBook(id, { coverId })}
+          onCoverUpdate={(id, coverId, olKey) => updateBook(id, { coverId, _olKey: olKey })}
         />
       )}
 

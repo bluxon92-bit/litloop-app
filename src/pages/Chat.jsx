@@ -437,7 +437,7 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
           currentParticipantIds={participantIds}
           onAdd={handleAddParticipants}
           onClose={() => setShowAddPpl(false)}
-          onCoverUpdate={(id, coverId) => updateBook(id, { coverId })}
+          onCoverUpdate={(id, coverId, olKey) => updateBook(id, { coverId, _olKey: olKey })}
         />      )}
     </>
   )

@@ -218,7 +218,7 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
           onOpenChatModal={(chatId, book) => { onOpenChatModal?.(chatId, book || detailBook); setDetailBook(null) }}
           onStartChat={() => { setDetailBook(null); onOpenChatModal?.(null, detailBook) }}
           onViewChat={(chatId) => { setDetailBook(null); onOpenChatModal?.(chatId) }}
-          onCoverUpdate={(id, coverId) => updateBook(id, { coverId })}
+          onCoverUpdate={(id, coverId, olKey) => updateBook(id, { coverId, _olKey: olKey })}
         />      )}
 
       {finishBook && (

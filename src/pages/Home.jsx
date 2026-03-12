@@ -11,7 +11,7 @@ import BookSheet, { FinishModal } from '../components/books/BookSheet'
 
 export default function Home({ onNavigate, onOpenChatModal }) {
   const { user } = useAuthContext()
-  const { books, addBook, updateBook } = useBooksContext()
+  const { books, addBook, updateBook, deleteBook } = useBooksContext()
   const { friends, feed, recs, loaded: socialLoaded, myDisplayName } = useSocialContext()
   const { chats, totalUnread } = useChatContext()
 
@@ -19,7 +19,9 @@ export default function Home({ onNavigate, onOpenChatModal }) {
   const [detailBook, setDetailBook]         = useState(null)
   const [detailLocation, setDetailLocation] = useState(null)
   const [finishBook, setFinishBook]         = useState(null)
+  const [editBook, setEditBook]             = useState(null)
   const [addModal, setAddModal]             = useState(false)
+  const [crCarouselIdx, setCrCarouselIdx]   = useState(0)
 
   const year     = new Date().getFullYear()
   const read     = books.filter(b => b.status === 'read')
@@ -92,7 +94,10 @@ export default function Home({ onNavigate, onOpenChatModal }) {
 
       {/* ── Reading goal card ── */}
       <div className="rt-stat-card rt-stat-goal" style={{ marginBottom: '1rem' }}>
-        <div className="rt-stat-label">Reading goal {year}</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="rt-stat-label">Reading goal {year}</div>
+          <button onClick={() => onNavigate?.('stats')} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.7rem', fontWeight: 600, color: 'var(--rt-amber)', letterSpacing: '0.01em' }}>View stats →</button>
+        </div>
         <div className="rt-goal-display">
           <span className="rt-goal-current">{thisYear.length}</span>
           <span className="rt-goal-sep">/</span>
@@ -106,48 +111,8 @@ export default function Home({ onNavigate, onOpenChatModal }) {
         </div>
       </div>
 
-      {/* ── Stats: favourites 1/3 + genre donut 2/3 ── */}
-      <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1rem' }}>
 
-        {/* Favourites — 1/3 */}
-        <div className="rt-card" style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '0.85rem 0.5rem', minWidth: 0 }}>
-          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.8rem', fontWeight: 700, color: 'var(--rt-navy)', lineHeight: 1 }}>{fiveStarBooks.length}</div>
-          <div style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginTop: '0.3rem', textAlign: 'center' }}>favourites</div>
-          <div style={{ fontSize: '0.6rem', color: 'var(--rt-t3)', marginTop: '0.15rem', textAlign: 'center' }}>{read.length} read total</div>
-        </div>
-
-        {/* Genre donut — 2/3 */}
-        {showGenreBlock ? (
-          <div className="rt-card" style={{ flex: 2, minWidth: 0, padding: '0.85rem 1rem' }}>
-            <div style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.6rem' }}>Genres {year}</div>
-            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-              <svg width="72" height="72" viewBox="0 0 100 100" style={{ flexShrink: 0 }} aria-hidden="true">
-                {buildPie()}
-                <circle cx="50" cy="50" r="20" fill="white" />
-                <text x="50" y="51" textAnchor="middle" dominantBaseline="middle" fontSize="11" fontWeight="700" fill="#1a2744">{genreTotal}</text>
-              </svg>
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.25rem', minWidth: 0 }}>
-                {genreEntries.slice(0, 4).map(([genre, count], i) => (
-                  <div key={genre} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <div style={{ width: 7, height: 7, borderRadius: '50%', background: GENRE_COLOURS[i % GENRE_COLOURS.length], flexShrink: 0 }} />
-                    <span style={{ fontSize: '0.7rem', color: 'var(--rt-navy)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{genre}</span>
-                    <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', fontWeight: 600 }}>{count}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div className="rt-card" style={{ flex: 2, minWidth: 0, padding: '0.85rem 1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>📚</div>
-              <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>Finish some books to see your genres</div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ── Currently Reading + notification row ── */}
+            {/* ── Currently Reading + notification row ── */}
       <div style={{ marginBottom: '1.25rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
           <div className="rt-section-heading" style={{ margin: 0 }}>Currently Reading</div>
@@ -161,37 +126,49 @@ export default function Home({ onNavigate, onOpenChatModal }) {
             <span style={{ fontSize: '1.3rem' }}>📖</span>
             <span>Nothing on the go — add a book to get started.</span>
           </div>
-        ) : reading.length === 1 ? (
-          <div className="rt-card" style={{ display: 'flex', gap: '0.85rem', alignItems: 'center', cursor: 'pointer' }}
-            onClick={() => openDetail(reading[0], 'home-reading')}>
-            <CoverImage coverId={reading[0].coverId} olKey={reading[0].olKey} title={reading[0].title} size="M" />
-            <div className="rt-reading-card-body">
-              <div className="rt-reading-badge">Currently reading</div>
-              <div className="rt-reading-title">{reading[0].title}</div>
-              {reading[0].author && <div className="rt-reading-author">{reading[0].author}</div>}
-              {reading[0].dateStarted && <div className="rt-reading-meta">Started {fmtDate(reading[0].dateStarted)}</div>}
-            </div>
-          </div>
         ) : (
-          <div style={{ display: 'flex', gap: '0.75rem', overflowX: 'auto', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
-            {reading.map(book => (
-              <div key={book.id}
-                onClick={() => openDetail(book, 'home-reading')}
-                style={{ flexShrink: 0, width: 130, background: 'var(--rt-white)', borderRadius: 'var(--rt-r3)', border: '1px solid var(--rt-border)', padding: '0.7rem', cursor: 'pointer', boxShadow: 'var(--rt-s1)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem' }}>
-                <div style={{ width: 72, height: 104, borderRadius: 6, overflow: 'hidden', background: 'var(--rt-surface)', flexShrink: 0 }}>
-                  {book.coverId
-                    ? <img src={`https://covers.openlibrary.org/b/id/${book.coverId}-M.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-                    : book.olKey
-                      ? <img src={`https://covers.openlibrary.org/b/olid/${book.olKey.replace('/works/','')}-M.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" onError={e => e.target.style.display='none'} />
-                      : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem' }}>📚</div>
-                  }
+          <div>
+            {/* Full-width snap carousel — each card fills the width, multi peeks next */}
+            <div
+              className="rt-cr-carousel"
+              style={{ display: 'flex', gap: '0.75rem' }}
+              onScroll={e => {
+                const w = e.currentTarget.firstChild?.offsetWidth || e.currentTarget.offsetWidth
+                if (w) setCrCarouselIdx(Math.round(e.currentTarget.scrollLeft / (w + 12)))
+              }}
+            >
+              {reading.map(book => (
+                <div key={book.id}
+                  onClick={() => openDetail(book, 'home-reading')}
+                  style={{
+                    flexShrink: 0,
+                    /* Single book: fill container. Multiple: show ~85% so next card peeks */
+                    width: reading.length === 1 ? '100%' : '85%',
+                    scrollSnapAlign: 'start',
+                    background: 'var(--rt-white)', borderRadius: 'var(--rt-r3)',
+                    border: '1px solid var(--rt-border)', padding: '0.9rem 1rem',
+                    boxShadow: 'var(--rt-s1)', display: 'flex', gap: '0.85rem',
+                    alignItems: 'center', cursor: 'pointer', boxSizing: 'border-box'
+                  }}>
+                  <div style={{ width: 64, height: 92, borderRadius: 6, overflow: 'hidden', flexShrink: 0, boxShadow: '0 2px 8px rgba(26,39,68,0.15)' }}>
+                    <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="rt-reading-badge" style={{ marginBottom: '0.3rem' }}>Currently reading</div>
+                    <div className="rt-reading-title">{book.title}</div>
+                    {book.author && <div className="rt-reading-author">{book.author}</div>}
+                    {book.dateStarted && <div className="rt-reading-meta" style={{ marginTop: '0.3rem' }}>Started {fmtDate(book.dateStarted)}</div>}
+                  </div>
                 </div>
-                <div style={{ width: '100%' }}>
-                  <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textAlign: 'center' }}>{book.title}</div>
-                  {book.author && <div style={{ fontSize: '0.62rem', color: 'var(--rt-t3)', textAlign: 'center', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{book.author}</div>}
-                </div>
+              ))}
+            </div>
+            {reading.length > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '0.35rem', marginTop: '0.6rem' }}>
+                {reading.map((_, i) => (
+                  <div key={i} style={{ width: i === crCarouselIdx ? 18 : 6, height: 6, borderRadius: 99, background: i === crCarouselIdx ? 'var(--rt-amber)' : 'var(--rt-border)', transition: 'all 0.2s' }} />
+                ))}
               </div>
-            ))}
+            )}
           </div>
         )}
       </div>
@@ -309,13 +286,13 @@ export default function Home({ onNavigate, onOpenChatModal }) {
           onClose={() => setDetailBook(null)}
           onMarkFinished={() => { setFinishBook(detailBook); setDetailBook(null) }}
           onStartReading={() => { updateBook(detailBook.id, { status: 'reading', dateStarted: new Date().toISOString().split('T')[0] }); setDetailBook(null) }}
-          onEdit={() => { setDetailBook(null) }}
+          onEdit={() => { setEditBook(detailBook); setDetailBook(null) }}
           onRecommend={() => setDetailBook(null)}
           onAddToTBR={() => { addBook({ title: detailBook.title, author: detailBook.author, status: 'tbr', olKey: detailBook.olKey, coverId: detailBook.coverId }); setDetailBook(null) }}
           onOpenChatModal={(chatId, book) => onOpenChatModal?.(chatId, book || detailBook)}
           onStartChat={() => onOpenChatModal?.(null, detailBook)}
           onViewChat={(chatId) => onOpenChatModal?.(chatId || findExistingChat(detailBook.olKey)?.id)}
-          onCoverUpdate={(id, coverId) => updateBook(id, { coverId })}
+          onCoverUpdate={(id, coverId, olKey) => updateBook(id, { coverId, _olKey: olKey })}
         />
       )}
 
@@ -325,6 +302,16 @@ export default function Home({ onNavigate, onOpenChatModal }) {
           user={user}
           onClose={() => setFinishBook(null)}
           onSaved={changes => { const id = finishBook?.id; if (id) updateBook(id, changes); setFinishBook(null) }}
+        />
+      )}
+
+      {editBook && (
+        <BookSheet
+          book={editBook}
+          onClose={() => setEditBook(null)}
+          onSaved={changes => { updateBook(editBook.id, changes); setEditBook(null) }}
+          onDeleted={() => { deleteBook(editBook.id); setEditBook(null) }}
+          user={user}
         />
       )}
 

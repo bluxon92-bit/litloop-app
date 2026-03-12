@@ -4,7 +4,8 @@ import { GENRE_COLOURS, loadGoal, saveGoal } from '../lib/utils'
 
 export default function Stats() {
   const { books } = useBooksContext()
-  const [goal, setGoal] = useState(loadGoal)
+  const [goal, setGoal]           = useState(loadGoal)
+  const [scope, setScope]         = useState('year') // 'year' | 'alltime'
 
   const year      = new Date().getFullYear()
   const read      = books.filter(b => b.status === 'read')
@@ -15,15 +16,18 @@ export default function Stats() {
     : '—'
   const goalPct   = Math.min(100, Math.round((thisYear.length / Math.max(goal, 1)) * 100))
 
+  // Scope-filtered dataset (genres + authors toggle between year / all time)
+  const scopeBooks = scope === 'year' ? thisYear : read
+
   // Genre pie
   const genreMap = {}
-  read.forEach(b => { if (b.genre) genreMap[b.genre] = (genreMap[b.genre] || 0) + 1 })
+  scopeBooks.forEach(b => { if (b.genre) genreMap[b.genre] = (genreMap[b.genre] || 0) + 1 })
   const genres     = Object.entries(genreMap).sort((a, b) => b[1] - a[1]).slice(0, 8)
   const genreTotal = genres.reduce((s, [, n]) => s + n, 0)
 
   // Authors bar
   const authMap = {}
-  read.forEach(b => { if (b.author) authMap[b.author] = (authMap[b.author] || 0) + 1 })
+  scopeBooks.forEach(b => { if (b.author) authMap[b.author] = (authMap[b.author] || 0) + 1 })
   const authors = Object.entries(authMap).sort((a, b) => b[1] - a[1]).slice(0, 5)
   const authMax = authors[0]?.[1] || 1
 
@@ -49,7 +53,23 @@ export default function Stats() {
 
   return (
     <div className="rt-page" style={{ maxWidth: 720, margin: '0 auto' }}>
-      <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 1.5rem' }}>Stats</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+        <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: 0 }}>Stats</h2>
+        <div style={{ display: 'flex', background: 'var(--rt-bg-alt, #f0f0f5)', borderRadius: 99, padding: '0.2rem', gap: '0.15rem' }}>
+          {[['year', `${year}`], ['alltime', 'All time']].map(([val, label]) => (
+            <button key={val} onClick={() => setScope(val)} style={{
+              background: scope === val ? 'white' : 'transparent',
+              border: 'none', borderRadius: 99,
+              padding: '0.25rem 0.75rem',
+              fontSize: '0.72rem', fontWeight: 700,
+              color: scope === val ? 'var(--rt-navy)' : 'var(--rt-t3)',
+              cursor: 'pointer',
+              boxShadow: scope === val ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              transition: 'all 0.15s'
+            }}>{label}</button>
+          ))}
+        </div>
+      </div>
 
       {/* Reading goal card */}
       <div className="rt-card" style={{
@@ -98,7 +118,7 @@ export default function Stats() {
 
       {/* Genre pie chart */}
       <div className="rt-card" style={{ marginBottom: '1rem' }}>
-        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '1rem' }}>Genres (all time)</div>
+        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '1rem' }}>Genres</div>
         {genres.length === 0 ? (
           <div className="rt-stats-empty">
             <div className="rt-stats-empty-icon">📚</div>

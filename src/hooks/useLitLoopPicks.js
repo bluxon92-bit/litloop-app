@@ -180,10 +180,8 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
           return next
         })
         // Persist to DB so future users get it instantly
-        sb.from('editorial_books')
-          .update({ cover_id: coverId })
-          .eq('ol_key', book.ol_key)
-          .then(() => {})
+        // Cover cached in sessionStorage — DB writeback requires admin privileges,
+        // so we skip it here and let it be populated via a server-side job instead
       }
     } catch {}
   }

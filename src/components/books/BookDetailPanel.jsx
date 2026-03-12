@@ -38,7 +38,7 @@ async function fetchOLDetail(book, onCoverFound) {
 
   if (!olKey || !book.coverId) {
     // Search OL with robust fallback strategy
-    const cleanTitle = cleanBookTitle(book?.title || title || '')
+    const cleanTitle = cleanBookTitle(book.title || '')
     const authorSurname = (book.author || '').split(',')[0].split(' ').pop()
     const strategies = [
       authorSurname ? `title=${encodeURIComponent(cleanTitle)}&author=${encodeURIComponent(authorSurname)}&type=work` : null,
@@ -52,7 +52,6 @@ async function fetchOLDetail(book, onCoverFound) {
       try {
         const res  = await fetch(`https://openlibrary.org/search.json?${params}&fields=key,cover_i,title,author_name,first_publish_year,subject&limit=5`)
         const data = await res.json()
-        // Filter out study guides / SparkNotes
         const doc  = (data.docs || []).find(d => {
           const t = (d.title || '').toLowerCase()
           return !JUNK_KEYWORDS.some(k => t.includes(k))
@@ -64,16 +63,17 @@ async function fetchOLDetail(book, onCoverFound) {
         }
       } catch {}
     }
+  }
 
-    // Write cover back to DB if we found one
-    if (foundCoverId && book.id) {
-      sb.from('reading_entries')
-        .update({})
-        .eq('id', 'noop') // trigger handled by onCoverFound callback instead
-        .then(() => {})
-      onCoverFound?.(foundCoverId, olKey)
+  // Fire cover callback whenever we found one (regardless of whether olKey was pre-set)
+  if (foundCoverId) {
+    onCoverFound?.(foundCoverId, olKey)
+    // Persist to books table only (reading_entries has no cover_id column)
+    if (book?.olKey) {
+      sb.from('books').update({ cover_id: foundCoverId }).eq('ol_key', book.olKey).then(() => {})
     }
   }
+
   if (!olKey) return null
 
   const cached = descCache()[olKey]
@@ -440,24 +440,20 @@ export default function BookDetailPanel({
 
   useEffect(() => {
     setLoading(true); setOlData(null); setExpanded(false)
-    fetchOLDetail(book, (coverId, olKey) => {
+    fetchOLDetail(book, (coverId, discoveredOlKey) => {
       if (!coverId) return
       // Update local display immediately
       setCoverIdLive(coverId)
       // Update in-memory books state so list view shows cover without refetch
-      onCoverUpdate?.(book.id, coverId)
-      // Write back to DB so future loads are instant for all users
-      if (book?.id) {
-        sb.from('reading_entries')
-          .update({ cover_id: coverId })
-          .eq('id', book.id)
-          .then(() => {})
-      }
-      if (book?.olKey) {
+      onCoverUpdate?.(book.id, coverId, discoveredOlKey)
+      // Write cover back to books table using the discovered olKey
+      // (book.olKey may be null for Goodreads imports — discoveredOlKey is always populated)
+      const writeKey = discoveredOlKey || book?.olKey
+      if (writeKey) {
         sb.from('books')
           .update({ cover_id: coverId })
-          .eq('ol_key', book.olKey)
-          .then(() => {})
+          .eq('ol_key', writeKey)
+          .then(({ error: e }) => { if (e) console.error('[Cover] writeback error:', e) })
       }
     })
       .then(d => { setOlData(d); setLoading(false) })

@@ -339,6 +339,19 @@
 }
 .rt-recent-carousel::-webkit-scrollbar { display: none; }
 
+/* Currently reading snap carousel */
+.rt-cr-carousel {
+  overflow-x: auto;
+  overflow-y: visible;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  /* Prevent any chance of overflowing parent */
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.rt-cr-carousel::-webkit-scrollbar { display: none; }
+
 /* Mobile: show count, hide desktop carousel */
 .rt-home-fav-mobile  { display: none; }
 .rt-home-fav-desktop { display: block; }
