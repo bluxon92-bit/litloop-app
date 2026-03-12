@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useBooksContext } from '../context/BooksContext'
 import { useSocialContext } from '../context/SocialContext'
 import { useChatContext } from '../context/ChatContext'
@@ -13,47 +13,57 @@ const TABS = ['to-read', 'history', 'dnf']
 const TAB_LABELS = { 'to-read': 'To Read', history: 'History', dnf: 'DNF' }
 
 // ── Drag-to-reorder TBR list ─────────────────────────────────────
-// Uses pointer events for reliable cross-browser reorder (HTML5 drag
-// API loses state in React closures; pointer events read refs directly)
+// All handlers stored in refs so removeEventListener gets the same
+// function reference that was added — plain functions recreate on
+// every render, making removal silently fail.
 function TBRList({ tbr, updateBook, deleteBook, openDetail }) {
-  const [overIdx, setOverIdx]   = useState(null)
-  const dragIdxRef              = useRef(null)
-  const itemsRef                = useRef([])
+  const [overIdx, setOverIdx] = useState(null)
+  const dragIdxRef  = useRef(null)
+  const overIdxRef  = useRef(null)
+  const itemsRef    = useRef([])
+  const tbrRef      = useRef(tbr)
+  const updateRef   = useRef(updateBook)
+  useEffect(() => { tbrRef.current   = tbr        }, [tbr])
+  useEffect(() => { updateRef.current = updateBook }, [updateBook])
 
-  function handlePointerDown(e, i) {
-    // Only respond to the drag handle
-    if (!e.currentTarget.dataset.handle) return
-    e.preventDefault()
-    dragIdxRef.current = i
-    document.addEventListener('pointermove', onMove, { passive: false })
-    document.addEventListener('pointerup', onUp, { once: true })
+  // Stable refs — same function object for the lifetime of the component
+  const onMoveRef = useRef(null)
+  const onUpRef   = useRef(null)
+
+  if (!onMoveRef.current) {
+    onMoveRef.current = function onMove(e) {
+      e.preventDefault()
+      const y = e.clientY
+      let target = null
+      itemsRef.current.forEach((el, idx) => {
+        if (!el) return
+        const rect = el.getBoundingClientRect()
+        if (y >= rect.top && y <= rect.bottom) target = idx
+      })
+      if (target !== null && target !== overIdxRef.current) {
+        overIdxRef.current = target
+        setOverIdx(target)
+      }
+    }
   }
 
-  const onMove = useCallback((e) => {
-    e.preventDefault()
-    const y = e.clientY
-    let target = null
-    itemsRef.current.forEach((el, idx) => {
-      if (!el) return
-      const rect = el.getBoundingClientRect()
-      if (y >= rect.top && y <= rect.bottom) target = idx
-    })
-    if (target !== null) setOverIdx(target)
-  }, [])
-
-  const onUp = useCallback(() => {
-    document.removeEventListener('pointermove', onMove)
-    const from = dragIdxRef.current
-    const to   = overIdx ?? dragIdxRef.current
-    dragIdxRef.current = null
-    setOverIdx(null)
-    if (from !== null && to !== null && from !== to) {
-      const reordered = [...tbr]
-      const [moved] = reordered.splice(from, 1)
-      reordered.splice(to, 0, moved)
-      reordered.forEach((b, pos) => updateBook(b.id, { tbrPosition: pos }))
+  if (!onUpRef.current) {
+    onUpRef.current = function onUp() {
+      document.removeEventListener('pointermove', onMoveRef.current)
+      document.removeEventListener('pointerup',   onUpRef.current)
+      const from = dragIdxRef.current
+      const to   = overIdxRef.current
+      dragIdxRef.current = null
+      overIdxRef.current = null
+      setOverIdx(null)
+      if (from !== null && to !== null && from !== to) {
+        const reordered = [...tbrRef.current]
+        const [moved] = reordered.splice(from, 1)
+        reordered.splice(to, 0, moved)
+        reordered.forEach((b, pos) => updateRef.current(b.id, { tbrPosition: pos }))
+      }
     }
-  }, [overIdx, tbr, updateBook, onMove])
+  }
 
   if (tbr.length === 0) {
     return (
@@ -83,10 +93,12 @@ function TBRList({ tbr, updateBook, deleteBook, openDetail }) {
             data-handle="true"
             style={{ touchAction: 'none', cursor: 'grab' }}
             onPointerDown={e => {
+              e.preventDefault()
               e.stopPropagation()
               dragIdxRef.current = i
-              document.addEventListener('pointermove', onMove, { passive: false })
-              document.addEventListener('pointerup', onUp, { once: true })
+              overIdxRef.current = i
+              document.addEventListener('pointermove', onMoveRef.current, { passive: false })
+              document.addEventListener('pointerup',   onUpRef.current)
             }}
             onClick={e => e.stopPropagation()}
           >
@@ -331,6 +343,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
           onStartChat={() => onOpenChatModal?.(null, detailBook)}
           onViewChat={(chatId) => onOpenChatModal?.(chatId || findExistingChat(detailBook.olKey)?.id)}
           onRecommend={() => setDetailBook(null)}
+          onCoverUpdate={(id, coverId) => updateBook(id, { coverId })}
         />
       )}
 

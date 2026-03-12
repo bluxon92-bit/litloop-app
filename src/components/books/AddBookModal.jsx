@@ -61,10 +61,20 @@ export default function AddBookModal({ defaultStatus, books, onAdd, onClose, use
     })
   }
 
-  async function searchOL(q) {
+  // Strip Goodreads series info: "Title (Series, #N; Series2, #N)" → "Title"
+function cleanBookTitle(title) {
+  return (title || '')
+    .replace(/\s*\([^)]*#\d[^)]*\)/g, '')  // remove (Series, #N)
+    .replace(/[:\u2014\u2013].*/u, '')        // strip subtitles after : or —
+    .trim()
+}
+
+async function searchOL(q) {
     if (q.length < 4) { setOlDropdown([]); return }
     try {
-      const url = `https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&fields=key,title,author_name,first_publish_year,cover_i&limit=6&language=eng`
+      const cleanQ = cleanBookTitle(q)
+      // Try title search first for better precision, fall back to freetext
+      const url = `https://openlibrary.org/search.json?title=${encodeURIComponent(cleanQ)}&fields=key,title,author_name,first_publish_year,cover_i&limit=6&language=eng`
       const res = await fetch(url)
       const data = await res.json()
       setOlDropdown((data.docs || []).slice(0, 6))

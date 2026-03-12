@@ -59,17 +59,301 @@ const SIDEBAR_TABS = [
   { id: 'profile',  label: 'Profile', icon: IcoProfile },
 ]
 
+// ── FAB: Add Friend modal ─────────────────────────────────────
+function FabFriendModal({ onClose, sendFriendRequest, generateInviteLink }) {
+  const [input, setInput]       = useState('')
+  const [msg, setMsg]           = useState(null)
+  const [loading, setLoading]   = useState(false)
+  const [copied, setCopied]     = useState(false)
+
+  async function handleAdd(e) {
+    e.preventDefault()
+    const username = input.trim().replace(/^@/, '')
+    if (!username) return
+    setLoading(true); setMsg(null)
+    const { error } = await sendFriendRequest(username)
+    if (error) setMsg({ type: 'error', text: error })
+    else { setMsg({ type: 'success', text: `✓ Request sent to @${username}!` }); setInput('') }
+    setLoading(false)
+  }
+
+  async function handleCopy() {
+    const link = await generateInviteLink()
+    if (link) {
+      try { await navigator.clipboard.writeText(link) } catch {}
+      setCopied(true); setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 300, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
+      <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.5rem 1.25rem 2rem' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.15rem', fontWeight: 700, color: 'var(--rt-navy)' }}>Add a friend</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--rt-t3)' }}>×</button>
+        </div>
+
+        {/* Invite link — big and prominent */}
+        <div style={{ background: 'var(--rt-navy)', borderRadius: 'var(--rt-r3)', padding: '1rem 1.25rem', marginBottom: '1.25rem', cursor: 'pointer' }} onClick={handleCopy}>
+          <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', marginBottom: '0.3rem' }}>Share your invite link</div>
+          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff', marginBottom: '0.5rem' }}>Invite friends to LitLoop</div>
+          <div style={{ background: copied ? 'var(--rt-teal)' : 'var(--rt-amber)', color: '#fff', borderRadius: 8, padding: '0.6rem 1rem', textAlign: 'center', fontSize: '0.85rem', fontWeight: 700, transition: 'background 0.2s' }}>
+            {copied ? '✓ Copied!' : 'Copy invite link'}
+          </div>
+        </div>
+
+        {/* Search by username */}
+        <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>Or find by username</div>
+        <form onSubmit={handleAdd} style={{ display: 'flex', gap: '0.5rem' }}>
+          <input
+            className="rt-input" style={{ flex: 1 }}
+            placeholder="@username"
+            value={input} onChange={e => setInput(e.target.value)}
+            autoFocus
+          />
+          <button type="submit" disabled={loading || !input.trim()}
+            style={{ background: 'var(--rt-navy)', color: '#fff', border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.7rem 1.1rem', fontWeight: 700, fontSize: '0.88rem', cursor: 'pointer', opacity: !input.trim() ? 0.5 : 1 }}>
+            {loading ? '…' : 'Send'}
+          </button>
+        </form>
+        {msg && <div style={{ marginTop: '0.6rem', fontSize: '0.82rem', color: msg.type === 'error' ? '#dc2626' : 'var(--rt-teal)', fontWeight: 600 }}>{msg.text}</div>}
+      </div>
+    </div>
+  )
+}
+
+// ── FAB: Recommend modal ──────────────────────────────────────
+function FabRecommendModal({ books, friends, user, recs, sendRecommendation, onClose }) {
+  const [step, setStep]         = useState('book') // 'book' | 'friends'
+  const [search, setSearch]     = useState('')
+  const [selectedBook, setSelectedBook] = useState(null)
+  const [selectedFriends, setSelectedFriends] = useState(new Set())
+  const [note, setNote]         = useState('')
+  const [sending, setSending]   = useState(false)
+  const [sent, setSent]         = useState(false)
+
+  const readBooks = books.filter(b => b.status === 'read' || b.status === 'reading' || b.status === 'tbr')
+  const filtered = search.trim()
+    ? readBooks.filter(b => b.title.toLowerCase().includes(search.toLowerCase()) || (b.author || '').toLowerCase().includes(search.toLowerCase()))
+    : readBooks
+
+  const alreadySentTo = new Set(
+    (recs || []).filter(r => r.from_user_id === user?.id && (r.book_ol_key === selectedBook?.olKey || r.book_title === selectedBook?.title)).map(r => r.to_user_id)
+  )
+
+  function toggleFriend(id) {
+    if (alreadySentTo.has(id)) return
+    setSelectedFriends(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+
+  async function handleSend() {
+    if (!selectedFriends.size || !selectedBook) return
+    setSending(true)
+    await sendRecommendation(selectedBook, [...selectedFriends], note, user)
+    setSending(false); setSent(true)
+    setTimeout(onClose, 1200)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 300, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
+      <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.25rem', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>
+            {step === 'book' ? 'Pick a book to recommend' : `Recommend "${selectedBook?.title}"`}
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--rt-t3)' }}>×</button>
+        </div>
+
+        {sent ? (
+          <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--rt-teal)', fontWeight: 700, fontSize: '1rem' }}>✓ Sent!</div>
+        ) : step === 'book' ? (<>
+          <input className="rt-input" style={{ marginBottom: '0.75rem', marginTop: '0.5rem' }}
+            placeholder="Search your books…" value={search} onChange={e => setSearch(e.target.value)} autoFocus />
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            {filtered.length === 0 ? (
+              <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1.5rem' }}>No books found.</div>
+            ) : filtered.map(b => (
+              <div key={b.id} onClick={() => { setSelectedBook(b); setStep('friends') }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0', borderBottom: '1px solid var(--rt-border)', cursor: 'pointer' }}>
+                <div style={{ width: 32, height: 46, borderRadius: 4, background: 'var(--rt-surface)', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {b.coverId ? <img src={`https://covers.openlibrary.org/b/id/${b.coverId}-S.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : <span style={{ fontSize: '1rem' }}>📚</span>}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.title}</div>
+                  {b.author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>{b.author}</div>}
+                </div>
+                <span style={{ color: 'var(--rt-t3)', fontSize: '0.9rem' }}>›</span>
+              </div>
+            ))}
+          </div>
+        </>) : (<>
+          <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)', marginBottom: '0.75rem', marginTop: '0.25rem' }}>
+            <button onClick={() => setStep('book')} style={{ background: 'none', border: 'none', color: 'var(--rt-amber)', fontSize: '0.78rem', cursor: 'pointer', padding: 0, fontWeight: 600 }}>← Change book</button>
+          </div>
+          <div style={{ overflowY: 'auto', flex: 1, marginBottom: '0.75rem' }}>
+            {!friends?.length ? (
+              <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>Add friends first to recommend books.</div>
+            ) : friends.map(f => {
+              const sel = selectedFriends.has(f.userId)
+              const sent = alreadySentTo.has(f.userId)
+              return (
+                <div key={f.userId} onClick={() => toggleFriend(f.userId)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0', borderBottom: '1px solid var(--rt-border)', cursor: sent ? 'default' : 'pointer', opacity: sent ? 0.5 : 1 }}>
+                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarColour(f.userId), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                    {avatarInitial(f.displayName || f.username || '?')}
+                  </div>
+                  <span style={{ flex: 1, fontSize: '0.9rem', fontWeight: 600, color: 'var(--rt-navy)' }}>{f.displayName || f.username}</span>
+                  {sent ? <span style={{ fontSize: '0.7rem', color: 'var(--rt-t3)', fontStyle: 'italic' }}>Already sent</span>
+                  : <div style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${sel ? 'var(--rt-amber)' : 'var(--rt-border-md)'}`, background: sel ? 'var(--rt-amber)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {sel && <span style={{ color: '#fff', fontSize: '0.72rem', fontWeight: 700 }}>✓</span>}
+                  </div>}
+                </div>
+              )
+            })}
+          </div>
+          <textarea value={note} onChange={e => setNote(e.target.value)}
+            placeholder="Add a note (optional)…"
+            style={{ width: '100%', borderRadius: 'var(--rt-r3)', border: '1px solid var(--rt-border-md)', padding: '0.6rem 0.75rem', fontSize: '0.85rem', fontFamily: 'inherit', resize: 'none', marginBottom: '0.75rem', boxSizing: 'border-box', minHeight: 60 }} />
+          <button onClick={handleSend} disabled={!selectedFriends.size || sending}
+            style={{ width: '100%', background: selectedFriends.size ? 'var(--rt-navy)' : 'var(--rt-surface)', color: selectedFriends.size ? '#fff' : 'var(--rt-t3)', border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.85rem', fontWeight: 700, fontSize: '0.9rem', cursor: selectedFriends.size ? 'pointer' : 'default' }}>
+            {sending ? 'Sending…' : `Send to ${selectedFriends.size || ''} friend${selectedFriends.size !== 1 ? 's' : ''}`}
+          </button>
+        </>)}
+      </div>
+    </div>
+  )
+}
+
+// ── FAB: Start chat modal ─────────────────────────────────────
+function FabChatModal({ books, friends, chats, startOrOpenChat, onOpenChatModal, onClose }) {
+  const { myUsername, myDisplayName } = useSocialContext()
+  const [step, setStep]           = useState('book') // 'book' | 'friends'
+  const [search, setSearch]       = useState('')
+  const [selectedBook, setSelectedBook] = useState(null)
+  const [selectedFriends, setSelectedFriends] = useState(new Set())
+  const [starting, setStarting]   = useState(false)
+
+  const myBooks = books.filter(b => b.status === 'read' || b.status === 'reading')
+  const filtered = search.trim()
+    ? myBooks.filter(b => b.title.toLowerCase().includes(search.toLowerCase()) || (b.author || '').toLowerCase().includes(search.toLowerCase()))
+    : myBooks
+
+  const bookChats = selectedBook ? (chats || []).filter(c => c.bookOlKey === selectedBook.olKey || c.bookTitle === selectedBook.title) : []
+
+  function toggle(id) {
+    setSelectedFriends(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+  }
+
+  async function handleStart() {
+    if (!selectedFriends.size || !selectedBook) return
+    const friendIds = [...selectedFriends]
+    setStarting(true)
+    const selectedFriendObjs = friends.filter(f => friendIds.includes(f.userId))
+    const myName = myDisplayName || myUsername || 'me'
+    const friendNames = selectedFriendObjs.map(f => f.displayName || f.username || 'friend')
+    const autoName = friendIds.length === 1
+      ? `${myName} & ${friendNames[0]}`
+      : `${myName} & ${friendNames.slice(0, 2).join(' & ')}${friendIds.length > 2 ? ` +${friendIds.length - 2}` : ''}`
+    const chatId = await startOrOpenChat(selectedBook.olKey, selectedBook.title, selectedBook.author, selectedBook.coverId, friendIds, null, autoName)
+    setStarting(false)
+    if (chatId) {
+      onOpenChatModal?.({ id: chatId, bookOlKey: selectedBook.olKey, bookTitle: selectedBook.title, bookAuthor: selectedBook.author, coverIdRaw: selectedBook.coverId, chatName: autoName }, selectedBook)
+    }
+    onClose()
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 300, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
+      <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.25rem', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>
+            {step === 'book' ? 'Chat about a book' : `Chat about "${selectedBook?.title}"`}
+          </div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--rt-t3)' }}>×</button>
+        </div>
+
+        {step === 'book' ? (<>
+          <input className="rt-input" style={{ marginBottom: '0.75rem', marginTop: '0.5rem' }}
+            placeholder="Search your books…" value={search} onChange={e => setSearch(e.target.value)} autoFocus />
+          <div style={{ overflowY: 'auto', flex: 1 }}>
+            {filtered.length === 0 ? (
+              <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1.5rem' }}>No books found.</div>
+            ) : filtered.map(b => (
+              <div key={b.id} onClick={() => { setSelectedBook(b); setStep('friends') }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0', borderBottom: '1px solid var(--rt-border)', cursor: 'pointer' }}>
+                <div style={{ width: 32, height: 46, borderRadius: 4, background: 'var(--rt-surface)', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {b.coverId ? <img src={`https://covers.openlibrary.org/b/id/${b.coverId}-S.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : <span style={{ fontSize: '1rem' }}>📚</span>}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.title}</div>
+                  {b.author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>{b.author}</div>}
+                </div>
+                <span style={{ color: 'var(--rt-t3)', fontSize: '0.9rem' }}>›</span>
+              </div>
+            ))}
+          </div>
+        </>) : (<>
+          <div style={{ marginBottom: '0.75rem', marginTop: '0.25rem' }}>
+            <button onClick={() => setStep('book')} style={{ background: 'none', border: 'none', color: 'var(--rt-amber)', fontSize: '0.78rem', cursor: 'pointer', padding: 0, fontWeight: 600 }}>← Change book</button>
+          </div>
+
+          {bookChats.length > 0 && (
+            <div style={{ marginBottom: '0.75rem' }}>
+              <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.4rem' }}>Existing chats</div>
+              {bookChats.map(c => (
+                <div key={c.id} onClick={() => { onOpenChatModal?.(c, selectedBook); onClose() }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0.75rem', borderRadius: 'var(--rt-r3)', background: 'var(--rt-surface)', marginBottom: '0.35rem', cursor: 'pointer', border: '1px solid var(--rt-border)' }}>
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--rt-t3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{flexShrink:0}}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                  <span style={{ flex: 1, fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)' }}>{c.chatName || selectedBook?.title}</span>
+                  <span style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>Open →</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.4rem' }}>Start new chat with</div>
+          <div style={{ overflowY: 'auto', flex: 1, marginBottom: '0.75rem' }}>
+            {!friends?.length ? (
+              <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>Add friends to start chatting.</div>
+            ) : friends.map(f => {
+              const sel = selectedFriends.has(f.userId)
+              return (
+                <div key={f.userId} onClick={() => toggle(f.userId)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0', borderBottom: '1px solid var(--rt-border)', cursor: 'pointer' }}>
+                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: avatarColour(f.userId), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+                    {avatarInitial(f.displayName || f.username || '?')}
+                  </div>
+                  <span style={{ flex: 1, fontSize: '0.9rem', fontWeight: 600, color: 'var(--rt-navy)' }}>{f.displayName || f.username}</span>
+                  <div style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${sel ? 'var(--rt-amber)' : 'var(--rt-border-md)'}`, background: sel ? 'var(--rt-amber)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {sel && <span style={{ color: '#fff', fontSize: '0.72rem', fontWeight: 700 }}>✓</span>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <button onClick={handleStart} disabled={!selectedFriends.size || starting}
+            style={{ width: '100%', background: selectedFriends.size ? 'var(--rt-navy)' : 'var(--rt-surface)', color: selectedFriends.size ? '#fff' : 'var(--rt-t3)', border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.85rem', fontWeight: 700, fontSize: '0.9rem', cursor: selectedFriends.size ? 'pointer' : 'default' }}>
+            {starting ? 'Starting…' : 'Start chat'}
+          </button>
+        </>)}
+      </div>
+    </div>
+  )
+}
+
 export default function AppShell() {
   const { user, signOut }   = useAuthContext()
   const { totalUnread, chats, openThread, closeThread, markChatRead, messages,
           sendMessage, deleteMessage, loadEarlier, startOrOpenChat,
-          loadParticipants, updateChatName, addParticipants } = useChatContext()
-  const { pending, feed, recs, friends } = useSocialContext()
+          loadParticipants, updateChatName, addParticipants,
+          leaveChat } = useChatContext()
+  const { pending, feed, recs, friends, sendRecommendation, generateInviteLink, sendFriendRequest } = useSocialContext()
   const { books, addBook } = useBooksContext()
   const [activeTab, setActiveTab]         = useState('home')
   const [notifOpen, setNotifOpen]         = useState(false)
   const [activeChatModal, setActiveChatModal] = useState(null)
-  const [fabAddOpen, setFabAddOpen]       = useState(false)
+  const [fabOpen, setFabOpen]             = useState(false)
+  const [fabAction, setFabAction]         = useState(null) // 'addbook'|'recommend'|'chat'|'friend'
   const bellRef = useRef(null)
 
   function onNavigate(tab) { setActiveTab(tab) }
@@ -125,10 +409,21 @@ export default function AppShell() {
 
   const notifCount = totalUnread + pending.length
 
-  // Build notifications list
+  // Build notifications list — chats with unread messages first, then social
+  const unreadChats = (chats || []).filter(c => c.unread > 0)
   const notifications = [
+    ...unreadChats.map(c => ({
+      id: 'chat-' + c.id,
+      icon: '💬',
+      text: c.lastMessagePreview
+        ? `New message in "${c.chatName || c.bookTitle}": ${c.lastMessagePreview.slice(0, 60)}${c.lastMessagePreview.length > 60 ? '…' : ''}`
+        : `New message in "${c.chatName || c.bookTitle}"`,
+      time: c.lastMessageAt,
+      badge: c.unread > 1 ? c.unread : null,
+      action: () => { openChatModal(c, { title: c.bookTitle, author: c.bookAuthor, coverId: c.coverIdRaw }); setNotifOpen(false) }
+    })),
     ...pending.map(p => ({
-      id: 'req-' + p.id,
+      id: 'req-' + p.friendshipId,
       icon: '👋',
       text: `${p.displayName || p.username || 'Someone'} sent you a friend request`,
       time: p.createdAt,
@@ -303,6 +598,9 @@ export default function AppShell() {
                         <div style={{ fontSize: '0.8rem', color: 'var(--rt-navy)', lineHeight: 1.4 }}>{n.text}</div>
                         {n.time && <div style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginTop: '0.2rem' }}>{timeAgo(n.time)}</div>}
                       </div>
+                      {n.badge && (
+                        <span style={{ background: 'var(--rt-amber)', color: '#fff', borderRadius: 99, fontSize: '0.6rem', fontWeight: 700, padding: '0.1em 0.45em', flexShrink: 0, alignSelf: 'center' }}>{n.badge}</span>
+                      )}
                     </div>
                   ))
                 )}
@@ -363,42 +661,109 @@ export default function AppShell() {
           updateChatName={updateChatName}
           addParticipants={addParticipants}
           findExistingChat={findExistingChat}
+          onLeaveChat={leaveChat}
         />
       )}
 
-      {/* ── Global FAB ── */}
+      {/* ── Global FAB speed dial ── */}
+      <style>{`
+        @keyframes fabItemIn {
+          from { opacity: 0; transform: translateY(12px) scale(0.85); }
+          to   { opacity: 1; transform: translateY(0)    scale(1); }
+        }
+        .fab-item { animation: fabItemIn 0.18s ease forwards; }
+        .fab-item:nth-child(1) { animation-delay: 0.00s; }
+        .fab-item:nth-child(2) { animation-delay: 0.04s; }
+        .fab-item:nth-child(3) { animation-delay: 0.08s; }
+        .fab-item:nth-child(4) { animation-delay: 0.12s; }
+      `}</style>
+
+      {/* Backdrop */}
+      {fabOpen && (
+        <div onClick={() => setFabOpen(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 198, background: 'rgba(10,15,30,0.35)' }} />
+      )}
+
+      {/* Speed dial items */}
+      {fabOpen && (
+        <div style={{ position: 'fixed', right: '1.25rem', zIndex: 199, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.6rem' }}
+          className="rt-fab-items">
+          {[
+            { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, label: 'Add friend',  action: 'friend' },
+            { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>, label: 'Recommend',   action: 'recommend' },
+            { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, label: 'Start chat',  action: 'chat' },
+            { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>, label: 'Add book',    action: 'addbook' },
+          ].map((item, i) => (
+            <div key={item.action} className="fab-item"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', opacity: 0 }}>
+              <div style={{ background: 'var(--rt-white)', borderRadius: 'var(--rt-r3)', padding: '0.35rem 0.75rem', fontSize: '0.8rem', fontWeight: 700, color: 'var(--rt-navy)', boxShadow: '0 2px 10px rgba(10,15,30,0.15)', whiteSpace: 'nowrap' }}>
+                {item.label}
+              </div>
+              <button
+                onClick={() => { setFabOpen(false); setFabAction(item.action) }}
+                style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--rt-navy)', color: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 12px rgba(10,15,30,0.25)', flexShrink: 0 }}>
+                {item.icon}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* FAB button */}
       <button
-        onClick={() => setFabAddOpen(true)}
+        onClick={() => setFabOpen(v => !v)}
         className="rt-fab"
         style={{
-          position: 'fixed',
-          right: '1.25rem',
-          zIndex: 200,
-          width: 52, height: 52,
-          borderRadius: '50%',
-          background: 'var(--rt-amber)',
-          color: '#fff',
-          border: 'none',
-          fontSize: '1.65rem',
-          lineHeight: 1,
+          position: 'fixed', right: '1.25rem', zIndex: 200,
+          width: 52, height: 52, borderRadius: '50%',
+          background: fabOpen ? 'var(--rt-navy)' : 'var(--rt-amber)',
+          color: '#fff', border: 'none',
+          fontSize: fabOpen ? '1.4rem' : '1.65rem',
           cursor: 'pointer',
           boxShadow: '0 4px 16px rgba(26,39,68,0.22)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'transform 0.15s, box-shadow 0.15s',
+          transition: 'background 0.2s, transform 0.2s',
+          transform: fabOpen ? 'rotate(45deg)' : 'rotate(0deg)',
         }}
-        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.08)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(26,39,68,0.3)' }}
-        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(26,39,68,0.22)' }}
-        aria-label="Add book"
+        aria-label={fabOpen ? 'Close menu' : 'Quick actions'}
       >
         +
       </button>
 
-      {fabAddOpen && (
+      {/* ── FAB action modals ── */}
+      {fabAction === 'addbook' && (
         <AddBookModal
           books={books}
-          onAdd={async d => { await addBook(d); setFabAddOpen(false) }}
-          onClose={() => setFabAddOpen(false)}
+          onAdd={async d => { await addBook(d); setFabAction(null) }}
+          onClose={() => setFabAction(null)}
           user={user}
+        />
+      )}
+      {fabAction === 'friend' && (
+        <FabFriendModal
+          onClose={() => setFabAction(null)}
+          sendFriendRequest={sendFriendRequest}
+          generateInviteLink={generateInviteLink}
+        />
+      )}
+      {fabAction === 'recommend' && (
+        <FabRecommendModal
+          books={books}
+          friends={friends}
+          user={user}
+          recs={recs}
+          sendRecommendation={sendRecommendation}
+          onClose={() => setFabAction(null)}
+        />
+      )}
+      {fabAction === 'chat' && (
+        <FabChatModal
+          books={books}
+          friends={friends}
+          chats={chats}
+          startOrOpenChat={startOrOpenChat}
+          onOpenChatModal={openChatModal}
+          onClose={() => setFabAction(null)}
         />
       )}
     </div>

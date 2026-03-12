@@ -160,15 +160,18 @@ async function openThread(chatIdOrChat) {
     try {
       const { data: parts } = await sb
         .from('chat_participants')
-        .select('user_id')
+        .select('user_id, joined_at')
         .eq('chat_id', chatId)
+        .order('joined_at', { ascending: true })
       const ids = (parts || []).map(p => p.user_id)
       if (!ids.length) return []
       const { data: profiles } = await sb.rpc('get_profiles_by_ids', { user_ids: ids })
+      const creatorId = parts[0]?.user_id
       return (profiles || []).map(p => ({
         userId:      p.id,
         displayName: p.display_name || p.username || 'Friend',
         username:    p.username || null,
+        isCreator:   p.id === creatorId,
       }))
     } catch(e) {
       console.error('[Chat] loadParticipants:', e)
@@ -241,6 +244,23 @@ async function openThread(chatIdOrChat) {
 
   const totalUnread = chats.reduce((s, c) => s + (c.unread || 0), 0)
 
+  async function leaveChat(chatId) {
+    if (!user) return { error: 'Not signed in' }
+    try {
+      const { error } = await sb
+        .from('chat_participants')
+        .delete()
+        .eq('chat_id', chatId)
+        .eq('user_id', user.id)
+      if (error) throw error
+      setChats(prev => prev.filter(c => c.id !== chatId))
+      return { error: null }
+    } catch(e) {
+      console.error('[Chat] leaveChat:', e)
+      return { error: e.message }
+    }
+  }
+
   return {
     chats, activeChat, messages, loaded, totalUnread,
     loadChatList, openThread, closeThread,
@@ -248,5 +268,6 @@ async function openThread(chatIdOrChat) {
     sendMessage, deleteMessage, markChatRead,
     getParticipants, loadParticipants, startOrOpenChat,
     updateChatName, addParticipants,
+    leaveChat,
   }
 }

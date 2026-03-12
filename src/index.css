@@ -1507,9 +1507,16 @@
 .rt-fab {
   bottom: calc(64px + 1rem); /* above mobile tab bar */
 }
+.rt-fab-items {
+  bottom: calc(64px + 1rem + 52px + 0.75rem); /* above FAB */
+}
 @media (min-width: 768px) {
   .rt-fab {
-    bottom: 1.75rem; /* desktop: no tab bar */
+    bottom: 1.75rem;
+    right: 2rem;
+  }
+  .rt-fab-items {
+    bottom: calc(1.75rem + 52px + 0.75rem);
     right: 2rem;
   }
 }

@@ -66,6 +66,7 @@ export function useBooks(user) {
         notes:        e.notes            || null,
         reviewBody:   e.review_body      || null,
         reviewPublic: e.review_is_public || false,
+        reviewedAt:   e.reviewed_at       || null,
         dateRead:     e.date_finished    || null,
         dateStarted:  e.date_started     || null,
         tbrPosition:  e.tbr_position     || null,
@@ -192,9 +193,17 @@ export function useBooks(user) {
       if (changes.favourite    !== undefined) cloudChanges.favourite          = changes.favourite
       if (changes.favOrder     !== undefined) cloudChanges.fav_order          = changes.favOrder
 
-      // Set reviewed_at to now whenever a public review is being written/updated
-      if (changes.reviewBody !== undefined && changes.reviewPublic) {
-        cloudChanges.reviewed_at = new Date().toISOString()
+      // Set reviewed_at only on first publish — not on subsequent edits.
+      // Re-fetch current book state AFTER optimistic update to avoid stale closure.
+      if (changes.reviewBody !== undefined || changes.reviewPublic !== undefined) {
+        const currentBook = books.find(b => b.id === id)
+        const willBePublic = changes.reviewPublic !== undefined ? changes.reviewPublic : currentBook?.reviewPublic
+        // Only stamp if: going public AND no reviewed_at already in DB AND review body is actually being set now
+        const alreadyPublished = !!currentBook?.reviewedAt
+        const hasReviewBody = changes.reviewBody !== undefined ? !!changes.reviewBody : !!currentBook?.reviewBody
+        if (willBePublic && !alreadyPublished && hasReviewBody && changes.reviewBody !== undefined) {
+          cloudChanges.reviewed_at = new Date().toISOString()
+        }
       }
 
       cloudChanges.updated_at = new Date().toISOString()

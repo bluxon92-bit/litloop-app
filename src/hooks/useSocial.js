@@ -11,6 +11,7 @@ export function useSocial(user) {
   const [myDisplayName, setMyDisplayName] = useState('')
   const [myBio, setMyBio]             = useState('')
   const [topBookIds, setTopBookIds]   = useState([])
+  const [preferredMoods, setPreferredMoods] = useState([])
   const channelRef                    = useRef(null)
 
   useEffect(() => {
@@ -31,7 +32,7 @@ export function useSocial(user) {
   async function loadProfile() {
     const { data } = await sb
       .from('profiles')
-      .select('username, display_name, bio, top_book_ids')
+      .select('username, display_name, bio, top_book_ids, preferred_moods')
       .eq('id', user.id)
       .single()
     if (data) {
@@ -39,6 +40,8 @@ export function useSocial(user) {
       setMyDisplayName(data.display_name || data.username || '')
       setMyBio(data.bio || '')
       setTopBookIds(data.top_book_ids || [])
+      setPreferredMoods(data.preferred_moods || [])
+      setPreferredMoods(data.preferred_moods || [])
     }
   }
 
@@ -302,7 +305,7 @@ export function useSocial(user) {
 
   return {
     friends, pending, feed, recs, loaded,
-    myUsername, myDisplayName, myBio, topBookIds,
+    myUsername, myDisplayName, myBio, topBookIds, preferredMoods, setPreferredMoods,
     loadSocialData, sendFriendRequest, sendRecommendation,
     acceptFriendRequest, declineFriendRequest, removeFriend,
     dismissRec, acceptRecToTBR, sendRec,

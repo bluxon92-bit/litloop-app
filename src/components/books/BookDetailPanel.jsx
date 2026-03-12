@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { sb } from '../../lib/supabase'
 import { ModalShell } from './BookSheet'
 import { useSocialContext } from '../../context/SocialContext'
 import { useChatContext } from '../../context/ChatContext'
@@ -23,14 +24,55 @@ function descCacheSet(olKey, data) {
   } catch {}
 }
 
-async function fetchOLDetail(book) {
+// Strip Goodreads series info: "Title (Series, #N; Series2, #N)" → "Title"
+function cleanBookTitle(title) {
+  return (title || '')
+    .replace(/\s*\([^)]*#\d[^)]*\)/g, '')  // remove (Series, #N)
+    .replace(/[:\u2014\u2013].*/u, '')        // strip subtitles after : or —
+    .trim()
+}
+
+async function fetchOLDetail(book, onCoverFound) {
   let olKey = book.olKey
-  if (!olKey) {
-    const q = book.author ? `${book.title} ${book.author.split(',')[0]}` : book.title
-    const res  = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&fields=key,title,author_name,first_publish_year,subject&limit=1`)
-    const data = await res.json()
-    const doc  = data.docs?.[0]
-    if (doc) olKey = doc.key
+  let foundCoverId = null
+
+  if (!olKey || !book.coverId) {
+    // Search OL with robust fallback strategy
+    const cleanTitle = cleanBookTitle(book?.title || title || '')
+    const authorSurname = (book.author || '').split(',')[0].split(' ').pop()
+    const strategies = [
+      authorSurname ? `title=${encodeURIComponent(cleanTitle)}&author=${encodeURIComponent(authorSurname)}&type=work` : null,
+      `title=${encodeURIComponent(cleanTitle)}&type=work`,
+      `q=${encodeURIComponent(cleanTitle + (authorSurname ? ' ' + authorSurname : ''))}&type=work`,
+    ].filter(Boolean)
+
+    const JUNK_KEYWORDS = ['sparknotes', 'cliffsnotes', 'study guide', 'summary', 'analysis', 'gradesaver', 'bookrags', 'litcharts']
+
+    for (const params of strategies) {
+      try {
+        const res  = await fetch(`https://openlibrary.org/search.json?${params}&fields=key,cover_i,title,author_name,first_publish_year,subject&limit=5`)
+        const data = await res.json()
+        // Filter out study guides / SparkNotes
+        const doc  = (data.docs || []).find(d => {
+          const t = (d.title || '').toLowerCase()
+          return !JUNK_KEYWORDS.some(k => t.includes(k))
+        })
+        if (doc) {
+          if (!olKey && doc.key) olKey = doc.key
+          if (!book.coverId && doc.cover_i) foundCoverId = doc.cover_i
+          if (olKey) break
+        }
+      } catch {}
+    }
+
+    // Write cover back to DB if we found one
+    if (foundCoverId && book.id) {
+      sb.from('reading_entries')
+        .update({})
+        .eq('id', 'noop') // trigger handled by onCoverFound callback instead
+        .then(() => {})
+      onCoverFound?.(foundCoverId, olKey)
+    }
   }
   if (!olKey) return null
 
@@ -382,6 +424,7 @@ export default function BookDetailPanel({
   user,
   onOpenChatModal,
   friendName,
+  onCoverUpdate,
 }) {
   const { friends, sendRecommendation, recs } = useSocialContext()
   const { startOrOpenChat, chats } = useChatContext()
@@ -391,10 +434,32 @@ export default function BookDetailPanel({
   const [expanded, setExpanded]           = useState(false)
   const [showRecommend, setShowRecommend] = useState(false)
   const [showChatPicker, setShowChatPicker] = useState(false)
+  const [coverIdLive, setCoverIdLive]     = useState(book?.coverId || null)
+
+  useEffect(() => { setCoverIdLive(book?.coverId || null) }, [book?.coverId])
 
   useEffect(() => {
     setLoading(true); setOlData(null); setExpanded(false)
-    fetchOLDetail(book)
+    fetchOLDetail(book, (coverId, olKey) => {
+      if (!coverId) return
+      // Update local display immediately
+      setCoverIdLive(coverId)
+      // Update in-memory books state so list view shows cover without refetch
+      onCoverUpdate?.(book.id, coverId)
+      // Write back to DB so future loads are instant for all users
+      if (book?.id) {
+        sb.from('reading_entries')
+          .update({ cover_id: coverId })
+          .eq('id', book.id)
+          .then(() => {})
+      }
+      if (book?.olKey) {
+        sb.from('books')
+          .update({ cover_id: coverId })
+          .eq('ol_key', book.olKey)
+          .then(() => {})
+      }
+    })
       .then(d => { setOlData(d); setLoading(false) })
       .catch(() => setLoading(false))
   }, [book?.id, book?.olKey])
@@ -428,14 +493,12 @@ export default function BookDetailPanel({
 
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
           <div style={{ flexShrink: 0 }}>
-            {book.coverId
-              ? <img src={`https://covers.openlibrary.org/b/id/${book.coverId}-M.jpg`}
+            {coverIdLive
+              ? <img src={`https://covers.openlibrary.org/b/id/${coverIdLive}-M.jpg`}
                   style={{ width: 80, height: 116, borderRadius: 8, objectFit: 'cover', boxShadow: '0 4px 16px rgba(0,0,0,0.35)' }} alt={book.title} />
-              : book.olKey
-                ? <img src={`https://covers.openlibrary.org/b/olid/${book.olKey.replace('/works/','')}-M.jpg`}
-                    style={{ width: 80, height: 116, borderRadius: 8, objectFit: 'cover', boxShadow: '0 4px 16px rgba(0,0,0,0.35)' }} alt={book.title}
-                    onError={e => e.target.style.display='none'} />
-                : <div style={{ width: 80, height: 116, borderRadius: 8, background: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem' }}>📚</div>
+              : <div style={{ width: 80, height: 116, borderRadius: 8, background: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', color: 'rgba(255,255,255,0.3)' }}>
+                  {loading ? '…' : '📚'}
+                </div>
             }
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>

@@ -151,7 +151,7 @@ function AddParticipantsModal({ chat, friends, currentParticipantIds, onAdd, onC
 }
 
 // ── Chat Thread Modal ─────────────────────────────────────────
-export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend, onLoadEarlier, onDeleteMessage, loadParticipants, updateChatName, addParticipants, findExistingChat }) {
+export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend, onLoadEarlier, onDeleteMessage, loadParticipants, updateChatName, addParticipants, findExistingChat, onLeaveChat, onDeleteChat }) {
   const [msgInput, setMsgInput]         = useState('')
   const [participants, setParticipants] = useState([])
   const [participantsLoaded, setParticipantsLoaded] = useState(false)
@@ -160,6 +160,8 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
   const [nameInput, setNameInput]       = useState(chat.chatName || '')
   const [showAddPpl, setShowAddPpl]     = useState(false)
   const [detailBook, setDetailBook]     = useState(null)
+  const [showMenu, setShowMenu]         = useState(false)
+  const [menuAction, setMenuAction]     = useState(null) // 'leave' | 'delete'
   const messagesEndRef                  = useRef(null)
 
   useEffect(() => {
@@ -201,6 +203,17 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
       : null
 
   const participantIds = participants.map(p => p.userId)
+  const isCreator = participants.find(p => p.userId === user?.id)?.isCreator || false
+
+  async function handleLeave() {
+    const result = await onLeaveChat?.(chat.id)
+    if (!result?.error) onClose()
+  }
+
+  async function handleDelete() {
+    const result = await onDeleteChat?.(chat.id)
+    if (!result?.error) onClose()
+  }
 
   return (
     <>
@@ -287,7 +300,33 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
                 {chat.bookAuthor && <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.45)', marginTop: '0.05rem' }}>{chat.bookAuthor}</div>}
               </div>
             </div>
+
+            {/* ⋯ menu */}
+            <div style={{ position: 'relative', flexShrink: 0 }}>
+              <button onClick={e => { e.stopPropagation(); setShowMenu(v => !v) }}
+                style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '1.1rem' }}>⋯</button>
+              {showMenu && (
+                <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: 'var(--rt-white)', borderRadius: 'var(--rt-r3)', border: '1px solid var(--rt-border)', boxShadow: '0 8px 24px rgba(10,15,30,0.18)', zIndex: 10, minWidth: 160, overflow: 'hidden' }}
+                  onClick={e => e.stopPropagation()}>
+                  <button onClick={() => { setMenuAction('leave'); setShowMenu(false) }}
+                    style={{ width: '100%', padding: '0.75rem 1rem', background: 'none', border: 'none', textAlign: 'left', fontSize: '0.85rem', color: '#dc2626', fontWeight: 600, cursor: 'pointer' }}>
+                    🚪 Leave chat
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Confirm dialog */}
+          {menuAction && (
+            <div style={{ marginTop: '0.65rem', background: 'rgba(255,255,255,0.1)', borderRadius: 'var(--rt-r3)', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <span style={{ flex: 1, fontSize: '0.8rem', color: '#fff' }}>Leave this chat?</span>
+              <button onClick={() => setMenuAction(null)}
+                style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 6, padding: '0.35rem 0.65rem', color: '#fff', fontSize: '0.75rem', cursor: 'pointer' }}>Cancel</button>
+              <button onClick={handleLeave}
+                style={{ background: '#dc2626', border: 'none', borderRadius: 6, padding: '0.35rem 0.65rem', color: '#fff', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer' }}>Leave</button>
+            </div>
+          )}
 
           {/* Participants row */}
           <div style={{ marginTop: '0.65rem' }}>
@@ -398,8 +437,8 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
           currentParticipantIds={participantIds}
           onAdd={handleAddParticipants}
           onClose={() => setShowAddPpl(false)}
-        />
-      )}
+          onCoverUpdate={(id, coverId) => updateBook(id, { coverId })}
+        />      )}
     </>
   )
 }
@@ -418,6 +457,7 @@ export default function Chat({ onNavigate }) {
     openThread, closeThread, sendMessage, deleteMessage,
     loadEarlier, startOrOpenChat, totalUnread, markChatRead,
     loadParticipants, updateChatName, addParticipants,
+    leaveChat,
   }                                              = useChatContext()
 
   const [chatTab, setChatTab]                 = useState('chats')
@@ -654,6 +694,7 @@ export default function Chat({ onNavigate }) {
           updateChatName={updateChatName}
           addParticipants={addParticipants}
           findExistingChat={findExistingChat}
+          onLeaveChat={leaveChat}
         />
       )}
 

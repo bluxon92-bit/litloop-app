@@ -13,7 +13,7 @@ export default function Home({ onNavigate, onOpenChatModal }) {
   const { user } = useAuthContext()
   const { books, addBook, updateBook } = useBooksContext()
   const { friends, feed, recs, loaded: socialLoaded, myDisplayName } = useSocialContext()
-  const { chats, startOrOpenChat } = useChatContext()
+  const { chats, totalUnread } = useChatContext()
 
   const [goal, setGoal]                     = useState(loadGoal)
   const [detailBook, setDetailBook]         = useState(null)
@@ -201,7 +201,9 @@ export default function Home({ onNavigate, onOpenChatModal }) {
         <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem' }}>
           <button onClick={() => onNavigate('chat')} className="rt-notif-strip-btn">
             <div className="rt-notif-strip-label">Messages</div>
-            <div className="rt-notif-strip-val" style={{ color: 'var(--rt-t2)' }}>Go to Chat</div>
+            <div className="rt-notif-strip-val" style={{ color: totalUnread > 0 ? 'var(--rt-amber)' : 'var(--rt-t2)' }}>
+              {totalUnread > 0 ? `${totalUnread} unread` : 'No new messages'}
+            </div>
           </button>
           <button onClick={() => onNavigate('discover')} className="rt-notif-strip-btn">
             <div className="rt-notif-strip-label">Recommendations</div>
@@ -313,6 +315,7 @@ export default function Home({ onNavigate, onOpenChatModal }) {
           onOpenChatModal={(chatId, book) => onOpenChatModal?.(chatId, book || detailBook)}
           onStartChat={() => onOpenChatModal?.(null, detailBook)}
           onViewChat={(chatId) => onOpenChatModal?.(chatId || findExistingChat(detailBook.olKey)?.id)}
+          onCoverUpdate={(id, coverId) => updateBook(id, { coverId })}
         />
       )}
 
