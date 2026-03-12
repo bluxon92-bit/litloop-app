@@ -12,6 +12,7 @@ import Profile from '../../pages/Profile'
 import AccountSettings from '../../pages/AccountSettings'
 import AddBookModal from '../books/AddBookModal'
 import { avatarColour, avatarInitial, timeAgo } from '../../lib/utils'
+import { sb } from '../../lib/supabase'
 
 // ── SVG icons ─────────────────────────────────────────────────
 function IcoHome(active) {
@@ -83,6 +84,15 @@ function FabFriendModal({ onClose, sendFriendRequest, generateInviteLink }) {
       try { await navigator.clipboard.writeText(link) } catch {}
       setCopied(true); setTimeout(() => setCopied(false), 2000)
     }
+  }
+
+  if (showOnboarding) {
+    return (
+      <OnboardingFlow
+        user={user}
+        onComplete={() => { setOnboardingDone(true); setActiveTab('home') }}
+      />
+    )
   }
 
   return (
@@ -226,7 +236,7 @@ function FabRecommendModal({ books, friends, user, recs, sendRecommendation, onC
 
 // ── FAB: Start chat modal ─────────────────────────────────────
 function FabChatModal({ books, friends, chats, startOrOpenChat, onOpenChatModal, onClose }) {
-  const { myUsername, myDisplayName } = useSocialContext()
+  const { myDisplayName } = useSocialContext()
   const [step, setStep]           = useState('book') // 'book' | 'friends'
   const [search, setSearch]       = useState('')
   const [selectedBook, setSelectedBook] = useState(null)
@@ -341,15 +351,389 @@ function FabChatModal({ books, friends, chats, startOrOpenChat, onOpenChatModal,
   )
 }
 
+// ── Onboarding Flow ───────────────────────────────────────────────
+// Shown once when username is not yet set. 3 steps:
+//   1. Username + display name
+//   2. Pick moods (1-5)
+//   3. What are you reading right now?
+// Then navigates to Home.
+
+const ONBOARDING_MOODS = [
+  { id: 'unputdownable',   label: 'Unputdownable',   emoji: '🔥', desc: 'Propulsive, cant stop reads' },
+  { id: 'dark-and-twisty', label: 'Dark & Twisty',   emoji: '🌑', desc: 'Unsettling, morally complex' },
+  { id: 'feel-everything', label: 'Feel Everything',  emoji: '💧', desc: 'Emotionally devastating (in the best way)' },
+  { id: 'pure-joy',        label: 'Pure Joy',         emoji: '🌞', desc: 'Warm, funny, life-affirming' },
+  { id: 'big-and-epic',    label: 'Big & Epic',       emoji: '⚔️', desc: 'Sprawling worlds, sweeping narratives' },
+  { id: 'heart-and-soul',  label: 'Heart & Soul',     emoji: '❤️', desc: 'Romance, longing, love in all forms' },
+  { id: 'mind-bending',    label: 'Mind-Bending',     emoji: '🌀', desc: 'Challenges how you see the world' },
+  { id: 'expand-your-mind',label: 'Expand Your Mind', emoji: '💡', desc: 'Non-fiction, essays, ideas that stick' },
+  { id: 'classics',        label: 'The Classics',     emoji: '📜', desc: 'The ones that started everything' },
+]
+
+function OnboardingFlow({ user, onComplete }) {
+  const { saveProfile, setPreferredMoods } = useSocialContext()
+  const { addBook } = useBooksContext()
+  const [step, setStep]             = useState(1)  // 1 | 2 | 3
+  const [username, setUsername]     = useState('')
+  const [displayName, setDisplayName] = useState('')
+  const [moods, setMoods]           = useState([])
+  const [saving, setSaving]         = useState(false)
+  const [error, setError]           = useState(null)
+
+  // Step 3 — book search
+  const [query, setQuery]           = useState('')
+  const [results, setResults]       = useState([])
+  const [searching, setSearching]   = useState(false)
+  const [currentBook, setCurrentBook] = useState(null)
+  const searchTimer                 = useRef(null)
+
+  useEffect(() => {
+    clearTimeout(searchTimer.current)
+    if (!query.trim()) { setResults([]); return }
+    setSearching(true)
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const cleanQ = query.replace(/\s*\([^)]*#\d[^)]*\)/g, '').replace(/[:\u2014\u2013].*/u, '').trim()
+        const res = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(cleanQ)}&fields=key,title,author_name,cover_i&limit=5&type=work`)
+        const data = await res.json()
+        setResults(data.docs || [])
+      } catch {}
+      setSearching(false)
+    }, 400)
+  }, [query])
+
+  async function handleStep1() {
+    setError(null)
+    if (!username.trim()) { setError('Username is required'); return }
+    if (username.trim().length < 3) { setError('Username must be at least 3 characters'); return }
+    setSaving(true)
+    // saveProfile(username, bio) — then separately save display_name
+    const { error } = await saveProfile(username, '')
+    if (!error && displayName.trim()) {
+      try {
+        await sb.from('profiles')
+          .update({ display_name: displayName.trim() })
+          .eq('id', user.id)
+      } catch {}
+    }
+    setSaving(false)
+    if (error) { setError(error.message || 'Something went wrong'); return }
+    setStep(2)
+  }
+
+  async function handleStep2() {
+    // Save moods to DB
+    setPreferredMoods(moods)
+    try {
+      await sb.from('profiles').update({ preferred_moods: moods }).eq('id', user.id)
+    } catch {}
+    setStep(3)
+  }
+
+  async function handleStep3() {
+    if (currentBook) {
+      await addBook({
+        title: currentBook.title,
+        author: (currentBook.author_name || []).join(', '),
+        olKey: currentBook.key,
+        coverId: currentBook.cover_i || null,
+        status: 'reading',
+        dateStarted: new Date().toISOString().split('T')[0],
+      })
+    }
+    onComplete()
+  }
+
+  const progress = ((step - 1) / 3) * 100
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      background: 'var(--rt-cream)',
+      fontFamily: 'var(--rt-font-body)',
+      display: 'flex', flexDirection: 'column',
+      overflowY: 'auto',
+    }}>
+      {/* Progress bar */}
+      <div style={{ height: 3, background: 'var(--rt-border)', flexShrink: 0 }}>
+        <div style={{
+          height: '100%', background: 'var(--rt-amber)',
+          width: `${progress}%`,
+          transition: 'width 0.4s ease',
+        }} />
+      </div>
+
+      {/* Header */}
+      <div style={{
+        background: 'linear-gradient(160deg, #111C35 0%, var(--rt-navy) 100%)',
+        padding: '1.75rem 1.5rem 1.5rem',
+        flexShrink: 0,
+      }}>
+        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.5rem', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>LitLoop</div>
+        <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.78rem', marginTop: '0.2rem' }}>Step {step} of 3</div>
+      </div>
+
+      {/* Body */}
+      <div style={{ flex: 1, maxWidth: 540, width: '100%', margin: '0 auto', padding: '2rem 1.5rem 3rem' }}>
+
+        {/* ── Step 1: Username ── */}
+        {step === 1 && (
+          <div>
+            <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 0.5rem', lineHeight: 1.2 }}>
+              First, what should we call you?
+            </h2>
+            <p style={{ color: 'var(--rt-t3)', fontSize: '0.88rem', margin: '0 0 2rem', lineHeight: 1.5 }}>
+              Choose a username — this is how friends will find you on LitLoop.
+            </p>
+
+            <div style={{ marginBottom: '1.25rem' }}>
+              <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.4rem' }}>Username</label>
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--rt-t3)', fontSize: '0.95rem', pointerEvents: 'none' }}>@</span>
+                <input
+                  value={username}
+                  onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                  placeholder="yourname"
+                  maxLength={20}
+                  style={{
+                    width: '100%', boxSizing: 'border-box',
+                    padding: '0.85rem 1rem 0.85rem 2rem',
+                    border: '1.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)',
+                    fontSize: '0.95rem', color: 'var(--rt-navy)', background: 'var(--rt-white)',
+                    outline: 'none', fontFamily: 'var(--rt-font-body)',
+                  }}
+                  onFocus={e => e.target.style.borderColor = 'var(--rt-navy)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--rt-border-md)'}
+                  autoFocus
+                  autoComplete="off"
+                  autoCapitalize="none"
+                />
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '1.75rem' }}>
+              <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.4rem' }}>
+                Display name <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— optional</span>
+              </label>
+              <input
+                value={displayName}
+                onChange={e => setDisplayName(e.target.value)}
+                placeholder="How your name appears to friends"
+                maxLength={40}
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  padding: '0.85rem 1rem',
+                  border: '1.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)',
+                  fontSize: '0.95rem', color: 'var(--rt-navy)', background: 'var(--rt-white)',
+                  outline: 'none', fontFamily: 'var(--rt-font-body)',
+                }}
+                onFocus={e => e.target.style.borderColor = 'var(--rt-navy)'}
+                onBlur={e => e.target.style.borderColor = 'var(--rt-border-md)'}
+                autoComplete="off"
+              />
+            </div>
+
+            {error && <p style={{ color: '#991b1b', background: '#fef2f2', fontSize: '0.83rem', padding: '0.6rem 0.9rem', borderRadius: 'var(--rt-r4)', margin: '0 0 1rem' }}>{error}</p>}
+
+            <button onClick={handleStep1} disabled={saving || !username.trim()}
+              style={{
+                width: '100%', background: username.trim() ? 'var(--rt-navy)' : 'var(--rt-surface)',
+                color: username.trim() ? '#fff' : 'var(--rt-t3)',
+                border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.95rem',
+                fontSize: '0.95rem', fontWeight: 700, cursor: username.trim() ? 'pointer' : 'default',
+                fontFamily: 'var(--rt-font-body)', transition: 'all 0.15s',
+              }}>
+              {saving ? 'Saving…' : 'Continue →'}
+            </button>
+          </div>
+        )}
+
+        {/* ── Step 2: Mood picker ── */}
+        {step === 2 && (
+          <div>
+            <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 0.5rem', lineHeight: 1.2 }}>
+              What kind of reader are you?
+            </h2>
+            <p style={{ color: 'var(--rt-t3)', fontSize: '0.88rem', margin: '0 0 1.75rem', lineHeight: 1.5 }}>
+              Pick the reading moods that feel like you. We'll use these to personalise your LitLoop Picks. You can always change this later.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '2rem' }}>
+              {ONBOARDING_MOODS.map(mood => {
+                const selected = moods.includes(mood.id)
+                return (
+                  <button key={mood.id}
+                    onClick={() => setMoods(prev =>
+                      prev.includes(mood.id) ? prev.filter(m => m !== mood.id) : [...prev, mood.id]
+                    )}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.85rem',
+                      padding: '0.85rem 1rem',
+                      background: selected ? 'var(--rt-navy)' : 'var(--rt-white)',
+                      border: `1.5px solid ${selected ? 'var(--rt-navy)' : 'var(--rt-border-md)'}`,
+                      borderRadius: 'var(--rt-r3)', cursor: 'pointer',
+                      textAlign: 'left', width: '100%',
+                      transition: 'all 0.15s',
+                    }}>
+                    <span style={{ fontSize: '1.25rem', flexShrink: 0, width: 28, textAlign: 'center' }}>{mood.emoji}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: selected ? '#fff' : 'var(--rt-navy)', fontFamily: 'var(--rt-font-body)' }}>{mood.label}</div>
+                      <div style={{ fontSize: '0.73rem', color: selected ? 'rgba(255,255,255,0.6)' : 'var(--rt-t3)', marginTop: '0.1rem' }}>{mood.desc}</div>
+                    </div>
+                    <div style={{
+                      width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
+                      background: selected ? 'var(--rt-amber)' : 'transparent',
+                      border: `2px solid ${selected ? 'var(--rt-amber)' : 'var(--rt-border-md)'}`,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      transition: 'all 0.15s',
+                    }}>
+                      {selected && <span style={{ color: '#fff', fontSize: '0.65rem', fontWeight: 900 }}>✓</span>}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            <button onClick={handleStep2}
+              style={{
+                width: '100%', background: 'var(--rt-navy)', color: '#fff',
+                border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.95rem',
+                fontSize: '0.95rem', fontWeight: 700, cursor: 'pointer',
+                fontFamily: 'var(--rt-font-body)',
+              }}>
+              {moods.length === 0 ? 'Skip for now →' : `Continue with ${moods.length} mood${moods.length > 1 ? 's' : ''} →`}
+            </button>
+          </div>
+        )}
+
+        {/* ── Step 3: Currently reading ── */}
+        {step === 3 && (
+          <div>
+            <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 0.5rem', lineHeight: 1.2 }}>
+              What are you reading right now?
+            </h2>
+            <p style={{ color: 'var(--rt-t3)', fontSize: '0.88rem', margin: '0 0 1.75rem', lineHeight: 1.5 }}>
+              Add the book you're currently reading and we'll track your progress. You can skip this and add it later.
+            </p>
+
+            {/* Selected book */}
+            {currentBook ? (
+              <div style={{
+                display: 'flex', alignItems: 'center', gap: '0.85rem',
+                background: 'var(--rt-white)', border: '1.5px solid var(--rt-navy)',
+                borderRadius: 'var(--rt-r3)', padding: '0.85rem 1rem',
+                marginBottom: '1.5rem',
+              }}>
+                {currentBook.cover_i ? (
+                  <img src={`https://covers.openlibrary.org/b/id/${currentBook.cover_i}-S.jpg`}
+                    style={{ width: 44, height: 62, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} alt="" />
+                ) : (
+                  <div style={{ width: 44, height: 62, borderRadius: 4, background: 'var(--rt-surface)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>📚</div>
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentBook.title}</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)', marginTop: '0.15rem' }}>{(currentBook.author_name || []).slice(0, 2).join(', ')}</div>
+                </div>
+                <button onClick={() => setCurrentBook(null)}
+                  style={{ background: 'none', border: 'none', color: 'var(--rt-t3)', cursor: 'pointer', fontSize: '1.1rem', padding: '0.25rem', flexShrink: 0 }}>×</button>
+              </div>
+            ) : (
+              <div style={{ position: 'relative', marginBottom: '0.75rem' }}>
+                <input
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder="Search for a book title…"
+                  style={{
+                    width: '100%', boxSizing: 'border-box',
+                    padding: '0.85rem 1rem',
+                    border: '1.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)',
+                    fontSize: '0.95rem', color: 'var(--rt-navy)', background: 'var(--rt-white)',
+                    outline: 'none', fontFamily: 'var(--rt-font-body)',
+                  }}
+                  onFocus={e => e.target.style.borderColor = 'var(--rt-navy)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--rt-border-md)'}
+                  autoFocus
+                  autoComplete="off"
+                />
+                {searching && (
+                  <div style={{ position: 'absolute', right: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--rt-t3)', fontSize: '0.78rem' }}>Searching…</div>
+                )}
+              </div>
+            )}
+
+            {/* Search results */}
+            {!currentBook && results.length > 0 && (
+              <div style={{ background: 'var(--rt-white)', border: '1px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)', overflow: 'hidden', marginBottom: '1.5rem', boxShadow: 'var(--rt-s2)' }}>
+                {results.map((r, i) => (
+                  <button key={r.key}
+                    onClick={() => { setCurrentBook(r); setQuery(''); setResults([]) }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.75rem',
+                      width: '100%', padding: '0.75rem 1rem',
+                      background: 'none', border: 'none',
+                      borderBottom: i < results.length - 1 ? '1px solid var(--rt-border)' : 'none',
+                      cursor: 'pointer', textAlign: 'left',
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--rt-surface)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                  >
+                    {r.cover_i ? (
+                      <img src={`https://covers.openlibrary.org/b/id/${r.cover_i}-S.jpg`}
+                        style={{ width: 32, height: 46, borderRadius: 3, objectFit: 'cover', flexShrink: 0 }} alt="" />
+                    ) : (
+                      <div style={{ width: 32, height: 46, borderRadius: 3, background: 'var(--rt-surface)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.9rem' }}>📚</div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</div>
+                      <div style={{ fontSize: '0.73rem', color: 'var(--rt-t3)', marginTop: '0.1rem' }}>{(r.author_name || []).slice(0, 2).join(', ')}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <button onClick={handleStep3}
+              style={{
+                width: '100%', background: 'var(--rt-navy)', color: '#fff',
+                border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.95rem',
+                fontSize: '0.95rem', fontWeight: 700, cursor: 'pointer',
+                fontFamily: 'var(--rt-font-body)', marginBottom: '0.85rem',
+              }}>
+              {currentBook ? 'Start reading →' : 'Skip for now →'}
+            </button>
+
+            {/* Import shortcut */}
+            <div style={{
+              background: 'var(--rt-white)', border: '1px solid var(--rt-border)',
+              borderRadius: 'var(--rt-r3)', padding: '1rem 1.1rem',
+              display: 'flex', alignItems: 'center', gap: '0.75rem',
+            }}>
+              <div style={{ fontSize: '1.4rem', flexShrink: 0 }}>📥</div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--rt-navy)' }}>Already track your reading?</div>
+                <div style={{ fontSize: '0.73rem', color: 'var(--rt-t3)', marginTop: '0.1rem' }}>Import your full history from Goodreads or Storygraph after you're set up — it only takes a minute.</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  )
+}
+
 export default function AppShell() {
   const { user, signOut }   = useAuthContext()
   const { totalUnread, chats, openThread, closeThread, markChatRead, messages,
           sendMessage, deleteMessage, loadEarlier, startOrOpenChat,
           loadParticipants, updateChatName, addParticipants,
           leaveChat } = useChatContext()
-  const { pending, feed, recs, friends, sendRecommendation, generateInviteLink, sendFriendRequest } = useSocialContext()
+  const { pending, feed, recs, friends, sendRecommendation, generateInviteLink, sendFriendRequest,
+          myUsername, saveProfile, setPreferredMoods, profileLoaded } = useSocialContext()
   const { books, addBook } = useBooksContext()
   const [activeTab, setActiveTab]         = useState('home')
+  const [onboardingDone, setOnboardingDone] = useState(false)
+  const showOnboarding = profileLoaded && !onboardingDone && !myUsername
   const [notifOpen, setNotifOpen]         = useState(false)
   const [activeChatModal, setActiveChatModal] = useState(null)
   const [fabOpen, setFabOpen]             = useState(false)

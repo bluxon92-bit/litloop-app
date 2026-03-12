@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { sb } from '../lib/supabase'
 
 const MOODS = [
@@ -29,13 +29,34 @@ function cleanBookTitle(title) {
     .trim()
 }
 
+const FEED_CACHE_KEY = 'litloop_feed_v1'
+
+function readFeedCache() {
+  try {
+    const raw = sessionStorage.getItem(FEED_CACHE_KEY)
+    if (!raw) return null
+    const { feed, coverCache, userId: cachedUid, activeMood } = JSON.parse(raw)
+    return { feed, coverCache, userId: cachedUid, activeMood }
+  } catch { return null }
+}
+
+function writeFeedCache(userId, feed, coverCache, activeMood) {
+  try {
+    sessionStorage.setItem(FEED_CACHE_KEY, JSON.stringify({ userId, feed, coverCache, activeMood }))
+  } catch {}
+}
+
 export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
   const [allBooks, setAllBooks]       = useState([])
-  const [feed, setFeed]               = useState([])
   const [loading, setLoading]         = useState(true)
   const [dismissedKeys, setDismissedKeys] = useState(new Set())
-  const [coverCache, setCoverCache]   = useState({})
-  const [activeMood, setActiveMood]   = useState(null) // filter override
+  const [activeMood, setActiveMood]   = useState(null)
+
+  // Restore from session cache immediately — avoids reload flicker
+  const _cached = readFeedCache()
+  const [feed, setFeed]             = useState(_cached?.userId === userId ? (_cached.feed || []) : [])
+  const [coverCache, setCoverCache] = useState(_cached?.userId === userId ? (_cached.coverCache || {}) : {})
+  const sessionHit = useRef(_cached?.userId === userId && (_cached?.feed?.length > 0))
 
   // Books already in user's library (any status)
   const libraryKeys = new Set(
@@ -51,9 +72,10 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
     return false
   }
 
-  // Load all editorial books + user's dismissals
+  // Load all editorial books + user's dismissals (skip if session cache hit)
   useEffect(() => {
     if (!userId) return
+    if (sessionHit.current) { setLoading(false); return }
     async function load() {
       setLoading(true)
       const [booksRes, dismissRes] = await Promise.all([
@@ -103,7 +125,10 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
       result = shuffle([...picks, ...wildcards])
     }
 
-    setFeed(result.slice(0, activeMood ? result.length : 10))
+    const finalFeed = result.slice(0, activeMood ? result.length : 10)
+    setFeed(finalFeed)
+    // Persist to session cache so re-visits don't re-fetch
+    writeFeedCache(userId, finalFeed, coverCache, activeMood)
 
     // Lazy-fetch missing covers sequentially to avoid hammering OL API
     const needsCovers = result
@@ -141,8 +166,20 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
         if (coverId) break
       }
       if (coverId) {
-        setCoverCache(prev => ({ ...prev, [book.ol_key]: coverId }))
-        // Persist it back to DB so we don't fetch again
+        setCoverCache(prev => {
+          const next = { ...prev, [book.ol_key]: coverId }
+          // Keep session cache covers up to date
+          try {
+            const raw = sessionStorage.getItem(FEED_CACHE_KEY)
+            if (raw) {
+              const cached = JSON.parse(raw)
+              cached.coverCache = next
+              sessionStorage.setItem(FEED_CACHE_KEY, JSON.stringify(cached))
+            }
+          } catch {}
+          return next
+        })
+        // Persist to DB so future users get it instantly
         sb.from('editorial_books')
           .update({ cover_id: coverId })
           .eq('ol_key', book.ol_key)
@@ -163,14 +200,26 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
     return book.cover_id || coverCache[book.ol_key] || null
   }
 
+  function shuffleAndClear() {
+    sessionHit.current = false
+    try { sessionStorage.removeItem(FEED_CACHE_KEY) } catch {}
+    buildFeed()
+  }
+
+  function setActiveMoodAndClear(mood) {
+    sessionHit.current = false
+    try { sessionStorage.removeItem(FEED_CACHE_KEY) } catch {}
+    setActiveMood(mood)
+  }
+
   return {
     feed,
     loading,
     moods: MOODS,
     activeMood,
-    setActiveMood,
+    setActiveMood: setActiveMoodAndClear,
     dismissBook,
-    shuffleFeed: buildFeed,
+    shuffleFeed: shuffleAndClear,
     getCoverForBook,
   }
 }

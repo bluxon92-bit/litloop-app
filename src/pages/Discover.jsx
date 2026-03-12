@@ -89,7 +89,7 @@ async function fetchOLCover(title, author) {
 }
 
 // ── Small book card for carousel ─────────────────────────────────
-function BookCard({ title, author, coverId, olKey, onClick }) {
+function BookCard({ title, author, coverId, olKey, onClick, moodLabel }) {
   return (
     <div onClick={onClick} style={{ flexShrink: 0, width: 100, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <div style={{ width: 76, height: 110, borderRadius: 8, overflow: 'hidden', background: 'var(--rt-surface)', flexShrink: 0, boxShadow: '0 3px 10px rgba(26,39,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -104,6 +104,7 @@ function BookCard({ title, author, coverId, olKey, onClick }) {
       <div style={{ marginTop: '0.4rem', width: '100%', textAlign: 'center' }}>
         <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</div>
         {author && <div style={{ fontSize: '0.6rem', color: 'var(--rt-t3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{author}</div>}
+        {moodLabel && <div style={{ fontSize: '0.55rem', color: 'var(--rt-t3)', marginTop: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: 0.75 }}>{moodLabel}</div>}
       </div>
     </div>
   )
@@ -202,6 +203,7 @@ function LitLoopPicksSection({ feed, loading, moods, activeMood, setActiveMood, 
                     coverId={getCoverForBook(book)}
                     olKey={book.ol_key}
                     onClick={() => onSelect(book)}
+                    moodLabel={moods.find(m => m.id === book.mood_id)?.label}
                   />
                   {/* Wildcard tag */}
                   {book._wildcard && (
@@ -240,14 +242,17 @@ function BookModal({ book, added, onClose, onAddToTBR, onRecommend, onChat, onDi
     let cancelled = false
     async function load() {
       try {
+        // Check session cache first
+        const cacheKey = `litloop_desc_${book._key || book.title}`
+        const cached = sessionStorage.getItem(cacheKey)
+        if (cached) {
+          if (!cancelled) { setDesc(cached); setDescLoading(false) }
+          return
+        }
         let olKey = book.olKey
         if (!olKey) {
           const doc = await searchOL(book.title, book.author, 'key,cover_i')
           olKey = doc?.key || null
-          // Also grab cover if missing
-          if (doc?.cover_i && !book.coverId) {
-            // bubble up cover via state if we can — handled by parent
-          }
         }
         if (!olKey) { if (!cancelled) setDescLoading(false); return }
         const r = await fetch(`https://openlibrary.org${olKey}.json`)
@@ -256,13 +261,16 @@ function BookModal({ book, added, onClose, onAddToTBR, onRecommend, onChat, onDi
           ? (typeof d.description === 'string' ? d.description : d.description.value || '')
           : ''
         description = description.replace(/\r\n/g, '\n').replace(/\[.*?\]\(.*?\)/g, '').replace(/----------\n.*/s, '').trim()
+        if (description) {
+          try { sessionStorage.setItem(cacheKey, description) } catch {}
+        }
         if (!cancelled) setDesc(description)
       } catch {}
       if (!cancelled) setDescLoading(false)
     }
     load()
     return () => { cancelled = true }
-  }, [book.olKey, book.title])
+  }, [book._key, book.title, book.olKey])
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} className="rt-modal-backdrop" onClick={onClose}>
@@ -284,7 +292,12 @@ function BookModal({ book, added, onClose, onAddToTBR, onRecommend, onChat, onDi
             {book.author && <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.55)' }}>by {book.author}</div>}
             {book.fromFriend && <div style={{ fontSize: '0.72rem', color: 'var(--rt-amber)', marginTop: '0.4rem', fontWeight: 600 }}>Recommended by {book.fromFriend}</div>}
             {book.why && <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)', fontStyle: 'italic', marginTop: '0.4rem', lineHeight: 1.4 }}>{book.why}</div>}
-            {book._editorial && <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.4rem', background: 'var(--rt-amber)', color: '#fff', borderRadius: 4, fontSize: '0.6rem', fontWeight: 700, padding: '0.15em 0.5em', letterSpacing: '0.05em' }}>LITLOOP PICK</div>}
+            {book._editorial && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.4rem', flexWrap: 'wrap' }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', background: 'var(--rt-amber)', color: '#fff', borderRadius: 4, fontSize: '0.6rem', fontWeight: 700, padding: '0.15em 0.5em', letterSpacing: '0.05em' }}>LITLOOP PICK</div>
+                {book._moodLabel && <div style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.55)', fontWeight: 500 }}>{book._moodLabel}</div>}
+              </div>
+            )}
           </div>
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '50%', width: 28, height: 28, cursor: 'pointer', color: '#fff', fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>×</button>
         </div>
@@ -617,7 +630,37 @@ export default function Discover({ onNavigate, onOpenChatModal }) {
         Discover
       </h2>
 
-      {/* ── Block 1: Friends' Picks ── */}
+      {/* ── Block 1: LitLoop Picks ── */}
+      <LitLoopPicksSection
+        feed={editorialFeed}
+        loading={editorialLoading}
+        moods={moods}
+        activeMood={activeMood}
+        setActiveMood={setActiveMood}
+        shuffleFeed={shuffleFeed}
+        getCoverForBook={getCoverForBook}
+        onSelect={book => {
+          setShowRecommend(false); setShowChatPicker(false)
+          const cover = getCoverForBook(book)
+          setSelectedBook({
+            title: book.title,
+            author: book.author,
+            coverId: cover || null,
+            olKey: null,
+            editorNote: book.editor_note,
+            _key: `ll-${book.ol_key}`,
+            _dbOlKey: book.ol_key,
+            _editorial: true,
+            _moodId: book.mood_id,
+            _moodLabel: moods.find(m => m.id === book.mood_id)?.label || null,
+            _rawBook: book,
+          })
+        }}
+        onDismiss={dismissBook}
+        addedKeys={addedKeys}
+      />
+
+      {/* ── Block 2: Friends' Picks ── */}
       <div style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.65rem' }}>
           <span>👥</span>
@@ -657,7 +700,7 @@ export default function Discover({ onNavigate, onOpenChatModal }) {
         </div>
       </div>
 
-      {/* ── Block 2: AI Picks ── */}
+      {/* ── Block 3: AI Picks ── */}
       <div style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.65rem' }}>
           <span>✦</span>
@@ -699,36 +742,6 @@ export default function Discover({ onNavigate, onOpenChatModal }) {
           )}
         </div>
       </div>
-
-      {/* ── Block 3: LitLoop Picks ── */}
-      <LitLoopPicksSection
-        feed={editorialFeed}
-        loading={editorialLoading}
-        moods={moods}
-        activeMood={activeMood}
-        setActiveMood={setActiveMood}
-        shuffleFeed={shuffleFeed}
-        getCoverForBook={getCoverForBook}
-        onSelect={book => {
-          setShowRecommend(false); setShowChatPicker(false)
-          const cover = getCoverForBook(book)
-          setSelectedBook({
-            title: book.title,
-            author: book.author,
-            coverId: cover || null,
-            // Don't pass ol_key as olKey — let BookModal search OL fresh by title+author
-            // so descriptions and covers are always correct
-            olKey: null,
-            editorNote: book.editor_note,
-            _key: `ll-${book.ol_key}`,
-            _dbOlKey: book.ol_key, // keep for dismissal tracking
-            _editorial: true,
-            _rawBook: book,
-          })
-        }}
-        onDismiss={dismissBook}
-        addedKeys={addedKeys}
-      />
 
       {/* ── Book modal ── */}
       {selectedBook && !showRecommend && !showChatPicker && (
