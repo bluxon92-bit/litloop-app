@@ -123,7 +123,7 @@ function TBRList({ tbr, updateBook, deleteBook, openDetail }) {
   )
 }
 
-export default function MyList({ onNavigate, onOpenChatModal }) {
+export default function MyList({ onNavigate, onOpenChatModal, onAddFriend }) {
   const { user }                                   = useAuthContext()
   const { books, addBook, updateBook, deleteBook } = useBooksContext()
   const { friends }                                = useSocialContext()
@@ -344,6 +344,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
           onViewChat={(chatId) => onOpenChatModal?.(chatId || findExistingChat(detailBook.olKey)?.id)}
           onRecommend={() => setDetailBook(null)}
           onCoverUpdate={(id, coverId, olKey) => updateBook(id, { coverId, _olKey: olKey })}
+          onAddFriend={onAddFriend}
         />
       )}
 

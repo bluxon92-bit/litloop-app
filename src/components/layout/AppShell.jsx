@@ -17,23 +17,23 @@ import { sb } from '../../lib/supabase'
 // ── SVG icons ─────────────────────────────────────────────────
 function IcoHome(active) {
   const c = active ? 'var(--rt-navy)' : '#9ca3af'
-  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H5a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>
+  return <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H5a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>
 }
 function IcoChat(active) {
   const c = active ? 'var(--rt-navy)' : '#9ca3af'
-  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+  return <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
 }
 function IcoList(active) {
   const c = active ? 'var(--rt-navy)' : '#9ca3af'
-  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/></svg>
+  return <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/></svg>
 }
 function IcoDiscover(active) {
   const c = active ? 'var(--rt-navy)' : '#9ca3af'
-  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/><path d="M8 11h6M11 8v6"/></svg>
+  return <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/><path d="M8 11h6M11 8v6"/></svg>
 }
 function IcoProfile(active) {
   const c = active ? 'var(--rt-navy)' : '#9ca3af'
-  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+  return <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
 }
 function IcoBell() {
   return <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
@@ -86,35 +86,17 @@ function FabFriendModal({ onClose, sendFriendRequest, generateInviteLink }) {
     }
   }
 
-  if (showOnboarding) {
-    return (
-      <OnboardingFlow
-        user={user}
-        onComplete={() => { setOnboardingDone(true); setActiveTab('home') }}
-      />
-    )
-  }
-
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 300, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
-      <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.5rem 1.25rem 2rem' }} onClick={e => e.stopPropagation()}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 300, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} className="fab-modal-backdrop" onClick={onClose}>
+      <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.5rem 1.25rem 2rem' }} className="fab-modal-sheet" onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
           <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.15rem', fontWeight: 700, color: 'var(--rt-navy)' }}>Add a friend</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--rt-t3)' }}>×</button>
         </div>
 
-        {/* Invite link — big and prominent */}
-        <div style={{ background: 'var(--rt-navy)', borderRadius: 'var(--rt-r3)', padding: '1rem 1.25rem', marginBottom: '1.25rem', cursor: 'pointer' }} onClick={handleCopy}>
-          <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', marginBottom: '0.3rem' }}>Share your invite link</div>
-          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff', marginBottom: '0.5rem' }}>Invite friends to LitLoop</div>
-          <div style={{ background: copied ? 'var(--rt-teal)' : 'var(--rt-amber)', color: '#fff', borderRadius: 8, padding: '0.6rem 1rem', textAlign: 'center', fontSize: '0.85rem', fontWeight: 700, transition: 'background 0.2s' }}>
-            {copied ? '✓ Copied!' : 'Copy invite link'}
-          </div>
-        </div>
-
-        {/* Search by username */}
-        <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>Or find by username</div>
-        <form onSubmit={handleAdd} style={{ display: 'flex', gap: '0.5rem' }}>
+        {/* Search by username — first */}
+        <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>Find by username</div>
+        <form onSubmit={handleAdd} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.25rem' }}>
           <input
             className="rt-input" style={{ flex: 1 }}
             placeholder="@username"
@@ -126,14 +108,23 @@ function FabFriendModal({ onClose, sendFriendRequest, generateInviteLink }) {
             {loading ? '…' : 'Send'}
           </button>
         </form>
-        {msg && <div style={{ marginTop: '0.6rem', fontSize: '0.82rem', color: msg.type === 'error' ? '#dc2626' : 'var(--rt-teal)', fontWeight: 600 }}>{msg.text}</div>}
+        {msg && <div style={{ marginTop: '-0.75rem', marginBottom: '1rem', fontSize: '0.82rem', color: msg.type === 'error' ? '#dc2626' : 'var(--rt-teal)', fontWeight: 600 }}>{msg.text}</div>}
+
+        {/* Invite link — below */}
+        <div style={{ background: 'var(--rt-navy)', borderRadius: 'var(--rt-r3)', padding: '1rem 1.25rem', cursor: 'pointer' }} onClick={handleCopy}>
+          <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#fff', marginBottom: '0.25rem' }}>Invite your friends to LitLoop</div>
+          <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.55)', marginBottom: '0.75rem', lineHeight: 1.45 }}>Recommend and chat about your favourite stories. Because books are better shared.</div>
+          <div style={{ background: copied ? 'var(--rt-teal)' : 'var(--rt-amber)', color: '#fff', borderRadius: 8, padding: '0.6rem 1rem', textAlign: 'center', fontSize: '0.85rem', fontWeight: 700, transition: 'background 0.2s' }}>
+            {copied ? '✓ Copied!' : 'Copy invite link'}
+          </div>
+        </div>
       </div>
     </div>
   )
 }
 
 // ── FAB: Recommend modal ──────────────────────────────────────
-function FabRecommendModal({ books, friends, user, recs, sendRecommendation, onClose }) {
+function FabRecommendModal({ books, friends, user, recs, sendRecommendation, onClose, onAddFriend }) {
   const [step, setStep]         = useState('book') // 'book' | 'friends'
   const [search, setSearch]     = useState('')
   const [selectedBook, setSelectedBook] = useState(null)
@@ -165,8 +156,8 @@ function FabRecommendModal({ books, friends, user, recs, sendRecommendation, onC
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 300, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
-      <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.25rem', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 300, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} className="fab-modal-backdrop" onClick={onClose}>
+      <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.25rem', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} className="fab-modal-sheet" onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
           <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>
             {step === 'book' ? 'Pick a book to recommend' : `Recommend "${selectedBook?.title}"`}
@@ -202,7 +193,10 @@ function FabRecommendModal({ books, friends, user, recs, sendRecommendation, onC
           </div>
           <div style={{ overflowY: 'auto', flex: 1, marginBottom: '0.75rem' }}>
             {!friends?.length ? (
-              <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>Add friends first to recommend books.</div>
+              <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>
+                No friends yet.{' '}
+                <button onClick={onAddFriend} style={{ background: 'none', border: 'none', color: 'var(--rt-amber)', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Add a friend</button>
+              </div>
             ) : friends.map(f => {
               const sel = selectedFriends.has(f.userId)
               const sent = alreadySentTo.has(f.userId)
@@ -235,7 +229,7 @@ function FabRecommendModal({ books, friends, user, recs, sendRecommendation, onC
 }
 
 // ── FAB: Start chat modal ─────────────────────────────────────
-function FabChatModal({ books, friends, chats, startOrOpenChat, onOpenChatModal, onClose }) {
+function FabChatModal({ books, friends, chats, startOrOpenChat, onOpenChatModal, onClose, onAddFriend }) {
   const { myDisplayName } = useSocialContext()
   const [step, setStep]           = useState('book') // 'book' | 'friends'
   const [search, setSearch]       = useState('')
@@ -273,8 +267,8 @@ function FabChatModal({ books, friends, chats, startOrOpenChat, onOpenChatModal,
   }
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 300, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
-      <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.25rem', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 300, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} className="fab-modal-backdrop" onClick={onClose}>
+      <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.25rem', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} className="fab-modal-sheet" onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
           <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>
             {step === 'book' ? 'Chat about a book' : `Chat about "${selectedBook?.title}"`}
@@ -324,7 +318,10 @@ function FabChatModal({ books, friends, chats, startOrOpenChat, onOpenChatModal,
           <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.4rem' }}>Start new chat with</div>
           <div style={{ overflowY: 'auto', flex: 1, marginBottom: '0.75rem' }}>
             {!friends?.length ? (
-              <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>Add friends to start chatting.</div>
+              <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>
+                No friends yet.{' '}
+                <button onClick={onAddFriend} style={{ background: 'none', border: 'none', color: 'var(--rt-amber)', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Add a friend</button>
+              </div>
             ) : friends.map(f => {
               const sel = selectedFriends.has(f.userId)
               return (
@@ -831,14 +828,14 @@ export default function AppShell() {
 
   function renderPage() {
     switch (activeTab) {
-      case 'home':     return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} />
-      case 'mylist':   return <MyList          onNavigate={onNavigate} onOpenChatModal={openChatModal} />
+      case 'home':     return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} onAddFriend={() => setFabAction('friend')} />
+      case 'mylist':   return <MyList          onNavigate={onNavigate} onOpenChatModal={openChatModal} onAddFriend={() => setFabAction('friend')} />
       case 'stats':    return <Stats           onNavigate={onNavigate} />
-      case 'discover': return <Discover        onNavigate={onNavigate} onOpenChatModal={openChatModal} />
-      case 'chat':     return <Chat            onNavigate={onNavigate} onOpenChatModal={openChatModal} />
-      case 'profile':  return <Profile         onNavigate={onNavigate} onOpenChatModal={openChatModal} />
+      case 'discover': return <Discover        onNavigate={onNavigate} onOpenChatModal={openChatModal} onAddFriend={() => setFabAction('friend')} />
+      case 'chat':     return <Chat            onNavigate={onNavigate} onOpenChatModal={openChatModal} onAddFriend={() => setFabAction('friend')} />
+      case 'profile':  return <Profile         onNavigate={onNavigate} onOpenChatModal={openChatModal} onAddFriend={() => setFabAction('friend')} />
       case 'account':  return <AccountSettings onNavigate={onNavigate} />
-      default:         return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} />
+      default:         return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} onAddFriend={() => setFabAction('friend')} />
     }
   }
 
@@ -1013,16 +1010,18 @@ export default function AppShell() {
               onClick={() => setActiveTab(tab.id)}
               style={{
                 flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-                gap: '0.18rem', padding: '0.6rem 0.25rem',
+                justifyContent: 'center', padding: '0.45rem 0.25rem 0.5rem',
                 border: 'none', background: 'none', cursor: 'pointer', position: 'relative'
               }}
             >
+              {/* Active indicator — gold bar at top */}
+              <div style={{
+                position: 'absolute', top: 0, left: '20%', right: '20%',
+                height: 3, borderRadius: '0 0 3px 3px',
+                background: isActive ? 'var(--rt-amber)' : 'transparent',
+                transition: 'background 0.15s'
+              }} />
               {tab.icon(isActive)}
-              <span style={{
-                fontSize: '0.58rem', fontWeight: isActive ? 600 : 400,
-                color: isActive ? 'var(--rt-navy)' : '#9ca3af',
-                fontFamily: 'var(--rt-font-body)', letterSpacing: '-0.01em'
-              }}>{tab.label}</span>
               {tab.id === 'chat' && totalUnread > 0 && (
                 <div style={{ position: 'absolute', top: 5, right: '50%', marginRight: -16, width: 7, height: 7, borderRadius: '50%', background: 'var(--rt-amber)', border: '1.5px solid white' }}/>
               )}
@@ -1138,6 +1137,7 @@ export default function AppShell() {
           recs={recs}
           sendRecommendation={sendRecommendation}
           onClose={() => setFabAction(null)}
+          onAddFriend={() => setFabAction('friend')}
         />
       )}
       {fabAction === 'chat' && (
@@ -1148,6 +1148,7 @@ export default function AppShell() {
           startOrOpenChat={startOrOpenChat}
           onOpenChatModal={openChatModal}
           onClose={() => setFabAction(null)}
+          onAddFriend={() => setFabAction('friend')}
         />
       )}
     </div>

@@ -17,7 +17,7 @@ function CogIcon() {
   )
 }
 
-export default function Profile({ onNavigate, onOpenChatModal }) {
+export default function Profile({ onNavigate, onOpenChatModal, onAddFriend }) {
   const { user } = useAuthContext()
   const { books, updateBook } = useBooksContext()
   const {
@@ -219,6 +219,7 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
           onStartChat={() => { setDetailBook(null); onOpenChatModal?.(null, detailBook) }}
           onViewChat={(chatId) => { setDetailBook(null); onOpenChatModal?.(chatId) }}
           onCoverUpdate={(id, coverId, olKey) => updateBook(id, { coverId, _olKey: olKey })}
+          onAddFriend={onAddFriend}
         />      )}
 
       {finishBook && (

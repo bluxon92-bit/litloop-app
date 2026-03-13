@@ -48,6 +48,11 @@
 .rt-tabbar-mobile   { display: flex; }
 
 @media (min-width: 768px) {
+  .fab-modal-backdrop { align-items: center !important; }
+  .fab-modal-sheet    { border-radius: 16px !important; }
+}
+
+@media (min-width: 768px) {
   .rt-sidebar-desktop {
     display: flex;
     position: fixed;

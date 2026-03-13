@@ -13,23 +13,6 @@ const MY_BUBBLE    = { bg: '#DEF0FF', color: '#1a2744' }   // pale blue
 const THEIR_BUBBLE = { bg: '#F5F0E8', color: '#1a2744' }   // pale cream
 
 // ── Invite strip ──────────────────────────────────────────────
-function InviteStrip({ copied, onCopy }) {
-  return (
-    <div style={{
-      marginTop: '1.25rem', background: 'var(--rt-navy)',
-      borderRadius: 'var(--rt-r2)', padding: '0.9rem 1.1rem',
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem',
-    }}>
-      <div>
-        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: '#fff' }}>Books are better shared.</div>
-        <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.55)', marginTop: '0.2rem' }}>Invite friends to recommend and chat about your favourite stories.</div>
-      </div>
-      <button onClick={onCopy} style={{ flexShrink: 0, background: 'var(--rt-amber-lt)', color: '#fff', border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.55rem 1rem', fontFamily: 'var(--rt-font-body)', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-        {copied ? '✓ Copied!' : 'Copy link'}
-      </button>
-    </div>
-  )
-}
 
 // ── Participant avatars row ───────────────────────────────────
 function ParticipantsRow({ participants, currentUserId, onAdd }) {
@@ -444,7 +427,7 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
 }
 
 // ── Main Chat page ────────────────────────────────────────────
-export default function Chat({ onNavigate }) {
+export default function Chat({ onNavigate, onAddFriend }) {
   const { user }                                 = useAuthContext()
   const { books, addBook }                       = useBooksContext()
   const {
@@ -543,9 +526,11 @@ export default function Chat({ onNavigate }) {
           <div style={{ flex: 1 }}>
             {chats.length === 0 ? (
               <div className="rt-card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
-                <div style={{ fontSize: '2.2rem', marginBottom: '0.5rem' }}>💬</div>
                 <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.35rem' }}>No chats yet</div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)' }}>Start a book chat from any book's detail panel.</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)' }}>
+                  <button onClick={onAddFriend} style={{ background: 'none', border: 'none', color: 'var(--rt-amber)', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Add friends</button>
+                  {' '}to start chatting about books.
+                </div>
               </div>
             ) : (
               chats.map(chat => {
@@ -580,7 +565,6 @@ export default function Chat({ onNavigate }) {
               })
             )}
           </div>
-          <InviteStrip copied={inviteCopied} onCopy={handleCopyInvite} />
         </div>
       )}
 
@@ -622,8 +606,10 @@ export default function Chat({ onNavigate }) {
               <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>Loading…</div>
             ) : friends.length === 0 ? (
               <div className="rt-card" style={{ textAlign: 'center', padding: '2rem' }}>
-                <div style={{ fontSize: '2rem', marginBottom: '0.4rem' }}>👋</div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--rt-t3)' }}>No friends yet — add one above or share your invite link.</div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--rt-t3)' }}>
+                  No friends yet.{' '}
+                  <button onClick={onAddFriend} style={{ background: 'none', border: 'none', color: 'var(--rt-amber)', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Add a friend</button>
+                </div>
               </div>
             ) : (
               <div className="rt-card">
@@ -640,7 +626,6 @@ export default function Chat({ onNavigate }) {
               </div>
             )}
           </div>
-          <InviteStrip copied={inviteCopied} onCopy={handleCopyInvite} />
         </div>
       )}
 

@@ -121,14 +121,16 @@ export function useBooks(user) {
 
       // If this came from OpenLibrary, upsert into books table to preserve cover/ol_key
       if (bookData.olKey) {
+        const bookRow = {
+          ol_key: bookData.olKey,
+          title:  bookData.title  || null,
+          author: bookData.author || null,
+        }
+        // Only set cover_id when we actually have one — avoid overwriting an existing cover with null
+        if (bookData.coverId) bookRow.cover_id = Number(bookData.coverId)
         const { data: upserted } = await sb
           .from('books')
-          .upsert({
-            ol_key:   bookData.olKey,
-            title:    bookData.title   || null,
-            author:   bookData.author  || null,
-            cover_id: bookData.coverId ? Number(bookData.coverId) : null,
-          }, { onConflict: 'ol_key', ignoreDuplicates: false })
+          .upsert(bookRow, { onConflict: 'ol_key', ignoreDuplicates: false })
           .select('id')
           .single()
         if (upserted) bookId = upserted.id
@@ -200,18 +202,34 @@ export function useBooks(user) {
         const book = books.find(b => b.id === id)
         const writeKey = book?.olKey || changes._olKey
         if (writeKey) {
-          // Also persist the discovered olKey onto the book so future lookups work
-          if (!book?.olKey && changes._olKey) {
-            sb.from('books')
-              .update({ cover_id: Number(changes.coverId), ol_key: changes._olKey })
-              .eq('ol_key', changes._olKey)
-              .then(({ error: e }) => { if (e) console.error('[Books] cover+olkey writeback error:', e) })
-          } else {
-            sb.from('books')
-              .update({ cover_id: Number(changes.coverId) })
-              .eq('ol_key', writeKey)
-              .then(({ error: e }) => { if (e) console.error('[Books] cover writeback error:', e) })
-          }
+          ;(async () => {
+            // Upsert books row to ensure cover_id is stored (handles both new and existing rows)
+            const { data: upserted, error: upsertErr } = await sb
+              .from('books')
+              .upsert({
+                ol_key:   writeKey,
+                title:    book?.title    || changes._title    || null,
+                author:   book?.author   || changes._author   || null,
+                cover_id: Number(changes.coverId),
+              }, { onConflict: 'ol_key', ignoreDuplicates: false })
+              .select('id')
+              .single()
+            if (upsertErr) {
+              console.error('[Books] cover upsert error:', upsertErr)
+              return
+            }
+            // If the reading_entry has no book_id yet (was a manual entry), link it now
+            if (upserted?.id && !book?.olKey) {
+              const { error: linkErr } = await sb
+                .from('reading_entries')
+                .update({ book_id: upserted.id, title_manual: null, author_manual: null })
+                .eq('id', id)
+                .eq('user_id', user.id)
+              if (linkErr) console.error('[Books] book_id link error:', linkErr)
+              // Update local state so future updateBook calls use olKey
+              setBooks(prev => prev.map(b => b.id === id ? { ...b, olKey: writeKey } : b))
+            }
+          })()
         }
       }
 

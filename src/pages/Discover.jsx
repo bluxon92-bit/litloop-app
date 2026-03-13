@@ -57,7 +57,7 @@ async function fetchRecs(prompt) {
 // ── Robust OL search — tries multiple strategies for best hit rate ──
 async function searchOL(title, author, fields = 'cover_i,key') {
   // Clean title — strip subtitles after : or — which confuse OL search
-  const cleanTitle = cleanBookTitle(book?.title || title || '')
+  const cleanTitle = cleanBookTitle(title || '')
   // Clean author — first surname only
   const cleanAuthor = author ? author.split(',')[0].split(' ').pop() : ''
 
@@ -255,6 +255,8 @@ function BookModal({ book, added, onClose, onAddToTBR, onRecommend, onChat, onDi
           olKey = doc?.key || null
         }
         if (!olKey) { if (!cancelled) setDescLoading(false); return }
+        // Normalise key — ensure it starts with /works/ for the OL API
+        if (!olKey.startsWith('/')) olKey = `/works/${olKey}`
         const r = await fetch(`https://openlibrary.org${olKey}.json`)
         const d = await r.json()
         let description = d.description
@@ -535,7 +537,7 @@ function DiscoverChatPicker({ book, friends, chats, startOrOpenChat, onOpenChatM
   )
 }
 
-export default function Discover({ onNavigate, onOpenChatModal }) {
+export default function Discover({ onNavigate, onOpenChatModal, onAddFriend }) {
   const { user }                               = useAuthContext()
   const { books, addBook, isDuplicate }        = useBooksContext()
   const { recs, friends, feed, dismissRec, acceptRecToTBR, sendRecommendation, preferredMoods } = useSocialContext()
@@ -646,7 +648,7 @@ export default function Discover({ onNavigate, onOpenChatModal }) {
             title: book.title,
             author: book.author,
             coverId: cover || null,
-            olKey: null,
+            olKey: book.ol_key || null,
             editorNote: book.editor_note,
             _key: `ll-${book.ol_key}`,
             _dbOlKey: book.ol_key,
@@ -663,7 +665,6 @@ export default function Discover({ onNavigate, onOpenChatModal }) {
       {/* ── Block 2: Friends' Picks ── */}
       <div style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.65rem' }}>
-          <span>👥</span>
           <span style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>
             Friends' Picks
           </span>
@@ -675,7 +676,11 @@ export default function Discover({ onNavigate, onOpenChatModal }) {
           {!user ? (
             <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem' }}>Sign in to see friends' recommendations.</div>
           ) : pendingRecs.length === 0 ? (
-            <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem' }}>No recommendations yet — add friends to get started.</div>
+            <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem' }}>
+              No recommendations yet —{' '}
+              <button onClick={onAddFriend} style={{ background: 'none', border: 'none', color: 'var(--rt-amber)', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>add friends</button>
+              {' '}to get started.
+            </div>
           ) : (
             <Carousel>
               {groupedRecs.map(g => (
@@ -703,7 +708,6 @@ export default function Discover({ onNavigate, onOpenChatModal }) {
       {/* ── Block 3: AI Picks ── */}
       <div style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.65rem' }}>
-          <span>✦</span>
           <span style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>AI Picks</span>
         </div>
         <div style={{ background: 'var(--rt-white)', borderRadius: 'var(--rt-r3)', border: '1px solid var(--rt-border)', boxShadow: 'var(--rt-s1)', padding: '1rem' }}>

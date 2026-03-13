@@ -9,7 +9,7 @@ import BookDetailPanel from '../components/books/BookDetailPanel'
 import AddBookModal from '../components/books/AddBookModal'
 import BookSheet, { FinishModal } from '../components/books/BookSheet'
 
-export default function Home({ onNavigate, onOpenChatModal }) {
+export default function Home({ onNavigate, onOpenChatModal, onAddFriend }) {
   const { user } = useAuthContext()
   const { books, addBook, updateBook, deleteBook } = useBooksContext()
   const { friends, feed, recs, loaded: socialLoaded, myDisplayName } = useSocialContext()
@@ -220,7 +220,11 @@ export default function Home({ onNavigate, onOpenChatModal }) {
           ) : reviewEvents.length === 0 ? (
             <div className="rt-feed-empty">
               <div className="rt-feed-empty-icon">📖</div>
-              <p>{friends.length === 0 ? 'Add friends to see their reviews here.' : 'No reviews from friends yet.'}</p>
+              <p>
+                {friends.length === 0
+                  ? <><button onClick={onAddFriend} style={{ background: 'none', border: 'none', color: 'var(--rt-amber)', fontWeight: 700, fontSize: 'inherit', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Add friends</button> to see their reviews here.</>
+                  : 'No reviews from friends yet.'}
+              </p>
             </div>
           ) : (
             reviewEvents.slice(0, 10).map(ev => {
@@ -293,6 +297,7 @@ export default function Home({ onNavigate, onOpenChatModal }) {
           onStartChat={() => onOpenChatModal?.(null, detailBook)}
           onViewChat={(chatId) => onOpenChatModal?.(chatId || findExistingChat(detailBook.olKey)?.id)}
           onCoverUpdate={(id, coverId, olKey) => updateBook(id, { coverId, _olKey: olKey })}
+          onAddFriend={onAddFriend}
         />
       )}
 

@@ -123,7 +123,7 @@ function Stars({ value }) {
 // - Friends who've already read the book → show "Chat about it" instead
 // - Friends you've already recommended to → show "Already recommended"
 // - Friends who recommended this to you → shown at top with note
-function RecommendModal({ book, friends, user, sendRecommendation, recs, onClose, onStartChatWith }) {
+function RecommendModal({ book, friends, user, sendRecommendation, recs, onClose, onStartChatWith, onAddFriend }) {
   const [selected, setSelected] = useState(new Set())
   const [note, setNote]         = useState('')
   const [sending, setSending]   = useState(false)
@@ -172,7 +172,10 @@ function RecommendModal({ book, friends, user, sendRecommendation, recs, onClose
           <>
             <div style={{ overflowY: 'auto', flex: 1, marginBottom: '0.75rem' }}>
               {!friends?.length ? (
-                <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>Add friends first to recommend books.</div>
+                <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>
+                  No friends yet.{' '}
+                  <button onClick={onAddFriend} style={{ background: 'none', border: 'none', color: 'var(--rt-amber)', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Add a friend</button>
+                </div>
               ) : friends.map(f => {
                 const sel         = selected.has(f.userId)
                 const sentAlready = alreadySentTo.has(f.userId)
@@ -220,7 +223,7 @@ function RecommendModal({ book, friends, user, sendRecommendation, recs, onClose
 // ── Inline Chat friend picker ─────────────────────────────────
 // Three tiers: existing chats on this book → friends who've read it → all other friends
 // If existing chat found for book+friend combo: ask add-to-existing or new chat
-function ChatFriendPicker({ book, friends, startOrOpenChat, onOpenChatModal, onClose, existingChats }) {
+function ChatFriendPicker({ book, friends, startOrOpenChat, onOpenChatModal, onClose, existingChats, onAddFriend }) {
   const { myUsername, myDisplayName } = useSocialContext()
   const [selected, setSelected]     = useState(new Set())
   const [starting, setStarting]     = useState(false)
@@ -381,7 +384,10 @@ function ChatFriendPicker({ book, friends, startOrOpenChat, onOpenChatModal, onC
 
         <div style={{ overflowY: 'auto', flex: 1, marginBottom: '0.75rem' }}>
           {!friends?.length ? (
-            <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>Add friends to start a chat.</div>
+            <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>
+              No friends yet.{' '}
+              <button onClick={onAddFriend} style={{ background: 'none', border: 'none', color: 'var(--rt-amber)', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Add a friend</button>
+            </div>
           ) : (
             <>
               {friendsWithChat.length > 0 && (
@@ -425,6 +431,7 @@ export default function BookDetailPanel({
   onOpenChatModal,
   friendName,
   onCoverUpdate,
+  onAddFriend,
 }) {
   const { friends, sendRecommendation, recs } = useSocialContext()
   const { startOrOpenChat, chats } = useChatContext()
@@ -663,6 +670,7 @@ export default function BookDetailPanel({
             setShowRecommend(false)
             setShowChatPicker(true)
           }}
+          onAddFriend={onAddFriend}
         />
       )}
       {showChatPicker && (
@@ -673,6 +681,7 @@ export default function BookDetailPanel({
           onOpenChatModal={onOpenChatModal}
           onClose={() => setShowChatPicker(false)}
           existingChats={chats}
+          onAddFriend={onAddFriend}
         />
       )}
     </ModalShell>

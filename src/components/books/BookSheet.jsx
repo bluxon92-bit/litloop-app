@@ -667,7 +667,7 @@ const [saving, setSaving]             = useState(false)
 // (opened from My List / history — not the finish workflow)
 // ─────────────────────────────────────────────────────────────
 export default function BookSheet({ book, onClose, onSaved, onDeleted, user }) {
-  const [mode, setMode]         = useState('view')
+  const [mode, setMode]         = useState('edit')
   const [rating, setRating]     = useState(book.rating || 0)
   const [status, setStatus]     = useState(book.status)
   const [date, setDate]         = useState(book.dateRead || '')
@@ -797,9 +797,12 @@ export default function BookSheet({ book, onClose, onSaved, onDeleted, user }) {
                 )}
               </>
             )}
-            <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <GhostBtn onClick={() => setMode('view')}>← Back</GhostBtn>
+            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
               <PrimaryBtn onClick={handleSave}>Save changes</PrimaryBtn>
+              <button style={{ background: 'none', border: '1px solid #fca5a5', color: '#991b1b', borderRadius: 'var(--rt-r3)', padding: '0.5rem 0.8rem', fontSize: '0.8rem', cursor: 'pointer' }}
+                onClick={() => { if (window.confirm(`Remove "${book.title}"?`)) onDeleted() }}>
+                Delete
+              </button>
             </div>
           </div>
         )}
