@@ -706,7 +706,6 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend }) {
       {/* ── Block 2: Friends' Picks ── */}
       <div style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.65rem' }}>
-          <span>👥</span>
           <span style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>
             Friends' Picks
           </span>
@@ -720,25 +719,55 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend }) {
           ) : pendingRecs.length === 0 ? (
             <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem' }}>No recommendations yet — add friends to get started.</div>
           ) : (
-            <Carousel>
+            <div
+              style={{ display: 'flex', gap: '0.75rem', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', paddingBottom: '0.25rem' }}
+            >
               {groupedRecs.map(g => (
-                <div key={g._key} style={{ position: 'relative', flexShrink: 0 }}
-                  onClick={() => { setShowRecommend(false); setShowChatPicker(false); setSelectedBook({ title: g.book_title, author: g.book_author, coverId: g.cover_id, olKey: g.book_ol_key, fromFriend: g.recommenders[0]?.name, message: g.recommenders[0]?.message, recommenders: g.recommenders, _key: g._key, _recs: g._recs, _rec: g._recs[0] }) }}>
-                  <BookCard
-                    title={g.book_title || 'Unknown'}
-                    author={g.book_author || ''}
-                    coverId={g.cover_id}
-                    olKey={g.book_ol_key}
-                    onClick={() => {}}
-                  />
+                <div
+                  key={g._key}
+                  onClick={() => { setShowRecommend(false); setShowChatPicker(false); setSelectedBook({ title: g.book_title, author: g.book_author, coverId: g.cover_id, olKey: g.book_ol_key, fromFriend: g.recommenders[0]?.name, message: g.recommenders[0]?.message, recommenders: g.recommenders, _key: g._key, _recs: g._recs, _rec: g._recs[0] }) }}
+                  style={{
+                    flexShrink: 0,
+                    width: groupedRecs.length === 1 ? '100%' : '85%',
+                    scrollSnapAlign: 'start',
+                    background: 'var(--rt-white)', borderRadius: 'var(--rt-r3)',
+                    border: '1px solid var(--rt-border)', padding: '0.9rem 1rem',
+                    boxShadow: 'var(--rt-s1)', display: 'flex', gap: '0.85rem',
+                    alignItems: 'center', cursor: 'pointer', boxSizing: 'border-box',
+                    position: 'relative',
+                  }}
+                >
+                  <div style={{ width: 56, height: 80, borderRadius: 6, overflow: 'hidden', flexShrink: 0, boxShadow: '0 2px 8px rgba(26,39,68,0.15)' }}>
+                    {g.cover_id ? (
+                      <img src={`https://covers.openlibrary.org/b/id/${g.cover_id}-M.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={g.book_title} />
+                    ) : g.book_ol_key ? (
+                      <img src={`https://covers.openlibrary.org/b/olid/${g.book_ol_key.replace('/works/', '')}-M.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" onError={e => e.target.style.display='none'} />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', background: 'var(--rt-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <IcoBook size={24} color="var(--rt-t3)" />
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--rt-teal)', marginBottom: '0.25rem' }}>
+                      {g.recommenders.length === 1
+                        ? `${g.recommenders[0].name} recommends`
+                        : `${g.recommenders.length} friends recommend`}
+                    </div>
+                    <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.92rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.book_title || 'Unknown'}</div>
+                    {g.book_author && <div style={{ fontSize: '0.75rem', color: 'var(--rt-t3)', marginTop: '0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.book_author}</div>}
+                    {g.recommenders[0]?.message && (
+                      <div style={{ fontSize: '0.72rem', color: 'var(--rt-t2)', marginTop: '0.3rem', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>"{g.recommenders[0].message}"</div>
+                    )}
+                  </div>
                   {g.recommenders.length > 1 && (
-                    <div style={{ position: 'absolute', top: 4, right: 12, background: 'var(--rt-amber)', color: '#fff', borderRadius: 99, fontSize: '0.6rem', fontWeight: 700, padding: '0.15em 0.45em', minWidth: 18, textAlign: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>
+                    <div style={{ position: 'absolute', top: 8, right: 10, background: 'var(--rt-amber)', color: '#fff', borderRadius: 99, fontSize: '0.6rem', fontWeight: 700, padding: '0.15em 0.45em', minWidth: 18, textAlign: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>
                       {g.recommenders.length}
                     </div>
                   )}
                 </div>
               ))}
-            </Carousel>
+            </div>
           )}
         </div>
       </div>
@@ -746,7 +775,6 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend }) {
       {/* ── Block 3: AI Picks ── */}
       <div style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.65rem' }}>
-          <span>✦</span>
           <span style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>AI Picks</span>
         </div>
         <div style={{ background: 'var(--rt-white)', borderRadius: 'var(--rt-r3)', border: '1px solid var(--rt-border)', boxShadow: 'var(--rt-s1)', padding: '1rem' }}>

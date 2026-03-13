@@ -345,7 +345,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
           onClose={() => setDetailBook(null)}
           onMarkFinished={() => { setEditBook({ ...detailBook, _finishMode: true }); setDetailBook(null) }}
           onStartReading={() => { updateBook(detailBook.id, { status: 'reading', dateStarted: new Date().toISOString().split('T')[0] }); setDetailBook(null) }}
-          onEdit={() => { setEditBook(detailBook); setDetailBook(null) }}
+          onEdit={(mode) => { setEditBook({ ...detailBook, _initialMode: mode || 'view' }); setDetailBook(null) }}
           onOpenChatModal={(chatId, book) => onOpenChatModal?.(chatId, book || detailBook)}
           onStartChat={() => onOpenChatModal?.(null, detailBook)}
           onViewChat={(chatId) => onOpenChatModal?.(chatId || findExistingChat(detailBook.olKey)?.id)}
@@ -366,6 +366,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
       {editBook && !editBook._finishMode && (
         <BookSheet
           book={editBook}
+          initialMode={editBook._initialMode || 'view'}
           onClose={() => setEditBook(null)}
           onSaved={changes => { updateBook(editBook.id, changes); setEditBook(null) }}
           onDeleted={() => { deleteBook(editBook.id); setEditBook(null) }}

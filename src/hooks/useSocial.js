@@ -2,22 +2,25 @@ import { useState, useEffect, useRef } from 'react'
 import { sb } from '../lib/supabase'
 
 export function useSocial(user) {
-  const [friends, setFriends]         = useState([])
-  const [pending, setPending]         = useState([])
-  const [feed, setFeed]               = useState([])
-  const [recs, setRecs]               = useState([])
-  const [loaded, setLoaded]           = useState(false)
-  const [myUsername, setMyUsername]   = useState('')
-  const [myDisplayName, setMyDisplayName] = useState('')
-  const [myBio, setMyBio]             = useState('')
-  const [topBookIds, setTopBookIds]   = useState([])
+  const [friends, setFriends]               = useState([])
+  const [pending, setPending]               = useState([])         // incoming requests
+  const [outgoingPending, setOutgoingPending] = useState([])       // requests I sent, awaiting acceptance
+  const [feed, setFeed]                     = useState([])
+  const [recs, setRecs]                     = useState([])
+  const [loaded, setLoaded]                 = useState(false)
+  const [myUsername, setMyUsername]         = useState('')
+  const [myDisplayName, setMyDisplayName]   = useState('')
+  const [myBio, setMyBio]                   = useState('')
+  const [topBookIds, setTopBookIds]         = useState([])
   const [preferredMoods, setPreferredMoods] = useState([])
   const [profileLoaded, setProfileLoaded]   = useState(false)
-  const channelRef                    = useRef(null)
+  const channelRef                          = useRef(null)  // friendships realtime
+  const recsChannelRef                      = useRef(null)  // recs realtime
 
   useEffect(() => {
     if (!user) {
-      setFriends([]); setPending([]); setFeed([]); setRecs([])
+      setFriends([]); setPending([]); setOutgoingPending([])
+      setFeed([]); setRecs([])
       setLoaded(false); setMyUsername(''); setMyDisplayName(''); setMyBio('')
       return
     }
@@ -26,7 +29,8 @@ export function useSocial(user) {
     setupRealtime()
     handleInviteParam()
     return () => {
-      if (channelRef.current) { sb.removeChannel(channelRef.current); channelRef.current = null }
+      if (channelRef.current)     { sb.removeChannel(channelRef.current);     channelRef.current = null }
+      if (recsChannelRef.current) { sb.removeChannel(recsChannelRef.current); recsChannelRef.current = null }
     }
   }, [user?.id])
 
@@ -48,15 +52,21 @@ export function useSocial(user) {
 
   async function loadSocialData() {
     try {
-      const [friendsRes, pendingRes] = await Promise.all([
+      const [friendsRes, pendingRes, outgoingRes] = await Promise.all([
         sb.from('friendships')
           .select('id, requester_id, addressee_id, status')
           .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
           .eq('status', 'accepted'),
+        // Incoming — others requested me
         sb.from('friendships')
           .select('id, requester_id')
           .eq('addressee_id', user.id)
-          .eq('status', 'pending')
+          .eq('status', 'pending'),
+        // Outgoing — I sent, still pending
+        sb.from('friendships')
+          .select('id, addressee_id')
+          .eq('requester_id', user.id)
+          .eq('status', 'pending'),
       ])
 
       // Recs — try full columns, fall back if migration not run
@@ -79,10 +89,11 @@ export function useSocial(user) {
         recsData = recsFull || []
       }
 
-      const friendIds  = (friendsRes.data || []).map(f =>
+      const friendIds   = (friendsRes.data || []).map(f =>
         f.requester_id === user.id ? f.addressee_id : f.requester_id)
-      const pendingIds = (pendingRes.data || []).map(f => f.requester_id)
-      const recIds     = recsData.map(r => r.from_user_id)
+      const pendingIds  = (pendingRes.data  || []).map(f => f.requester_id)
+      const outgoingIds = (outgoingRes.data || []).map(f => f.addressee_id)
+      const recIds      = recsData.map(r => r.from_user_id)
 
       // Feed — try RPC first, fall back to own events
       let feedData = []
@@ -112,7 +123,7 @@ export function useSocial(user) {
       }
 
       // Batch-fetch profiles via RPC
-      const allIds = [...new Set([...friendIds, ...pendingIds, ...feedData.map(e => e.user_id), ...recIds])]
+      const allIds = [...new Set([...friendIds, ...pendingIds, ...outgoingIds, ...feedData.map(e => e.user_id), ...recIds])]
       let profileMap = {}
       if (allIds.length) {
         const { data: profiles } = await sb.rpc('get_profiles_by_ids', { user_ids: allIds })
@@ -140,6 +151,16 @@ export function useSocial(user) {
         }
       }))
 
+      setOutgoingPending((outgoingRes.data || []).map(f => {
+        const prof = profileMap[f.addressee_id] || {}
+        return {
+          friendshipId:      f.id,
+          addresseeId:       f.addressee_id,
+          addresseeUsername: prof.username    || null,
+          addresseeName:     prof.display_name || prof.username || 'Someone'
+        }
+      }))
+
       setFeed(feedData.map(e => ({ ...e, profiles: profileMap[e.user_id] || null })))
       setRecs(recsData.map(r => ({ ...r, profiles: profileMap[r.from_user_id] || null })))
       setLoaded(true)
@@ -151,13 +172,31 @@ export function useSocial(user) {
 
   function setupRealtime() {
     if (channelRef.current) { sb.removeChannel(channelRef.current); channelRef.current = null }
+
+    // One channel, two filters:
+    // 1) anything where I'm the addressee (incoming requests, acceptances I see)
+    // 2) UPDATEs where I'm the requester (my sent requests being accepted/declined)
     const ch = sb.channel(`friendships_${user.id}`)
       .on('postgres_changes', {
         event: '*', schema: 'staging', table: 'friendships',
         filter: `addressee_id=eq.${user.id}`
       }, () => loadSocialData())
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'staging', table: 'friendships',
+        filter: `requester_id=eq.${user.id}`
+      }, () => loadSocialData())
       .subscribe()
     channelRef.current = ch
+
+    // Realtime for incoming recommendations
+    if (recsChannelRef.current) { sb.removeChannel(recsChannelRef.current); recsChannelRef.current = null }
+    const recsCh = sb.channel(`recs_${user.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'staging', table: 'book_recommendations',
+        filter: `to_user_id=eq.${user.id}`
+      }, () => loadSocialData())
+      .subscribe()
+    recsChannelRef.current = recsCh
   }
 
   // ── Add friend via @username (uses RPC to bypass RLS) ────────
@@ -180,6 +219,7 @@ export function useSocial(user) {
       if (error.code === '23505') return { error: 'Friend request already sent.' }
       return { error: error.message }
     }
+    await loadSocialData()
     return { success: `✓ Friend request sent to @${lookup}!` }
   }
 
@@ -251,7 +291,6 @@ export function useSocial(user) {
     }
     const { error } = await sb.from('book_recommendations').insert(row)
     if (error) {
-      // Fallback: minimal schema
       const { error: err2 } = await sb.from('book_recommendations').insert({
         from_user_id: user.id, to_user_id: toUserId,
         book_ol_key: book.olKey || null, status: 'pending'
@@ -294,7 +333,6 @@ export function useSocial(user) {
     }))
     let { error } = await sb.from('book_recommendations').insert(inserts)
     if (error) {
-      // Fallback minimal schema
       const minimal = recipientIds.map(rid => ({
         from_user_id: sender.id, to_user_id: rid,
         book_ol_key: book.olKey || null, status: 'pending'
@@ -305,7 +343,7 @@ export function useSocial(user) {
   }
 
   return {
-    friends, pending, feed, recs, loaded,
+    friends, pending, outgoingPending, feed, recs, loaded,
     myUsername, myDisplayName, myBio, topBookIds, preferredMoods, setPreferredMoods, profileLoaded,
     loadSocialData, sendFriendRequest, sendRecommendation,
     acceptFriendRequest, declineFriendRequest, removeFriend,

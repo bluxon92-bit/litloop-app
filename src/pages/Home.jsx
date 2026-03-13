@@ -287,7 +287,7 @@ export default function Home({ onNavigate, onOpenChatModal }) {
           onClose={() => setDetailBook(null)}
           onMarkFinished={() => { setFinishBook(detailBook); setDetailBook(null) }}
           onStartReading={() => { updateBook(detailBook.id, { status: 'reading', dateStarted: new Date().toISOString().split('T')[0] }); setDetailBook(null) }}
-          onEdit={() => { setEditBook(detailBook); setDetailBook(null) }}
+          onEdit={(mode) => { setEditBook({ ...detailBook, _initialMode: mode || 'view' }); setDetailBook(null) }}
           onRecommend={() => setDetailBook(null)}
           onAddToTBR={() => {
             const dup = findDuplicate(detailBook.title, detailBook.author)
@@ -321,6 +321,7 @@ export default function Home({ onNavigate, onOpenChatModal }) {
       {editBook && (
         <BookSheet
           book={editBook}
+          initialMode={editBook._initialMode || 'view'}
           onClose={() => setEditBook(null)}
           onSaved={changes => { updateBook(editBook.id, changes); setEditBook(null) }}
           onDeleted={() => { deleteBook(editBook.id); setEditBook(null) }}

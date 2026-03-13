@@ -539,7 +539,7 @@ export default function BookDetailPanel({
         {/* MY REVIEW — empty state CTA for read books with no rating/review */}
         {isHistory && !book.rating && !book.reviewBody && (
           <button
-            onClick={() => { onClose(); onEdit?.() }}
+            onClick={() => { onClose(); onEdit?.('edit') }}
             style={{ width: '100%', marginBottom: '1.1rem', padding: '0.75rem 1rem', background: 'var(--rt-cream)', border: '1.5px dashed var(--rt-border-md)', borderRadius: 'var(--rt-r3)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.6rem', textAlign: 'left' }}
           >
             <PencilIcon />
@@ -556,7 +556,7 @@ export default function BookDetailPanel({
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
               <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)' }}>My review</div>
               <button
-                onClick={() => { onClose(); onEdit?.() }}
+                onClick={() => { onClose(); onEdit?.('edit') }}
                 style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rt-t3)', fontSize: '0.72rem', padding: '0.1rem 0.25rem', borderRadius: 4 }}
                 title="Edit review"
               >

@@ -2,15 +2,36 @@ import { useState, useRef, useEffect } from 'react'
 import { sb } from '../lib/supabase'
 
 export function useChat(user) {
-  const [chats, setChats]         = useState([])
+  const [chats, setChats]           = useState([])
   const [activeChat, setActiveChat] = useState(null)
-  const [messages, setMessages]   = useState([])
-  const [loaded, setLoaded]       = useState(false)
-  const cursorRef                 = useRef(null)
-  const channelRef                = useRef(null)
+  const [messages, setMessages]     = useState([])
+  const [loaded, setLoaded]         = useState(false)
+  const cursorRef                   = useRef(null)
+  const channelRef                  = useRef(null)  // active thread subscription
+  const listChannelRef              = useRef(null)  // new-thread realtime subscription
+
   useEffect(() => {
-  if (user) loadChatList()
-}, [user?.id])
+    if (user) {
+      loadChatList()
+      setupListRealtime()
+    }
+    return () => {
+      if (listChannelRef.current) { sb.removeChannel(listChannelRef.current); listChannelRef.current = null }
+    }
+  }, [user?.id])
+
+  // Watch for new chat_participants rows where I'm added — refreshes chat list live
+  function setupListRealtime() {
+    if (listChannelRef.current) { sb.removeChannel(listChannelRef.current); listChannelRef.current = null }
+    if (!user) return
+    const ch = sb.channel(`chat_list_${user.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'staging', table: 'chat_participants',
+        filter: `user_id=eq.${user.id}`
+      }, () => loadChatList())
+      .subscribe()
+    listChannelRef.current = ch
+  }
 
   async function loadChatList() {
     if (!user) return
@@ -47,18 +68,18 @@ export function useChat(user) {
       const mapped = (participations || [])
         .filter(p => p.chat)
         .map(p => ({
-          id:             p.chat.id,
-          bookOlKey:      p.chat.book_ol_key,
-          bookTitle:      p.chat.book_title  || p.chat.book_ol_key || 'Unknown book',
-          bookAuthor:     p.chat.book_author || '',
-          coverId:        p.chat.cover_id,
-          coverIdRaw:     p.chat.cover_id,
-          chatName:       p.chat.chat_name   || null,
+          id:                 p.chat.id,
+          bookOlKey:          p.chat.book_ol_key,
+          bookTitle:          p.chat.book_title  || p.chat.book_ol_key || 'Unknown book',
+          bookAuthor:         p.chat.book_author || '',
+          coverId:            p.chat.cover_id,
+          coverIdRaw:         p.chat.cover_id,
+          chatName:           p.chat.chat_name   || null,
           lastMessagePreview: p.chat.last_message_preview,
-          lastMessageAt:  p.chat.last_message_at,
-          lastUserId:     p.chat.last_message_user_id,
-          unread:         unreadMap[p.chat.id] || 0,
-          participantIds: (p.chat.participants || []).map(pp => pp.user_id)
+          lastMessageAt:      p.chat.last_message_at,
+          lastUserId:         p.chat.last_message_user_id,
+          unread:             unreadMap[p.chat.id] || 0,
+          participantIds:     (p.chat.participants || []).map(pp => pp.user_id)
         }))
         .sort((a, b) => {
           if (!a.lastMessageAt && !b.lastMessageAt) return 0
@@ -74,18 +95,18 @@ export function useChat(user) {
     }
   }
 
-async function openThread(chatIdOrChat) {
-  const chat = typeof chatIdOrChat === 'string'
-    ? chats.find(c => c.id === chatIdOrChat)
-    : chatIdOrChat
-  if (!chat) return
-  setActiveChat(chat)
-  setMessages([])
-  cursorRef.current = null
-  await fetchMessages(chat.id, false)
-  markChatRead(chat.id)
-  subscribeToThread(chat.id)
-}
+  async function openThread(chatIdOrChat) {
+    const chat = typeof chatIdOrChat === 'string'
+      ? chats.find(c => c.id === chatIdOrChat)
+      : chatIdOrChat
+    if (!chat) return
+    setActiveChat(chat)
+    setMessages([])
+    cursorRef.current = null
+    await fetchMessages(chat.id, false)
+    markChatRead(chat.id)
+    subscribeToThread(chat.id)
+  }
 
   function closeThread() {
     if (channelRef.current) { sb.removeChannel(channelRef.current); channelRef.current = null }
@@ -219,7 +240,6 @@ async function openThread(chatIdOrChat) {
   async function startOrOpenChat(olKey, title, author, coverId, friendIds, firstMessage = null, chatName = null) {
     if (!user) return null
     try {
-      // Always create a new chat — caller handles existing-chat logic via ChatFriendPicker
       const { data: nc, error } = await sb
         .from('book_chats')
         .insert({ book_ol_key: olKey, book_title: title, book_author: author, cover_id: coverId, chat_name: chatName || null })
@@ -229,11 +249,9 @@ async function openThread(chatIdOrChat) {
       await sb.from('chat_participants').insert(
         [user.id, ...friendIds].map(uid => ({ chat_id: chatId, user_id: uid }))
       )
-
       if (firstMessage) {
         await sb.from('chat_messages').insert({ chat_id: chatId, user_id: user.id, body: firstMessage })
       }
-
       await loadChatList()
       return chatId
     } catch(e) {

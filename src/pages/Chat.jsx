@@ -427,16 +427,16 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
 }
 
 // ── Main Chat page ────────────────────────────────────────────
-export default function Chat({ onNavigate, onAddFriend }) {
+export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend }) {
   const { user }                                 = useAuthContext()
   const { books, addBook, findDuplicate }        = useBooksContext()
   const {
-    friends, pending, feed,
+    friends = [], pending = [], outgoingPending = [], feed,
     sendFriendRequest, acceptFriendRequest, declineFriendRequest,
     removeFriend, acceptRecToTBR, generateInviteLink, loaded: socialLoaded
   }                                              = useSocialContext()
   const {
-    chats, messages,
+    chats = [], messages,
     openThread, closeThread, sendMessage, deleteMessage,
     loadEarlier, startOrOpenChat, totalUnread, markChatRead,
     loadParticipants, updateChatName, addParticipants,
@@ -447,6 +447,7 @@ export default function Chat({ onNavigate, onAddFriend }) {
   const [addFriendInput, setAddFriendInput]   = useState('')
   const [addFriendMsg, setAddFriendMsg]       = useState(null)
   const [addFriendLoading, setAddFriendLoading] = useState(false)
+  const [dismissedAccepted, setDismissedAccepted] = useState(new Set()) // friendshipIds dismissed by user
   const [friendSheet, setFriendSheet]         = useState(null)
   const [addModal, setAddModal]               = useState(false)
   const [activeChatModal, setActiveChatModal] = useState(null)  // chat object for modal
@@ -491,6 +492,44 @@ export default function Chat({ onNavigate, onAddFriend }) {
           <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>+</span> Add Friend
         </button>
       </div>
+
+
+      {/* ── Side A: Outgoing friend request banners ── */}
+      {(outgoingPending || []).map(op => {
+        const justAccepted = friends.find(f => f.userId === op.addresseeId)
+        const dismissed    = dismissedAccepted.has(op.friendshipId)
+        if (justAccepted && dismissed) return null
+
+        if (justAccepted) {
+          // Show "accepted" banner — dismissed per session
+          return (
+            <div key={op.friendshipId} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: 'var(--rt-green-pale, #eafaf1)', border: '1.5px solid var(--rt-green, #27ae60)', borderRadius: 'var(--rt-r3)', padding: '0.6rem 0.85rem', marginBottom: '0.75rem', fontSize: '0.82rem' }}>
+              <span style={{ color: 'var(--rt-green, #27ae60)', fontSize: '1rem', flexShrink: 0 }}>✓</span>
+              <span style={{ flex: 1, color: 'var(--rt-navy)', fontWeight: 500 }}>
+                <strong>{op.addresseeName}</strong> accepted your request — send them a message
+              </span>
+              <button
+                onClick={() => { onOpenChatWithFriend?.(op.addresseeId); setDismissedAccepted(s => new Set([...s, op.friendshipId])) }}
+                style={{ background: 'var(--rt-navy)', color: '#fff', border: 'none', borderRadius: 99, padding: '0.25rem 0.65rem', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
+              >Message →</button>
+              <button
+                onClick={() => setDismissedAccepted(s => new Set([...s, op.friendshipId]))}
+                style={{ background: 'none', border: 'none', color: 'var(--rt-t3)', fontSize: '1rem', cursor: 'pointer', padding: '0 0.1rem', lineHeight: 1, flexShrink: 0 }}
+                aria-label="Dismiss"
+              >×</button>
+            </div>
+          )
+        }
+
+        // Still pending
+        return (
+          <div key={op.friendshipId} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: 'var(--rt-surface)', border: '1.5px solid var(--rt-border)', borderRadius: 'var(--rt-r3)', padding: '0.6rem 0.85rem', marginBottom: '0.75rem', fontSize: '0.82rem' }}>
+            <span style={{ flex: 1, color: 'var(--rt-t3)', fontStyle: 'italic' }}>
+              <strong style={{ color: 'var(--rt-navy)', fontStyle: 'normal' }}>{op.addresseeName}</strong> hasn't accepted yet
+            </span>
+          </div>
+        )
+      })}
 
       {/* Sub-tabs */}
       <div style={{ display: 'flex', borderBottom: '2px solid var(--rt-border)', marginBottom: '1.25rem' }}>

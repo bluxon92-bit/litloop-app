@@ -18,23 +18,23 @@ import { IcoBook, IcoChat as IcoChatBubble, IcoUsers as IcoUsersGroup } from '..
 // ── SVG icons ─────────────────────────────────────────────────
 function IcoHome(active) {
   const c = active ? 'var(--rt-navy)' : '#9ca3af'
-  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H5a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>
+  return <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H5a1 1 0 01-1-1V9.5z"/><path d="M9 21V12h6v9"/></svg>
 }
 function IcoChat(active) {
   const c = active ? 'var(--rt-navy)' : '#9ca3af'
-  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+  return <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
 }
 function IcoList(active) {
   const c = active ? 'var(--rt-navy)' : '#9ca3af'
-  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/></svg>
+  return <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="13" x2="13" y2="13"/></svg>
 }
 function IcoDiscover(active) {
   const c = active ? 'var(--rt-navy)' : '#9ca3af'
-  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/><path d="M8 11h6M11 8v6"/></svg>
+  return <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/><path d="M8 11h6M11 8v6"/></svg>
 }
 function IcoProfile(active) {
   const c = active ? 'var(--rt-navy)' : '#9ca3af'
-  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+  return <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
 }
 function IcoBell() {
   return <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
@@ -116,20 +116,9 @@ function FabFriendModal({ onClose, sendFriendRequest, generateInviteLink }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--rt-t3)' }}>×</button>
         </div>
 
-        {/* Invite block */}
-        <div style={{ background: 'var(--rt-navy)', borderRadius: 'var(--rt-r3)', padding: '1rem 1.25rem', marginBottom: '1.25rem' }}>
-          <div style={{ fontSize: '1rem', fontWeight: 700, color: '#fff', marginBottom: '0.35rem' }}>Invite your friends to LitLoop</div>
-          <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5, marginBottom: '0.85rem' }}>
-            Recommend and chat about your favourite stories. Because books are better shared.
-          </div>
-          <button onClick={handleCopy} style={{ width: '100%', background: copied ? 'var(--rt-teal)' : 'var(--rt-amber)', color: '#fff', border: 'none', borderRadius: 8, padding: '0.65rem 1rem', textAlign: 'center', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', transition: 'background 0.2s' }}>
-            {copied ? '✓ Copied!' : 'Copy invite link'}
-          </button>
-        </div>
-
         {/* Search by username */}
-        <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>Or find by username</div>
-        <form onSubmit={handleAdd} style={{ display: 'flex', gap: '0.5rem' }}>
+        <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>Find by username</div>
+        <form onSubmit={handleAdd} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
           <input
             className="rt-input" style={{ flex: 1 }}
             placeholder="@username"
@@ -141,7 +130,18 @@ function FabFriendModal({ onClose, sendFriendRequest, generateInviteLink }) {
             {loading ? '…' : 'Send'}
           </button>
         </form>
-        {msg && <div style={{ marginTop: '0.6rem', fontSize: '0.82rem', color: msg.type === 'error' ? '#dc2626' : 'var(--rt-teal)', fontWeight: 600 }}>{msg.text}</div>}
+        {msg && <div style={{ marginTop: '0.6rem', fontSize: '0.82rem', color: msg.type === 'error' ? '#dc2626' : 'var(--rt-teal)', fontWeight: 600, marginBottom: '1rem' }}>{msg.text}</div>}
+
+        {/* Invite block */}
+        <div style={{ background: 'var(--rt-navy)', borderRadius: 'var(--rt-r3)', padding: '1rem 1.25rem', marginTop: msg ? '0' : '1.25rem' }}>
+          <div style={{ fontSize: '1rem', fontWeight: 700, color: '#fff', marginBottom: '0.35rem' }}>Invite your friends to LitLoop</div>
+          <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5, marginBottom: '0.85rem' }}>
+            Recommend and chat about your favourite stories. Because books are better shared.
+          </div>
+          <button onClick={handleCopy} style={{ width: '100%', background: copied ? 'var(--rt-teal)' : 'var(--rt-amber)', color: '#fff', border: 'none', borderRadius: 8, padding: '0.65rem 1rem', textAlign: 'center', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', transition: 'background 0.2s' }}>
+            {copied ? '✓ Copied!' : 'Copy invite link'}
+          </button>
+        </div>
       </div>
     </FabModal>
   )
@@ -152,7 +152,7 @@ function FabRecommendModal({ books, friends, user, recs, sendRecommendation, onC
   const [step, setStep]         = useState('book') // 'book' | 'friends'
   const [search, setSearch]     = useState('')
   const [selectedBook, setSelectedBook] = useState(null)
-  const [selectedFriends, setSelectedFriends] = useState(new Set())
+  const [selectedFriends, setSelectedFriends] = useState(() => preselectedFriendId ? new Set([preselectedFriendId]) : new Set())
   const [note, setNote]         = useState('')
   const [sending, setSending]   = useState(false)
   const [sent, setSent]         = useState(false)
@@ -250,12 +250,13 @@ function FabRecommendModal({ books, friends, user, recs, sendRecommendation, onC
 }
 
 // ── FAB: Start chat modal ─────────────────────────────────────
-function FabChatModal({ books, friends, chats, startOrOpenChat, onOpenChatModal, onClose }) {
+function FabChatModal({ books, friends, chats, startOrOpenChat, onOpenChatModal, onClose, preselectedFriendId }) {
   const { myDisplayName } = useSocialContext()
-  const [step, setStep]           = useState('book') // 'book' | 'friends'
+  const [step, setStep]           = useState(preselectedFriendId ? 'friends' : 'book') // 'book' | 'friends'
+  const [preselBook, setPreselBook] = useState(null) // used when entering via friend pre-select
   const [search, setSearch]       = useState('')
   const [selectedBook, setSelectedBook] = useState(null)
-  const [selectedFriends, setSelectedFriends] = useState(new Set())
+  const [selectedFriends, setSelectedFriends] = useState(() => preselectedFriendId ? new Set([preselectedFriendId]) : new Set())
   const [starting, setStarting]   = useState(false)
 
   const myBooks = books.filter(b => b.status === 'read' || b.status === 'reading')
@@ -270,7 +271,8 @@ function FabChatModal({ books, friends, chats, startOrOpenChat, onOpenChatModal,
   }
 
   async function handleStart() {
-    if (!selectedFriends.size || !selectedBook) return
+    if (!selectedFriends.size) return
+    if (!selectedBook && !preselectedFriendId) return
     const friendIds = [...selectedFriends]
     setStarting(true)
     const selectedFriendObjs = friends.filter(f => friendIds.includes(f.userId))
@@ -279,10 +281,11 @@ function FabChatModal({ books, friends, chats, startOrOpenChat, onOpenChatModal,
     const autoName = friendIds.length === 1
       ? `${myName} & ${friendNames[0]}`
       : `${myName} & ${friendNames.slice(0, 2).join(' & ')}${friendIds.length > 2 ? ` +${friendIds.length - 2}` : ''}`
-    const chatId = await startOrOpenChat(selectedBook.olKey, selectedBook.title, selectedBook.author, selectedBook.coverId, friendIds, null, autoName)
+    const book = selectedBook
+    const chatId = await startOrOpenChat(book?.olKey || null, book?.title || 'General', book?.author || '', book?.coverId || null, friendIds, null, autoName)
     setStarting(false)
     if (chatId) {
-      onOpenChatModal?.({ id: chatId, bookOlKey: selectedBook.olKey, bookTitle: selectedBook.title, bookAuthor: selectedBook.author, coverIdRaw: selectedBook.coverId, chatName: autoName }, selectedBook)
+      onOpenChatModal?.({ id: chatId, bookOlKey: book?.olKey || null, bookTitle: book?.title || 'General', bookAuthor: book?.author || '', coverIdRaw: book?.coverId || null, chatName: autoName }, book)
     }
     onClose()
   }
@@ -292,7 +295,7 @@ function FabChatModal({ books, friends, chats, startOrOpenChat, onOpenChatModal,
       <div style={{ padding: '1.25rem', paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom, 1.25rem))', maxHeight: '85dvh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
           <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>
-            {step === 'book' ? 'Chat about a book' : `Chat about "${selectedBook?.title}"`}
+            {step === 'book' ? 'Chat about a book' : selectedBook ? `Chat about "${selectedBook.title}"` : 'Pick a book to chat about'}
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--rt-t3)' }}>×</button>
         </div>
@@ -319,7 +322,9 @@ function FabChatModal({ books, friends, chats, startOrOpenChat, onOpenChatModal,
           </div>
         </>) : (<>
           <div style={{ marginBottom: '0.75rem', marginTop: '0.25rem' }}>
-            <button onClick={() => setStep('book')} style={{ background: 'none', border: 'none', color: 'var(--rt-amber)', fontSize: '0.78rem', cursor: 'pointer', padding: 0, fontWeight: 600 }}>← Change book</button>
+            <button onClick={() => setStep('book')} style={{ background: 'none', border: 'none', color: 'var(--rt-amber)', fontSize: '0.78rem', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
+              {selectedBook ? '← Change book' : '+ Pick a book (optional)'}
+            </button>
           </div>
 
           {bookChats.length > 0 && (
@@ -737,13 +742,70 @@ function OnboardingFlow({ user, onComplete }) {
   )
 }
 
+
+// ── Global Friend Request Banner (Side B — receiver) ──────────────────────
+function GlobalFriendBanner({ pending, acceptFriendRequest, declineFriendRequest, dismissedRequests, setDismissedRequests }) {
+  const [actioned, setActioned] = useState(new Set()) // friendshipIds in-flight
+
+  const visible = (pending || []).filter(p => !dismissedRequests.has(p.friendshipId))
+  if (!visible.length) return null
+
+  async function handleAccept(p) {
+    setActioned(s => new Set([...s, p.friendshipId]))
+    await acceptFriendRequest(p.friendshipId)
+    setActioned(s => { const n = new Set(s); n.delete(p.friendshipId); return n })
+  }
+
+  async function handleDecline(p) {
+    setActioned(s => new Set([...s, p.friendshipId]))
+    await declineFriendRequest(p.friendshipId)
+    setActioned(s => { const n = new Set(s); n.delete(p.friendshipId); return n })
+  }
+
+  return (
+    <div style={{ position: 'fixed', top: 'max(0.75rem, env(safe-area-inset-top, 0.75rem))', left: '50%', transform: 'translateX(-50%)', zIndex: 1200, width: 'min(96vw, 420px)', display: 'flex', flexDirection: 'column', gap: '0.5rem', pointerEvents: 'none' }}>
+      {visible.map(p => {
+        const busy = actioned.has(p.friendshipId)
+        return (
+          <div key={p.friendshipId} style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', background: 'var(--rt-bg, #fff)', border: '1.5px solid var(--rt-amber)', borderRadius: 14, padding: '0.65rem 0.85rem', boxShadow: '0 4px 20px rgba(0,0,0,0.13)', pointerEvents: 'auto' }}>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--rt-amber-pale)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, color: 'var(--rt-amber)', flexShrink: 0 }}>
+              {(p.requesterName || '?')[0].toUpperCase()}
+            </div>
+            <span style={{ flex: 1, fontSize: '0.82rem', color: 'var(--rt-navy)', minWidth: 0 }}>
+              <strong>{p.requesterName}</strong>
+              {p.requesterUsername ? <span style={{ color: 'var(--rt-t3)', fontWeight: 400 }}> @{p.requesterUsername}</span> : null}
+              {' '}sent you a friend request
+            </span>
+            <button
+              onClick={() => handleAccept(p)}
+              disabled={busy}
+              style={{ background: 'var(--rt-amber)', color: '#fff', border: 'none', borderRadius: 99, padding: '0.25rem 0.65rem', fontSize: '0.72rem', fontWeight: 700, cursor: busy ? 'default' : 'pointer', flexShrink: 0, opacity: busy ? 0.6 : 1 }}
+            >{busy ? '…' : 'Accept'}</button>
+            <button
+              onClick={() => handleDecline(p)}
+              disabled={busy}
+              style={{ background: 'var(--rt-surface)', color: 'var(--rt-t3)', border: '1px solid var(--rt-border)', borderRadius: 99, padding: '0.25rem 0.65rem', fontSize: '0.72rem', fontWeight: 700, cursor: busy ? 'default' : 'pointer', flexShrink: 0, opacity: busy ? 0.6 : 1 }}
+            >Decline</button>
+            <button
+              onClick={() => setDismissedRequests(s => new Set([...s, p.friendshipId]))}
+              style={{ background: 'none', border: 'none', color: 'var(--rt-t3)', fontSize: '1.1rem', cursor: 'pointer', padding: '0 0.1rem', lineHeight: 1, flexShrink: 0 }}
+              aria-label="Hide"
+            >×</button>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export default function AppShell() {
   const { user, signOut }   = useAuthContext()
   const { totalUnread, chats, openThread, closeThread, markChatRead, messages,
           sendMessage, deleteMessage, loadEarlier, startOrOpenChat,
           loadParticipants, updateChatName, addParticipants,
           leaveChat } = useChatContext()
-  const { pending, feed, recs, friends, sendRecommendation, generateInviteLink, sendFriendRequest,
+  const { pending, outgoingPending, feed, recs, friends, sendRecommendation, generateInviteLink, sendFriendRequest,
+          acceptFriendRequest, declineFriendRequest,
           myUsername, saveProfile, setPreferredMoods, profileLoaded } = useSocialContext()
   const { books, addBook } = useBooksContext()
   const [activeTab, setActiveTab]         = useState('home')
@@ -753,6 +815,8 @@ export default function AppShell() {
   const [activeChatModal, setActiveChatModal] = useState(null)
   const [fabOpen, setFabOpen]             = useState(false)
   const [fabAction, setFabAction]         = useState(null) // 'addbook'|'recommend'|'chat'|'friend'
+  const [fabChatPreselect, setFabChatPreselect] = useState(null) // userId to pre-select in FabChatModal
+  const [dismissedRequests, setDismissedRequests] = useState(new Set()) // friendshipIds hidden by ×
   const bellRef = useRef(null)
 
   function onNavigate(tab) { setActiveTab(tab) }
@@ -786,6 +850,12 @@ export default function AppShell() {
   }
 
   function closeChatModal() { closeThread(); setActiveChatModal(null) }
+
+  // Open Start Chat modal pre-skipped to friends step for a specific friend
+  function openChatWithFriend(friendUserId) {
+    setFabChatPreselect(friendUserId)
+    setFabAction('chat')
+  }
 
   function findExistingChat(olKey) {
     if (!olKey || !chats) return null
@@ -850,7 +920,7 @@ export default function AppShell() {
       case 'mylist':   return <MyList          onNavigate={onNavigate} onOpenChatModal={openChatModal} />
       case 'stats':    return <Stats           onNavigate={onNavigate} />
       case 'discover': return <Discover        onNavigate={onNavigate} onOpenChatModal={openChatModal} onRecommend={() => setFabAction('recommend')} />
-      case 'chat':     return <Chat            onNavigate={onNavigate} onOpenChatModal={openChatModal} onAddFriend={() => setFabAction('friend')} />
+      case 'chat':     return <Chat            onNavigate={onNavigate} onOpenChatModal={openChatModal} onAddFriend={() => setFabAction('friend')} onOpenChatWithFriend={openChatWithFriend} />
       case 'profile':  return <Profile         onNavigate={onNavigate} onOpenChatModal={openChatModal} />
       case 'account':  return <AccountSettings onNavigate={onNavigate} />
       default:         return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} />
@@ -1028,18 +1098,14 @@ export default function AppShell() {
               onClick={() => setActiveTab(tab.id)}
               style={{
                 flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
-                gap: '0.18rem', padding: '0.6rem 0.25rem',
+                justifyContent: 'center',
+                gap: 0, padding: '0.65rem 0.25rem',
                 border: 'none', background: 'none', cursor: 'pointer', position: 'relative'
               }}
             >
               {tab.icon(isActive)}
-              <span style={{
-                fontSize: '0.58rem', fontWeight: isActive ? 600 : 400,
-                color: isActive ? 'var(--rt-navy)' : '#9ca3af',
-                fontFamily: 'var(--rt-font-body)', letterSpacing: '-0.01em'
-              }}>{tab.label}</span>
               {tab.id === 'chat' && totalUnread > 0 && (
-                <div style={{ position: 'absolute', top: 5, right: '50%', marginRight: -16, width: 7, height: 7, borderRadius: '50%', background: 'var(--rt-amber)', border: '1.5px solid white' }}/>
+                <div style={{ position: 'absolute', top: 8, right: '50%', marginRight: -16, width: 7, height: 7, borderRadius: '50%', background: 'var(--rt-amber)', border: '1.5px solid white' }}/>
               )}
             </button>
           )
@@ -1162,9 +1228,17 @@ export default function AppShell() {
           chats={chats}
           startOrOpenChat={startOrOpenChat}
           onOpenChatModal={openChatModal}
-          onClose={() => setFabAction(null)}
+          preselectedFriendId={fabChatPreselect}
+          onClose={() => { setFabAction(null); setFabChatPreselect(null) }}
         />
       )}
+      <GlobalFriendBanner
+        pending={pending}
+        acceptFriendRequest={acceptFriendRequest}
+        declineFriendRequest={declineFriendRequest}
+        dismissedRequests={dismissedRequests}
+        setDismissedRequests={setDismissedRequests}
+      />
     </div>
   )
 }

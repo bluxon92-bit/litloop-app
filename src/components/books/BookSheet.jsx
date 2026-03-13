@@ -667,8 +667,8 @@ const [saving, setSaving]             = useState(false)
 // BOOKSHEET — view / edit sheet for existing books
 // (opened from My List / history — not the finish workflow)
 // ─────────────────────────────────────────────────────────────
-export default function BookSheet({ book, onClose, onSaved, onDeleted, user }) {
-  const [mode, setMode]         = useState('view')
+export default function BookSheet({ book, onClose, onSaved, onDeleted, user, initialMode = 'view' }) {
+  const [mode, setMode]         = useState(initialMode)
   const [rating, setRating]     = useState(book.rating || 0)
   const [status, setStatus]     = useState(book.status)
   const [date, setDate]         = useState(book.dateRead || '')
