@@ -7,12 +7,12 @@ import { avatarColour, avatarInitial, timeAgo } from '../lib/utils'
 import BookDetailPanel from '../components/books/BookDetailPanel'
 import FriendProfileSheet from '../components/books/FriendProfileSheet'
 import AddBookModal from '../components/books/AddBookModal'
+import { IcoOpenBook, IcoChat, IcoDoorExit, IcoUsers } from '../components/icons'
 
 // ── Colours ───────────────────────────────────────────────────
 const MY_BUBBLE    = { bg: '#DEF0FF', color: '#1a2744' }   // pale blue
 const THEIR_BUBBLE = { bg: '#F5F0E8', color: '#1a2744' }   // pale cream
 
-// ── Invite strip ──────────────────────────────────────────────
 
 // ── Participant avatars row ───────────────────────────────────
 function ParticipantsRow({ participants, currentUserId, onAdd }) {
@@ -241,7 +241,7 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
             {/* Cover */}
             {coverSrc
               ? <img src={coverSrc} style={{ width: 36, height: 52, borderRadius: 5, objectFit: 'cover', flexShrink: 0, boxShadow: '0 2px 8px rgba(0,0,0,0.3)' }} alt="" onError={e => e.target.style.display='none'} />
-              : <div style={{ width: 36, height: 52, borderRadius: 5, background: 'rgba(255,255,255,0.1)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📖</div>
+              : <div style={{ width: 36, height: 52, borderRadius: 5, background: 'rgba(255,255,255,0.1)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IcoOpenBook size={20} color="rgba(255,255,255,0.5)" /></div>
             }
 
             {/* Title + chat name */}
@@ -293,7 +293,7 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
                   onClick={e => e.stopPropagation()}>
                   <button onClick={() => { setMenuAction('leave'); setShowMenu(false) }}
                     style={{ width: '100%', padding: '0.75rem 1rem', background: 'none', border: 'none', textAlign: 'left', fontSize: '0.85rem', color: '#dc2626', fontWeight: 600, cursor: 'pointer' }}>
-                    🚪 Leave chat
+                    <IcoDoorExit size={14} color="#dc2626" style={{ marginRight: '0.35rem', verticalAlign: 'middle' }} /> Leave chat
                   </button>
                 </div>
               )}
@@ -429,7 +429,7 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
 // ── Main Chat page ────────────────────────────────────────────
 export default function Chat({ onNavigate, onAddFriend }) {
   const { user }                                 = useAuthContext()
-  const { books, addBook }                       = useBooksContext()
+  const { books, addBook, findDuplicate }        = useBooksContext()
   const {
     friends, pending, feed,
     sendFriendRequest, acceptFriendRequest, declineFriendRequest,
@@ -449,7 +449,6 @@ export default function Chat({ onNavigate, onAddFriend }) {
   const [addFriendLoading, setAddFriendLoading] = useState(false)
   const [friendSheet, setFriendSheet]         = useState(null)
   const [addModal, setAddModal]               = useState(false)
-  const [inviteCopied, setInviteCopied]       = useState(false)
   const [activeChatModal, setActiveChatModal] = useState(null)  // chat object for modal
 
   function openChatModal(chat) {
@@ -478,14 +477,6 @@ export default function Chat({ onNavigate, onAddFriend }) {
     setAddFriendLoading(false)
   }
 
-  async function handleCopyInvite() {
-    const link = await generateInviteLink()
-    if (link) {
-      try { await navigator.clipboard.writeText(link) } catch {}
-      setInviteCopied(true)
-      setTimeout(() => setInviteCopied(false), 2000)
-    }
-  }
 
   function findExistingChat(olKey) {
     if (!olKey || !chats) return null
@@ -494,7 +485,12 @@ export default function Chat({ onNavigate, onAddFriend }) {
 
   return (
     <div style={{ padding: '1.5rem', maxWidth: 720, margin: '0 auto', display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 100px)' }}>
-      <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 1.25rem' }}>Chat</h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 1.25rem' }}>
+        <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: 0 }}>Chat</h2>
+        <button onClick={onAddFriend} style={{ background: 'var(--rt-amber-pale)', border: 'none', borderRadius: 99, padding: '0.25rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--rt-amber)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>+</span> Add Friend
+        </button>
+      </div>
 
       {/* Sub-tabs */}
       <div style={{ display: 'flex', borderBottom: '2px solid var(--rt-border)', marginBottom: '1.25rem' }}>
@@ -526,11 +522,9 @@ export default function Chat({ onNavigate, onAddFriend }) {
           <div style={{ flex: 1 }}>
             {chats.length === 0 ? (
               <div className="rt-card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
+                <div style={{ marginBottom: '0.5rem' }}><IcoChat size={36} color="var(--rt-t3)" /></div>
                 <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.35rem' }}>No chats yet</div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)' }}>
-                  <button onClick={onAddFriend} style={{ background: 'none', border: 'none', color: 'var(--rt-amber)', fontWeight: 700, fontSize: '0.8rem', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Add friends</button>
-                  {' '}to start chatting about books.
-                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)' }}>Start a book chat from any book's detail panel.</div>
               </div>
             ) : (
               chats.map(chat => {
@@ -548,7 +542,7 @@ export default function Chat({ onNavigate, onAddFriend }) {
                   >
                     {coverSrc
                       ? <img src={coverSrc} className="rt-chat-list-cover" alt="" onError={e => e.target.style.display='none'} />
-                      : <div className="rt-chat-list-cover--ph">📖</div>
+                      : <div className="rt-chat-list-cover--ph"><IcoOpenBook size={20} color="var(--rt-t3)" /></div>
                     }
                     <div className="rt-chat-list-body">
                       {chat.chatName && <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--rt-amber)', marginBottom: '0.1rem' }}>{chat.chatName}</div>}
@@ -606,10 +600,8 @@ export default function Chat({ onNavigate, onAddFriend }) {
               <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>Loading…</div>
             ) : friends.length === 0 ? (
               <div className="rt-card" style={{ textAlign: 'center', padding: '2rem' }}>
-                <div style={{ fontSize: '0.85rem', color: 'var(--rt-t3)' }}>
-                  No friends yet.{' '}
-                  <button onClick={onAddFriend} style={{ background: 'none', border: 'none', color: 'var(--rt-amber)', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Add a friend</button>
-                </div>
+                <div style={{ marginBottom: '0.4rem' }}><IcoUsers size={34} color="var(--rt-t3)" /></div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--rt-t3)' }}>No friends yet — add one above or share your invite link.</div>
               </div>
             ) : (
               <div className="rt-card">
@@ -637,8 +629,17 @@ export default function Chat({ onNavigate, onAddFriend }) {
           user={user}
           books={books}
           onClose={() => setFriendSheet(null)}
-          onAddToTBR={({ title, author, olKey, coverId }) => {
-            addBook({ title, author, status: 'tbr', olKey, coverId })
+          onAddToTBR={({ title, author, olKey, coverId, recId }) => {
+            const dup = findDuplicate(title, author)
+            if (dup) {
+              if (dup.status === 'tbr' || dup.status === 'reading') {
+                const label = dup.status === 'tbr' ? 'your To Read list' : 'Currently Reading'
+                alert(`"${dup.title}" is already in ${label}.`)
+                return
+              }
+              if (!window.confirm(`You've already read "${dup.title}". Add it again as a reread?`)) return
+            }
+            addBook({ title, author, status: 'tbr', olKey, coverId, recId })
             setFriendSheet(null)
           }}
           onStartChat={b => {

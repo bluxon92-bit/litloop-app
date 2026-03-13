@@ -83,8 +83,8 @@
 }
 @media (max-width: 767px) {
   .rt-page {
-    padding-left: 1rem !important;
-    padding-right: 1rem !important;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
   }
 }
 
@@ -1494,17 +1494,22 @@
 
 /* ── MOBILE SHELL ──────────────────────────────────────────── */
 @media (max-width: 700px) {
-  .rt-app { padding-bottom: 64px; }
+  .rt-app { padding-bottom: calc(64px + env(safe-area-inset-bottom, 0px)); }
   .rt-panels { padding: 0 1rem; }
 
   .rt-tabbar-mobile {
     position: fixed; bottom: 0; left: 0; right: 0;
     z-index: 100; background: var(--rt-white);
     border-top: 1px solid var(--rt-border);
-    height: 64px; box-shadow: 0 -4px 20px rgba(26,39,68,0.1);
+    height: calc(64px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    box-shadow: 0 -4px 20px rgba(26,39,68,0.1);
   }
   .rt-sheet-footer { padding-bottom: max(1.25rem, env(safe-area-inset-bottom)); }
 }
+
+/* ── GLOBAL OVERFLOW FIX ───────────────────────────────────── */
+html, body { overflow-x: hidden; max-width: 100%; }
 
 /* ── DESKTOP SIDEBAR (legacy rt-app grid) ──────────────────── */
 @media (min-width: 1024px) {

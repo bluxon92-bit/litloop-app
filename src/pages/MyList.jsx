@@ -8,67 +8,82 @@ import CoverImage from '../components/books/CoverImage'
 import BookDetailPanel from '../components/books/BookDetailPanel'
 import BookSheet, { FinishModal } from '../components/books/BookSheet'
 import AddBookModal from '../components/books/AddBookModal'
+import { IcoBook } from '../components/icons'
 
 const TABS = ['to-read', 'history', 'dnf']
 const TAB_LABELS = { 'to-read': 'To Read', history: 'History', dnf: 'DNF' }
 
 // ── Drag-to-reorder TBR list ─────────────────────────────────────
-// All handlers stored in refs so removeEventListener gets the same
-// function reference that was added — plain functions recreate on
-// every render, making removal silently fail.
+// Pointer capture on the handle ensures pointermove fires on that
+// element even as the finger/cursor moves across the whole screen.
+// We hit-test row rects each move to find the target index, reorder
+// the local display list live, then persist to DB on drop only.
 function TBRList({ tbr, updateBook, deleteBook, openDetail }) {
-  const [overIdx, setOverIdx] = useState(null)
-  const dragIdxRef  = useRef(null)
-  const overIdxRef  = useRef(null)
-  const itemsRef    = useRef([])
-  const tbrRef      = useRef(tbr)
-  const updateRef   = useRef(updateBook)
-  useEffect(() => { tbrRef.current   = tbr        }, [tbr])
-  useEffect(() => { updateRef.current = updateBook }, [updateBook])
+  const [displayOrder, setDisplayOrder] = useState(tbr)
+  const rowRefs   = useRef([])          // DOM refs for each row
+  const dragBook  = useRef(null)        // id of the book being dragged
+  const dragFrom  = useRef(null)        // original index (into tbr)
+  const dragging  = useRef(false)
 
-  // Stable refs — same function object for the lifetime of the component
-  const onMoveRef = useRef(null)
-  const onUpRef   = useRef(null)
+  // Sync display order when tbr changes from outside (initial load, DB update)
+  useEffect(() => {
+    if (!dragging.current) setDisplayOrder(tbr)
+  }, [tbr])
 
-  if (!onMoveRef.current) {
-    onMoveRef.current = function onMove(e) {
-      e.preventDefault()
-      const y = e.clientY
-      let target = null
-      itemsRef.current.forEach((el, idx) => {
-        if (!el) return
-        const rect = el.getBoundingClientRect()
-        if (y >= rect.top && y <= rect.bottom) target = idx
-      })
-      if (target !== null && target !== overIdxRef.current) {
-        overIdxRef.current = target
-        setOverIdx(target)
-      }
-    }
+  function reorder(list, fromId, toIdx) {
+    const next  = [...list]
+    const fromIdx = next.findIndex(b => b.id === fromId)
+    if (fromIdx === -1 || fromIdx === toIdx) return next
+    const [item] = next.splice(fromIdx, 1)
+    next.splice(toIdx, 0, item)
+    return next
   }
 
-  if (!onUpRef.current) {
-    onUpRef.current = function onUp() {
-      document.removeEventListener('pointermove', onMoveRef.current)
-      document.removeEventListener('pointerup',   onUpRef.current)
-      const from = dragIdxRef.current
-      const to   = overIdxRef.current
-      dragIdxRef.current = null
-      overIdxRef.current = null
-      setOverIdx(null)
-      if (from !== null && to !== null && from !== to) {
-        const reordered = [...tbrRef.current]
-        const [moved] = reordered.splice(from, 1)
-        reordered.splice(to, 0, moved)
-        reordered.forEach((b, pos) => updateRef.current(b.id, { tbrPosition: pos }))
-      }
-    }
+  function hitTestY(clientY) {
+    let best = 0, bestDist = Infinity
+    rowRefs.current.forEach((el, idx) => {
+      if (!el) return
+      const r   = el.getBoundingClientRect()
+      const mid = r.top + r.height / 2
+      const d   = Math.abs(clientY - mid)
+      if (d < bestDist) { bestDist = d; best = idx }
+    })
+    return best
+  }
+
+  function onPointerDown(e, bookId, idx) {
+    e.preventDefault()
+    e.stopPropagation()
+    dragging.current = true
+    dragBook.current  = bookId
+    dragFrom.current  = idx
+    e.currentTarget.setPointerCapture(e.pointerId)
+  }
+
+  function onPointerMove(e) {
+    if (!dragging.current) return
+    const toIdx = hitTestY(e.clientY)
+    setDisplayOrder(prev => reorder(prev, dragBook.current, toIdx))
+  }
+
+  function onPointerUp() {
+    if (!dragging.current) return
+    dragging.current = false
+    // Persist final displayOrder to DB
+    setDisplayOrder(prev => {
+      prev.forEach((b, pos) => {
+        if (b.tbrPosition !== pos) updateBook(b.id, { tbrPosition: pos })
+      })
+      return prev
+    })
+    dragBook.current = null
+    dragFrom.current = null
   }
 
   if (tbr.length === 0) {
     return (
       <div className="rt-empty-state">
-        <div className="rt-empty-icon">📚</div>
+        <div className="rt-empty-icon"><IcoBook size={40} color="var(--rt-t3)" /></div>
         <p>Your reading list is empty — tap + to add a book.</p>
       </div>
     )
@@ -76,30 +91,22 @@ function TBRList({ tbr, updateBook, deleteBook, openDetail }) {
 
   return (
     <div>
-      {tbr.map((book, i) => (
+      {displayOrder.map((book, i) => (
         <div
           key={book.id}
-          ref={el => itemsRef.current[i] = el}
+          ref={el => { rowRefs.current[i] = el }}
           className="rt-tbr-item"
-          style={{
-            outline: overIdx === i && dragIdxRef.current !== i ? '2px solid var(--rt-amber)' : 'none',
-            transition: 'outline 0.1s',
-            opacity: overIdx !== null && dragIdxRef.current === i ? 0.4 : 1,
-          }}
-          onClick={() => openDetail(book, 'mylist-tbr')}
+          style={{ opacity: dragBook.current === book.id ? 0.45 : 1, transition: 'opacity 0.12s' }}
+          onClick={() => { if (!dragging.current) openDetail(book, 'mylist-tbr') }}
         >
           <div
             className="rt-tbr-drag-handle"
             data-handle="true"
             style={{ touchAction: 'none', cursor: 'grab' }}
-            onPointerDown={e => {
-              e.preventDefault()
-              e.stopPropagation()
-              dragIdxRef.current = i
-              overIdxRef.current = i
-              document.addEventListener('pointermove', onMoveRef.current, { passive: false })
-              document.addEventListener('pointerup',   onUpRef.current)
-            }}
+            onPointerDown={e => onPointerDown(e, book.id, i)}
+            onPointerMove={onPointerMove}
+            onPointerUp={onPointerUp}
+            onPointerCancel={onPointerUp}
             onClick={e => e.stopPropagation()}
           >
             <span/><span/><span/>
@@ -123,7 +130,7 @@ function TBRList({ tbr, updateBook, deleteBook, openDetail }) {
   )
 }
 
-export default function MyList({ onNavigate, onOpenChatModal, onAddFriend }) {
+export default function MyList({ onNavigate, onOpenChatModal }) {
   const { user }                                   = useAuthContext()
   const { books, addBook, updateBook, deleteBook } = useBooksContext()
   const { friends }                                = useSocialContext()
@@ -344,7 +351,6 @@ export default function MyList({ onNavigate, onOpenChatModal, onAddFriend }) {
           onViewChat={(chatId) => onOpenChatModal?.(chatId || findExistingChat(detailBook.olKey)?.id)}
           onRecommend={() => setDetailBook(null)}
           onCoverUpdate={(id, coverId, olKey) => updateBook(id, { coverId, _olKey: olKey })}
-          onAddFriend={onAddFriend}
         />
       )}
 

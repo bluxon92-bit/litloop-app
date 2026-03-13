@@ -5,6 +5,7 @@ import { useSocialContext } from '../context/SocialContext'
 import { useChatContext } from '../context/ChatContext'
 import { useAuthContext } from '../context/AuthContext'
 import { avatarColour, avatarInitial } from '../lib/utils'
+import { IcoBook, IcoChat } from '../components/icons'
 
 const SUPABASE_URL  = 'https://danknyhumorgkvidrdve.supabase.co'
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRhbmtueWh1bW9yZ2t2aWRyZHZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3OTMzMzksImV4cCI6MjA4ODM2OTMzOX0.uTbNT_MBipxNCJckFI2JFACvftdtSy3M-YRQuJVDziU'
@@ -98,7 +99,7 @@ function BookCard({ title, author, coverId, olKey, onClick, moodLabel }) {
         ) : olKey ? (
           <img src={`https://covers.openlibrary.org/b/olid/${olKey.replace('/works/', '')}-M.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" onError={e => e.target.style.display='none'} />
         ) : (
-          <span style={{ fontSize: '1.8rem', opacity: 0.35 }}>📚</span>
+          <IcoBook size={32} color="var(--rt-t3)" style={{ opacity: 0.35 }} />
         )}
       </div>
       <div style={{ marginTop: '0.4rem', width: '100%', textAlign: 'center' }}>
@@ -233,7 +234,7 @@ function LitLoopPicksSection({ feed, loading, moods, activeMood, setActiveMood, 
 }
 
 // ── Book detail modal ─────────────────────────────────────────────
-function BookModal({ book, added, onClose, onAddToTBR, onRecommend, onChat, onDismiss }) {
+function BookModal({ book, added, dupMsg, onReread, onClose, onAddToTBR, onRecommend, onChat, onDismiss }) {
   const [desc, setDesc]           = useState('')
   const [descLoading, setDescLoading] = useState(true)
 
@@ -255,8 +256,6 @@ function BookModal({ book, added, onClose, onAddToTBR, onRecommend, onChat, onDi
           olKey = doc?.key || null
         }
         if (!olKey) { if (!cancelled) setDescLoading(false); return }
-        // Normalise key — ensure it starts with /works/ for the OL API
-        if (!olKey.startsWith('/')) olKey = `/works/${olKey}`
         const r = await fetch(`https://openlibrary.org${olKey}.json`)
         const d = await r.json()
         let description = d.description
@@ -286,7 +285,7 @@ function BookModal({ book, added, onClose, onAddToTBR, onRecommend, onChat, onDi
               ? <img src={`https://covers.openlibrary.org/b/id/${book.coverId}-M.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
               : book.olKey
               ? <img src={`https://covers.openlibrary.org/b/olid/${book.olKey.replace('/works/', '')}-M.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" onError={e => e.target.style.display='none'} />
-              : <span style={{ fontSize: '2rem', opacity: 0.4 }}>📚</span>
+              : <IcoBook size={36} color="rgba(255,255,255,0.4)" />
             }
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
@@ -346,6 +345,11 @@ function BookModal({ book, added, onClose, onAddToTBR, onRecommend, onChat, onDi
             </div>
           )}
 
+          {dupMsg && (
+            <div style={{ marginBottom: '0.75rem', padding: '0.6rem 0.85rem', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 10, fontSize: '0.82rem', color: 'var(--rt-navy)', lineHeight: 1.45 }}>
+              {dupMsg}
+            </div>
+          )}
           <div style={{ display: 'flex', gap: '0.6rem' }}>
             {book._editorial && onDismiss && (
               <button onClick={() => { onDismiss(book.olKey); onClose() }}
@@ -353,10 +357,17 @@ function BookModal({ book, added, onClose, onAddToTBR, onRecommend, onChat, onDi
                 Not for me
               </button>
             )}
-            <button onClick={onAddToTBR} disabled={added}
-              style={{ flex: 1, background: added ? 'var(--rt-surface)' : 'var(--rt-navy)', color: added ? 'var(--rt-t3)' : '#fff', border: 'none', borderRadius: 12, padding: '0.85rem 1rem', fontWeight: 700, fontSize: '0.9rem', cursor: added ? 'default' : 'pointer', transition: 'all 0.2s' }}>
-              {added ? '✓ Added to To Read' : '+ Add to To Read'}
-            </button>
+            {onReread ? (
+              <button onClick={onReread}
+                style={{ flex: 1, background: 'var(--rt-navy)', color: '#fff', border: 'none', borderRadius: 12, padding: '0.85rem 1rem', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
+                Yes, add as reread
+              </button>
+            ) : (
+              <button onClick={onAddToTBR} disabled={added || !!dupMsg}
+                style={{ flex: 1, background: (added || dupMsg) ? 'var(--rt-surface)' : 'var(--rt-navy)', color: (added || dupMsg) ? 'var(--rt-t3)' : '#fff', border: 'none', borderRadius: 12, padding: '0.85rem 1rem', fontWeight: 700, fontSize: '0.9rem', cursor: (added || dupMsg) ? 'default' : 'pointer', transition: 'all 0.2s' }}>
+                {added ? '✓ Added to To Read' : '+ Add to To Read'}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -431,7 +442,7 @@ function RecommendModal({ book, friends, user, recs, feed, sendRecommendation, o
                       <button
                         onClick={e => { e.stopPropagation(); onStartChatWith?.(f.userId) }}
                         style={{ fontSize: '0.7rem', background: 'var(--rt-amber-pale)', color: 'var(--rt-amber)', border: 'none', borderRadius: 99, padding: '0.2rem 0.6rem', fontWeight: 700, cursor: 'pointer' }}
-                      >💬 Chat about it</button>
+                      >Chat about it</button>
                     ) : (
                       <div style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${sel ? 'var(--rt-amber)' : 'var(--rt-border-md)'}`, background: sel ? 'var(--rt-amber)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         {sel && <span style={{ color: '#fff', fontSize: '0.72rem', fontWeight: 700 }}>✓</span>}
@@ -500,7 +511,7 @@ function DiscoverChatPicker({ book, friends, chats, startOrOpenChat, onOpenChatM
             {bookChats.map(c => (
               <div key={c.id} onClick={() => { onOpenChatModal?.(c, book); onClose() }}
                 style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0.75rem', borderRadius: 'var(--rt-r3)', background: 'var(--rt-surface)', marginBottom: '0.4rem', cursor: 'pointer', border: '1px solid var(--rt-border)' }}>
-                <span style={{ fontSize: '1.1rem' }}>💬</span>
+                <IcoChat size={18} color="var(--rt-t3)" />
                 <span style={{ flex: 1, fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)' }}>{c.chatName || book.title}</span>
                 <span style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>Open →</span>
               </div>
@@ -537,9 +548,9 @@ function DiscoverChatPicker({ book, friends, chats, startOrOpenChat, onOpenChatM
   )
 }
 
-export default function Discover({ onNavigate, onOpenChatModal, onAddFriend }) {
+export default function Discover({ onNavigate, onOpenChatModal, onRecommend }) {
   const { user }                               = useAuthContext()
-  const { books, addBook, isDuplicate }        = useBooksContext()
+  const { books, addBook, findDuplicate }      = useBooksContext()
   const { recs, friends, feed, dismissRec, acceptRecToTBR, sendRecommendation, preferredMoods } = useSocialContext()
   const { chats, startOrOpenChat }             = useChatContext()
 
@@ -563,6 +574,8 @@ export default function Discover({ onNavigate, onOpenChatModal, onAddFriend }) {
   const [showRecommend, setShowRecommend] = useState(false)
   const [showChatPicker, setShowChatPicker] = useState(false)
   const [addedKeys, setAddedKeys]         = useState(new Set())
+  const [dupMsgKey, setDupMsgKey]         = useState(null)  // key of book with pending reread confirm
+  const [pendingReread, setPendingReread] = useState(null)  // book data waiting for reread confirm
 
   const pendingRecs = (recs || []).filter(r => r.status === 'pending')
 
@@ -610,9 +623,32 @@ export default function Discover({ onNavigate, onOpenChatModal, onAddFriend }) {
   }
 
   function addToTBR(book, key) {
-    if (!isDuplicate(book.title, book.author)) {
-      addBook({ title: book.title, author: book.author, status: 'tbr', coverId: book.coverId || null, olKey: book.olKey || null })
+    const dup = findDuplicate(book.title, book.author)
+    if (dup) {
+      if (dup.status === 'tbr') {
+        setDupMsgKey(key)
+        return
+      }
+      if (dup.status === 'reading') {
+        setDupMsgKey(key)
+        return
+      }
+      // Already read — offer reread
+      setPendingReread({ book, key })
+      setDupMsgKey(key)
+      return
     }
+    addBook({ title: book.title, author: book.author, status: 'tbr', coverId: book.coverId || null, olKey: book.olKey || null })
+    setAddedKeys(prev => new Set([...prev, key]))
+    setTimeout(() => setSelectedBook(null), 900)
+  }
+
+  function confirmReread() {
+    if (!pendingReread) return
+    const { book, key } = pendingReread
+    addBook({ title: book.title, author: book.author, status: 'tbr', coverId: book.coverId || null, olKey: book.olKey || null })
+    setPendingReread(null)
+    setDupMsgKey(null)
     setAddedKeys(prev => new Set([...prev, key]))
     setTimeout(() => setSelectedBook(null), 900)
   }
@@ -628,9 +664,14 @@ export default function Discover({ onNavigate, onOpenChatModal, onAddFriend }) {
   return (
     <div className="rt-page" style={{ maxWidth: 480, margin: '0 auto' }}>
 
-      <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 1.25rem' }}>
-        Discover
-      </h2>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 1.25rem' }}>
+        <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: 0 }}>
+          Discover
+        </h2>
+        <button onClick={onRecommend} style={{ background: 'var(--rt-amber-pale)', border: 'none', borderRadius: 99, padding: '0.25rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--rt-amber)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>+</span> Recommend
+        </button>
+      </div>
 
       {/* ── Block 1: LitLoop Picks ── */}
       <LitLoopPicksSection
@@ -665,6 +706,7 @@ export default function Discover({ onNavigate, onOpenChatModal, onAddFriend }) {
       {/* ── Block 2: Friends' Picks ── */}
       <div style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.65rem' }}>
+          <span>👥</span>
           <span style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>
             Friends' Picks
           </span>
@@ -676,11 +718,7 @@ export default function Discover({ onNavigate, onOpenChatModal, onAddFriend }) {
           {!user ? (
             <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem' }}>Sign in to see friends' recommendations.</div>
           ) : pendingRecs.length === 0 ? (
-            <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem' }}>
-              No recommendations yet —{' '}
-              <button onClick={onAddFriend} style={{ background: 'none', border: 'none', color: 'var(--rt-amber)', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>add friends</button>
-              {' '}to get started.
-            </div>
+            <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem' }}>No recommendations yet — add friends to get started.</div>
           ) : (
             <Carousel>
               {groupedRecs.map(g => (
@@ -708,6 +746,7 @@ export default function Discover({ onNavigate, onOpenChatModal, onAddFriend }) {
       {/* ── Block 3: AI Picks ── */}
       <div style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.65rem' }}>
+          <span>✦</span>
           <span style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>AI Picks</span>
         </div>
         <div style={{ background: 'var(--rt-white)', borderRadius: 'var(--rt-r3)', border: '1px solid var(--rt-border)', boxShadow: 'var(--rt-s1)', padding: '1rem' }}>
@@ -748,25 +787,37 @@ export default function Discover({ onNavigate, onOpenChatModal, onAddFriend }) {
       </div>
 
       {/* ── Book modal ── */}
-      {selectedBook && !showRecommend && !showChatPicker && (
-        <BookModal
-          book={selectedBook}
-          added={addedKeys.has(selectedBook._key)}
-          onClose={() => setSelectedBook(null)}
-          onAddToTBR={() => {
-            if (selectedBook._recs?.length) {
-              selectedBook._recs.forEach(r => acceptFriendRec(r))
-            } else if (selectedBook._rec) {
-              acceptFriendRec(selectedBook._rec)
-            } else {
-              addToTBR(selectedBook, selectedBook._key)
-            }
-          }}
-          onRecommend={() => setShowRecommend(true)}
-          onChat={() => setShowChatPicker(true)}
-          onDismiss={selectedBook?._editorial ? (key => dismissBook(selectedBook._dbOlKey || key)) : null}
-        />
-      )}
+      {selectedBook && !showRecommend && !showChatPicker && (() => {
+        const currentKey = selectedBook._key
+        const dup = dupMsgKey === currentKey ? findDuplicate(selectedBook.title, selectedBook.author) : null
+        let dupMsg = null
+        if (dup) {
+          if (dup.status === 'tbr') dupMsg = `"${dup.title}" is already in your To Read list.`
+          else if (dup.status === 'reading') dupMsg = `You're currently reading "${dup.title}".`
+          else dupMsg = `You've already read "${dup.title}". Add it again as a reread?`
+        }
+        return (
+          <BookModal
+            book={selectedBook}
+            added={addedKeys.has(currentKey)}
+            dupMsg={dupMsg}
+            onReread={dup && dup.status !== 'tbr' && dup.status !== 'reading' ? confirmReread : null}
+            onClose={() => { setSelectedBook(null); setDupMsgKey(null); setPendingReread(null) }}
+            onAddToTBR={() => {
+              if (selectedBook._recs?.length) {
+                selectedBook._recs.forEach(r => acceptFriendRec(r))
+              } else if (selectedBook._rec) {
+                acceptFriendRec(selectedBook._rec)
+              } else {
+                addToTBR(selectedBook, currentKey)
+              }
+            }}
+            onRecommend={() => setShowRecommend(true)}
+            onChat={() => setShowChatPicker(true)}
+            onDismiss={selectedBook?._editorial ? (key => dismissBook(selectedBook._dbOlKey || key)) : null}
+          />
+        )
+      })()}
 
       {/* ── Recommend modal ── */}
       {selectedBook && showRecommend && (

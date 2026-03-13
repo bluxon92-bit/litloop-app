@@ -8,10 +8,11 @@ import CoverImage from '../components/books/CoverImage'
 import BookDetailPanel from '../components/books/BookDetailPanel'
 import AddBookModal from '../components/books/AddBookModal'
 import BookSheet, { FinishModal } from '../components/books/BookSheet'
+import { IcoOpenBook } from '../components/icons'
 
-export default function Home({ onNavigate, onOpenChatModal, onAddFriend }) {
+export default function Home({ onNavigate, onOpenChatModal }) {
   const { user } = useAuthContext()
-  const { books, addBook, updateBook, deleteBook } = useBooksContext()
+  const { books, addBook, updateBook, deleteBook, findDuplicate } = useBooksContext()
   const { friends, feed, recs, loaded: socialLoaded, myDisplayName } = useSocialContext()
   const { chats, totalUnread } = useChatContext()
 
@@ -123,7 +124,7 @@ export default function Home({ onNavigate, onOpenChatModal, onAddFriend }) {
 
         {reading.length === 0 ? (
           <div className="rt-card" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.85rem 1rem', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>
-            <span style={{ fontSize: '1.3rem' }}>📖</span>
+            <IcoOpenBook size={22} color="var(--rt-t3)" />
             <span>Nothing on the go — add a book to get started.</span>
           </div>
         ) : (
@@ -219,12 +220,8 @@ export default function Home({ onNavigate, onOpenChatModal, onAddFriend }) {
             <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>Loading…</div>
           ) : reviewEvents.length === 0 ? (
             <div className="rt-feed-empty">
-              <div className="rt-feed-empty-icon">📖</div>
-              <p>
-                {friends.length === 0
-                  ? <><button onClick={onAddFriend} style={{ background: 'none', border: 'none', color: 'var(--rt-amber)', fontWeight: 700, fontSize: 'inherit', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Add friends</button> to see their reviews here.</>
-                  : 'No reviews from friends yet.'}
-              </p>
+              <div className="rt-feed-empty-icon"><IcoOpenBook size={32} color="var(--rt-t3)" /></div>
+              <p>{friends.length === 0 ? 'Add friends to see their reviews here.' : 'No reviews from friends yet.'}</p>
             </div>
           ) : (
             reviewEvents.slice(0, 10).map(ev => {
@@ -251,11 +248,11 @@ export default function Home({ onNavigate, onOpenChatModal, onAddFriend }) {
                   style={{ display: 'flex', gap: '0.9rem', padding: '0.9rem 0', borderBottom: '1px solid var(--rt-border)', cursor: 'pointer' }}>
                   <div style={{ width: 52, height: 74, borderRadius: 7, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(26,39,68,0.12)' }}>
                     {coverId ? (
-                      <img src={`https://covers.openlibrary.org/b/id/${coverId}-S.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} alt={ev.book_title || ''} loading="lazy" onError={e => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '<span style="font-size:1.4rem">📖</span>' }} />
+                      <img src={`https://covers.openlibrary.org/b/id/${coverId}-S.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} alt={ev.book_title || ''} loading="lazy" onError={e => e.target.style.display = 'none'} />
                     ) : olKey ? (
-                      <img src={`https://covers.openlibrary.org/b/olid/${olKey.replace('/works/', '')}-S.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} alt={ev.book_title || ''} loading="lazy" onError={e => { e.target.style.display = 'none'; e.target.parentElement.innerHTML = '<span style="font-size:1.4rem">📖</span>' }} />
+                      <img src={`https://covers.openlibrary.org/b/olid/${olKey.replace('/works/', '')}-S.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} alt={ev.book_title || ''} loading="lazy" onError={e => e.target.style.display = 'none'} />
                     ) : (
-                      <span style={{ fontSize: '1.4rem' }}>📖</span>
+                      <IcoOpenBook size={24} color="var(--rt-t3)" />
                     )}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -292,12 +289,23 @@ export default function Home({ onNavigate, onOpenChatModal, onAddFriend }) {
           onStartReading={() => { updateBook(detailBook.id, { status: 'reading', dateStarted: new Date().toISOString().split('T')[0] }); setDetailBook(null) }}
           onEdit={() => { setEditBook(detailBook); setDetailBook(null) }}
           onRecommend={() => setDetailBook(null)}
-          onAddToTBR={() => { addBook({ title: detailBook.title, author: detailBook.author, status: 'tbr', olKey: detailBook.olKey, coverId: detailBook.coverId }); setDetailBook(null) }}
+          onAddToTBR={() => {
+            const dup = findDuplicate(detailBook.title, detailBook.author)
+            if (dup) {
+              if (dup.status === 'tbr' || dup.status === 'reading') {
+                const label = dup.status === 'tbr' ? 'your To Read list' : 'Currently Reading'
+                alert(`"${dup.title}" is already in ${label}.`)
+                return
+              }
+              if (!window.confirm(`You've already read "${dup.title}". Add it again as a reread?`)) return
+            }
+            addBook({ title: detailBook.title, author: detailBook.author, status: 'tbr', olKey: detailBook.olKey, coverId: detailBook.coverId })
+            setDetailBook(null)
+          }}
           onOpenChatModal={(chatId, book) => onOpenChatModal?.(chatId, book || detailBook)}
           onStartChat={() => onOpenChatModal?.(null, detailBook)}
           onViewChat={(chatId) => onOpenChatModal?.(chatId || findExistingChat(detailBook.olKey)?.id)}
           onCoverUpdate={(id, coverId, olKey) => updateBook(id, { coverId, _olKey: olKey })}
-          onAddFriend={onAddFriend}
         />
       )}
 

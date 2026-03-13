@@ -4,6 +4,7 @@ import { ModalShell } from './BookSheet'
 import { useSocialContext } from '../../context/SocialContext'
 import { useChatContext } from '../../context/ChatContext'
 import { avatarColour, avatarInitial } from '../../lib/utils'
+import { IcoBook, IcoOpenBook, IcoChat, IcoLock, IcoBookmark } from '../../components/icons'
 
 const CACHE_KEY = 'litloop_book_desc_v1'
 
@@ -123,7 +124,7 @@ function Stars({ value }) {
 // - Friends who've already read the book → show "Chat about it" instead
 // - Friends you've already recommended to → show "Already recommended"
 // - Friends who recommended this to you → shown at top with note
-function RecommendModal({ book, friends, user, sendRecommendation, recs, onClose, onStartChatWith, onAddFriend }) {
+function RecommendModal({ book, friends, user, sendRecommendation, recs, onClose, onStartChatWith }) {
   const [selected, setSelected] = useState(new Set())
   const [note, setNote]         = useState('')
   const [sending, setSending]   = useState(false)
@@ -172,10 +173,7 @@ function RecommendModal({ book, friends, user, sendRecommendation, recs, onClose
           <>
             <div style={{ overflowY: 'auto', flex: 1, marginBottom: '0.75rem' }}>
               {!friends?.length ? (
-                <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>
-                  No friends yet.{' '}
-                  <button onClick={onAddFriend} style={{ background: 'none', border: 'none', color: 'var(--rt-amber)', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Add a friend</button>
-                </div>
+                <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>Add friends first to recommend books.</div>
               ) : friends.map(f => {
                 const sel         = selected.has(f.userId)
                 const sentAlready = alreadySentTo.has(f.userId)
@@ -195,7 +193,7 @@ function RecommendModal({ book, friends, user, sendRecommendation, recs, onClose
                       <button
                         onClick={e => { e.stopPropagation(); onStartChatWith?.(f.userId); onClose() }}
                         style={{ fontSize: '0.7rem', background: 'var(--rt-amber-pale)', color: 'var(--rt-amber)', border: 'none', borderRadius: 99, padding: '0.2rem 0.6rem', fontWeight: 700, cursor: 'pointer' }}
-                      >💬 Chat about it</button>
+                      >Chat about it</button>
                     ) : (
                       <div style={{ width: 22, height: 22, borderRadius: 5, border: `2px solid ${sel ? 'var(--rt-amber)' : 'var(--rt-border-md)'}`, background: sel ? 'var(--rt-amber)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         {sel && <span style={{ color: '#fff', fontSize: '0.72rem', fontWeight: 700 }}>✓</span>}
@@ -223,7 +221,7 @@ function RecommendModal({ book, friends, user, sendRecommendation, recs, onClose
 // ── Inline Chat friend picker ─────────────────────────────────
 // Three tiers: existing chats on this book → friends who've read it → all other friends
 // If existing chat found for book+friend combo: ask add-to-existing or new chat
-function ChatFriendPicker({ book, friends, startOrOpenChat, onOpenChatModal, onClose, existingChats, onAddFriend }) {
+function ChatFriendPicker({ book, friends, startOrOpenChat, onOpenChatModal, onClose, existingChats }) {
   const { myUsername, myDisplayName } = useSocialContext()
   const [selected, setSelected]     = useState(new Set())
   const [starting, setStarting]     = useState(false)
@@ -384,10 +382,7 @@ function ChatFriendPicker({ book, friends, startOrOpenChat, onOpenChatModal, onC
 
         <div style={{ overflowY: 'auto', flex: 1, marginBottom: '0.75rem' }}>
           {!friends?.length ? (
-            <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>
-              No friends yet.{' '}
-              <button onClick={onAddFriend} style={{ background: 'none', border: 'none', color: 'var(--rt-amber)', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Add a friend</button>
-            </div>
+            <div style={{ color: 'var(--rt-t3)', fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>Add friends to start a chat.</div>
           ) : (
             <>
               {friendsWithChat.length > 0 && (
@@ -431,7 +426,6 @@ export default function BookDetailPanel({
   onOpenChatModal,
   friendName,
   onCoverUpdate,
-  onAddFriend,
 }) {
   const { friends, sendRecommendation, recs } = useSocialContext()
   const { startOrOpenChat, chats } = useChatContext()
@@ -473,9 +467,9 @@ export default function BookDetailPanel({
   const shownDesc   = truncated ? description.slice(0, LIMIT) + '…' : description
 
   const statusBadges = {
-    reading: '📖 Currently reading',
+    reading: 'Currently reading',
     read:    '✓ Read',
-    tbr:     '🔖 On your list',
+    tbr:     'On your list',
     dnf:     'Did not finish'
   }
 
@@ -500,7 +494,7 @@ export default function BookDetailPanel({
               ? <img src={`https://covers.openlibrary.org/b/id/${coverIdLive}-M.jpg`}
                   style={{ width: 80, height: 116, borderRadius: 8, objectFit: 'cover', boxShadow: '0 4px 16px rgba(0,0,0,0.35)' }} alt={book.title} />
               : <div style={{ width: 80, height: 116, borderRadius: 8, background: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', color: 'rgba(255,255,255,0.3)' }}>
-                  {loading ? '…' : '📚'}
+                  {loading ? '…' : <IcoBook size={32} color="rgba(255,255,255,0.3)" />}
                 </div>
             }
           </div>
@@ -540,6 +534,20 @@ export default function BookDetailPanel({
               </div>
             )}
           </div>
+        )}
+
+        {/* MY REVIEW — empty state CTA for read books with no rating/review */}
+        {isHistory && !book.rating && !book.reviewBody && (
+          <button
+            onClick={() => { onClose(); onEdit?.() }}
+            style={{ width: '100%', marginBottom: '1.1rem', padding: '0.75rem 1rem', background: 'var(--rt-cream)', border: '1.5px dashed var(--rt-border-md)', borderRadius: 'var(--rt-r3)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.6rem', textAlign: 'left' }}
+          >
+            <PencilIcon />
+            <div>
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--rt-navy)' }}>Add a rating or review</div>
+              <div style={{ fontSize: '0.7rem', color: 'var(--rt-t3)', marginTop: '0.1rem' }}>How did you find this one?</div>
+            </div>
+          </button>
         )}
 
         {/* MY REVIEW — shown for history/dnf at top, with edit pencil */}
@@ -603,7 +611,7 @@ export default function BookDetailPanel({
         {/* Private notes (not shown in review section above) */}
         {book.notes && (
           <div style={{ marginBottom: '1rem' }}>
-            <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.3rem' }}>🔒 Private notes</div>
+            <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}><IcoLock size={10} color="var(--rt-t3)" /> Private notes</div>
             <div style={{ fontSize: '0.85rem', color: 'var(--rt-t2)', lineHeight: 1.55, fontStyle: 'italic' }}>{book.notes}</div>
           </div>
         )}
@@ -615,11 +623,11 @@ export default function BookDetailPanel({
         {/* TBR */}
         {isTBR && <>
           <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
-            onClick={() => { onClose(); onStartReading?.() }}>📖 Start reading</button>
+            onClick={() => { onClose(); onStartReading?.() }}>Start reading</button>
           {user && <button className="rt-bdp-btn rt-bdp-btn--amber" style={{ flex: 1 }}
-            onClick={() => setShowRecommend(true)}>📚 Recommend</button>}
+            onClick={() => setShowRecommend(true)}>Recommend</button>}
           {user && <button className="rt-bdp-btn rt-bdp-btn--ghost" style={{ flex: 1 }}
-            onClick={() => setShowChatPicker(true)}>💬 Chat</button>}
+            onClick={() => setShowChatPicker(true)}>Chat</button>}
         </>}
 
         {/* Currently reading */}
@@ -627,17 +635,17 @@ export default function BookDetailPanel({
           <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
             onClick={() => { onClose(); onMarkFinished?.() }}>✓ Mark finished</button>
           {user && <button className="rt-bdp-btn rt-bdp-btn--amber" style={{ flex: 1 }}
-            onClick={() => setShowRecommend(true)}>📚 Recommend</button>}
+            onClick={() => setShowRecommend(true)}>Recommend</button>}
           {user && <button className="rt-bdp-btn rt-bdp-btn--ghost" style={{ flex: 1 }}
-            onClick={() => setShowChatPicker(true)}>💬 Chat</button>}
+            onClick={() => setShowChatPicker(true)}>Chat</button>}
         </>}
 
         {/* History / DNF */}
         {isHistory && <>
           {user && <button className="rt-bdp-btn rt-bdp-btn--amber" style={{ flex: 1 }}
-            onClick={() => setShowRecommend(true)}>📚 Recommend</button>}
+            onClick={() => setShowRecommend(true)}>Recommend</button>}
           {user && <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
-            onClick={() => setShowChatPicker(true)}>💬 Chat</button>}
+            onClick={() => setShowChatPicker(true)}>Chat</button>}
         </>}
 
         {/* Home feed — add to list + chat */}
@@ -645,13 +653,13 @@ export default function BookDetailPanel({
           <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
             onClick={() => { onClose(); onAddToTBR?.() }}>+ Add to list</button>
           {user && <button className="rt-bdp-btn rt-bdp-btn--amber" style={{ flex: 1 }}
-            onClick={() => setShowChatPicker(true)}>💬 Chat</button>}
+            onClick={() => setShowChatPicker(true)}>Chat</button>}
         </>}
 
         {/* Community chat view */}
         {location === 'community-chat' && <>
           {user && <button className="rt-bdp-btn rt-bdp-btn--primary" style={{ flex: 1 }}
-            onClick={() => setShowChatPicker(true)}>💬 Chat</button>}
+            onClick={() => setShowChatPicker(true)}>Chat</button>}
           <button className="rt-bdp-btn rt-bdp-btn--ghost" style={{ flex: 1 }}
             onClick={() => { onClose(); onAddToTBR?.() }}>+ Add to list</button>
         </>}
@@ -670,7 +678,6 @@ export default function BookDetailPanel({
             setShowRecommend(false)
             setShowChatPicker(true)
           }}
-          onAddFriend={onAddFriend}
         />
       )}
       {showChatPicker && (
@@ -681,7 +688,6 @@ export default function BookDetailPanel({
           onOpenChatModal={onOpenChatModal}
           onClose={() => setShowChatPicker(false)}
           existingChats={chats}
-          onAddFriend={onAddFriend}
         />
       )}
     </ModalShell>

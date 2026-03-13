@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useBooksContext } from '../context/BooksContext'
 import { GENRE_COLOURS, loadGoal, saveGoal } from '../lib/utils'
+import { IcoBook, IcoPen } from '../components/icons'
 
 export default function Stats() {
   const { books } = useBooksContext()
@@ -121,7 +122,7 @@ export default function Stats() {
         <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '1rem' }}>Genres</div>
         {genres.length === 0 ? (
           <div className="rt-stats-empty">
-            <div className="rt-stats-empty-icon">📚</div>
+            <div className="rt-stats-empty-icon"><IcoBook size={36} color="var(--rt-t3)" /></div>
             <p>Log books with genres to see your breakdown.</p>
           </div>
         ) : (
@@ -150,7 +151,7 @@ export default function Stats() {
         <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '1rem' }}>Top authors</div>
         {authors.length === 0 ? (
           <div className="rt-stats-empty">
-            <div className="rt-stats-empty-icon">✍️</div>
+            <div className="rt-stats-empty-icon"><IcoPen size={36} color="var(--rt-t3)" /></div>
             <p>Finish some books to see your favourite authors.</p>
           </div>
         ) : (

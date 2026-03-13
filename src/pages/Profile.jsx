@@ -7,6 +7,7 @@ import { ModalShell } from '../components/books/BookSheet'
 import BookSheet, { FinishModal } from '../components/books/BookSheet'
 import CoverImage from '../components/books/CoverImage'
 import BookDetailPanel from '../components/books/BookDetailPanel'
+import { IcoOpenBook } from '../components/icons'
 
 function CogIcon() {
   return (
@@ -17,7 +18,7 @@ function CogIcon() {
   )
 }
 
-export default function Profile({ onNavigate, onOpenChatModal, onAddFriend }) {
+export default function Profile({ onNavigate, onOpenChatModal }) {
   const { user } = useAuthContext()
   const { books, updateBook } = useBooksContext()
   const {
@@ -75,7 +76,9 @@ export default function Profile({ onNavigate, onOpenChatModal, onAddFriend }) {
         padding: '1.5rem 1.25rem 1.4rem',
         position: 'relative',
         marginBottom: '1.25rem',
-        borderRadius: '0 0 20px 20px',
+        marginLeft: '1.25rem',
+        marginRight: '1.25rem',
+        borderRadius: '20px',
       }}>
         {/* Cog → settings */}
         <button
@@ -178,7 +181,7 @@ export default function Profile({ onNavigate, onOpenChatModal, onAddFriend }) {
                       ? <img src={`https://covers.openlibrary.org/b/olid/${book.olKey.replace('/works/','')}-S.jpg`}
                           style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt=""
                           onError={e => e.target.style.display='none'} />
-                      : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>📖</div>
+                      : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IcoOpenBook size={22} color="var(--rt-t3)" /></div>
                   }
                 </div>
 
@@ -219,7 +222,6 @@ export default function Profile({ onNavigate, onOpenChatModal, onAddFriend }) {
           onStartChat={() => { setDetailBook(null); onOpenChatModal?.(null, detailBook) }}
           onViewChat={(chatId) => { setDetailBook(null); onOpenChatModal?.(chatId) }}
           onCoverUpdate={(id, coverId, olKey) => updateBook(id, { coverId, _olKey: olKey })}
-          onAddFriend={onAddFriend}
         />      )}
 
       {finishBook && (

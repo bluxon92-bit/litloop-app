@@ -40,6 +40,7 @@ export default function AddBookModal({ defaultStatus, books, onAdd, onClose, use
   const [coverId, setCoverId] = useState(null)
   const [olDropdown, setOlDropdown] = useState([])
   const [error, setError]   = useState(null)
+  const [dupPrompt, setDupPrompt] = useState(null) // { book, pendingData } — waiting for reread confirm
 
   // Import state
   const [importStatus, setImportStatus] = useState(null) // null | 'loading' | 'success' | 'error'
@@ -52,13 +53,13 @@ export default function AddBookModal({ defaultStatus, books, onAdd, onClose, use
   function normTitle(s) {
     return (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim()
   }
-  function isDup(t, a) {
+  function findDup(t, a) {
     const nt = normTitle(t), na = normTitle(a)
-    return books.some(b => {
+    return books.find(b => {
       if (normTitle(b.title) !== nt) return false
       if (na && normTitle(b.author) && normTitle(b.author) !== na) return false
       return true
-    })
+    }) || null
   }
 
   // Strip Goodreads series info: "Title (Series, #N; Series2, #N)" → "Title"
@@ -98,7 +99,32 @@ async function searchOL(q) {
 
   async function handleSubmit() {
     if (!title.trim()) { setError('Title is required.'); return }
-    if (isDup(title, author)) { setError('This book is already in your list.'); return }
+    const dup = findDup(title, author)
+    if (dup) {
+      const pendingData = {
+        title: title.trim(),
+        author: author.trim() || '',
+        status,
+        rating:       status === 'read' ? (rating || null) : null,
+        genre:        genre || null,
+        notes:        notes.trim() || null,
+        reviewBody:   (isPublic && review.trim()) ? review.trim() : null,
+        reviewPublic: isPublic && !!review.trim(),
+        dateRead:     status === 'read' ? (date || null) : null,
+        dateStarted:  status === 'reading' ? new Date().toISOString().split('T')[0] : null,
+        olKey:        olKey || null,
+        coverId:      coverId || null,
+      }
+      const isTBRorReading = dup.status === 'tbr' || dup.status === 'reading'
+      if (isTBRorReading) {
+        const label = dup.status === 'tbr' ? 'To Read list' : 'Currently Reading'
+        setError(`"${dup.title}" is already in your ${label}.`)
+        return
+      }
+      // Already in history — offer a reread
+      setDupPrompt({ book: dup, pendingData })
+      return
+    }
     await onAdd({
       title: title.trim(),
       author: author.trim() || '',
@@ -111,8 +137,14 @@ async function searchOL(q) {
       dateRead:     status === 'read' ? (date || null) : null,
       dateStarted:  status === 'reading' ? new Date().toISOString().split('T')[0] : null,
       olKey:        olKey || null,
-      coverId:      coverId || null
+      coverId:      coverId || null,
     })
+  }
+
+  async function confirmReread() {
+    if (!dupPrompt) return
+    await onAdd(dupPrompt.pendingData)
+    setDupPrompt(null)
   }
 
   // ── CSV Import ────────────────────────────────────────────
@@ -223,7 +255,7 @@ async function searchOL(q) {
         <div style={{ marginBottom: '1rem' }}>
           <label className="rt-field-label">Status</label>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-            {[['reading','📖 Reading'],['tbr','📚 To Read'],['read','✓ Read']].map(([v, l]) => (
+            {[['reading','Reading'],['tbr','To Read'],['read','✓ Read']].map(([v, l]) => (
               <button
                 key={v}
                 type="button"
@@ -366,11 +398,26 @@ async function searchOL(q) {
         </div>
       </div>
 
+      {/* Reread confirmation prompt */}
+      {dupPrompt && (
+        <div style={{ padding: '0.85rem 1.25rem', borderTop: '1px solid var(--rt-border)', background: '#fffbeb', flexShrink: 0 }}>
+          <p style={{ fontSize: '0.82rem', color: 'var(--rt-navy)', margin: '0 0 0.65rem', lineHeight: 1.45 }}>
+            You've already read <strong>"{dupPrompt.book.title}"</strong>. Add it again as a reread?
+          </p>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="rt-ghost-btn" onClick={() => setDupPrompt(null)}>Cancel</button>
+            <button className="rt-submit-btn" style={{ flex: 1 }} onClick={confirmReread}>Yes, add as reread</button>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
-      <div style={{ padding: '0.85rem 1.25rem', borderTop: '1px solid var(--rt-border)', display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
-        <button className="rt-ghost-btn" onClick={onClose}>Cancel</button>
-        <button className="rt-submit-btn" style={{ flex: 1 }} onClick={handleSubmit}>Add book</button>
-      </div>
+      {!dupPrompt && (
+        <div style={{ padding: '0.85rem 1.25rem', borderTop: '1px solid var(--rt-border)', display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+          <button className="rt-ghost-btn" onClick={onClose}>Cancel</button>
+          <button className="rt-submit-btn" style={{ flex: 1 }} onClick={handleSubmit}>Add book</button>
+        </div>
+      )}
     </ModalShell>
   )
 }

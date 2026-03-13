@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { fmtDate, GENRES, avatarColour, avatarInitial } from '../../lib/utils'
 import { useSocialContext } from '../../context/SocialContext'
 import CoverImage from './CoverImage'
+import { IcoOpenBook, IcoBook, IcoLock } from '../../components/icons'
 
 // ─────────────────────────────────────────────────────────────
 // MODAL SHELL
@@ -86,7 +87,7 @@ function SheetHeader({ book, onClose, stepBar }) {
                 alt=""
                 onError={e => e.target.style.display='none'}
               />
-            : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem' }}>📖</div>
+            : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IcoOpenBook size={22} color="var(--rt-t3)" /></div>
           }
         </div>
         {/* Title / author */}
@@ -475,7 +476,7 @@ const [saving, setSaving]             = useState(false)
           {/* Private notes divider */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', margin: '0.75rem 0' }}>
             <div style={{ flex: 1, height: 1, background: 'var(--rt-border)' }} />
-            <span style={{ fontSize: '0.68rem', color: 'var(--rt-t3)', whiteSpace: 'nowrap' }}>🔒 Private notes</span>
+            <span style={{ fontSize: '0.68rem', color: 'var(--rt-t3)', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.25rem' }}><IcoLock size={10} color="var(--rt-t3)" /> Private notes</span>
             <div style={{ flex: 1, height: 1, background: 'var(--rt-border)' }} />
           </div>
 
@@ -579,7 +580,7 @@ const [saving, setSaving]             = useState(false)
 
         {friends.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '1.5rem 0', color: 'var(--rt-t3)', fontSize: '0.83rem' }}>
-            <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📚</div>
+            <div style={{ marginBottom: '0.5rem' }}><IcoBook size={28} color="var(--rt-t3)" /></div>
             Add friends to recommend books or start chats.
           </div>
         ) : (
@@ -639,7 +640,7 @@ const [saving, setSaving]             = useState(false)
                     opacity: shareSending ? 0.7 : 1,
                   }}
                 >
-                  {shareSending ? 'Sending…' : `📚 Send recommendation${selectedIds.length > 1 ? `s (${selectedIds.length})` : ''} →`}
+                  {shareSending ? 'Sending…' : `Send recommendation${selectedIds.length > 1 ? `s (${selectedIds.length})` : ''} →`}
                 </button>
               </div>
             )}
@@ -667,7 +668,7 @@ const [saving, setSaving]             = useState(false)
 // (opened from My List / history — not the finish workflow)
 // ─────────────────────────────────────────────────────────────
 export default function BookSheet({ book, onClose, onSaved, onDeleted, user }) {
-  const [mode, setMode]         = useState('edit')
+  const [mode, setMode]         = useState('view')
   const [rating, setRating]     = useState(book.rating || 0)
   const [status, setStatus]     = useState(book.status)
   const [date, setDate]         = useState(book.dateRead || '')
@@ -797,12 +798,9 @@ export default function BookSheet({ book, onClose, onSaved, onDeleted, user }) {
                 )}
               </>
             )}
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <GhostBtn onClick={() => setMode('view')}>← Back</GhostBtn>
               <PrimaryBtn onClick={handleSave}>Save changes</PrimaryBtn>
-              <button style={{ background: 'none', border: '1px solid #fca5a5', color: '#991b1b', borderRadius: 'var(--rt-r3)', padding: '0.5rem 0.8rem', fontSize: '0.8rem', cursor: 'pointer' }}
-                onClick={() => { if (window.confirm(`Remove "${book.title}"?`)) onDeleted() }}>
-                Delete
-              </button>
             </div>
           </div>
         )}

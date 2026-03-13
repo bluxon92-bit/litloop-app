@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { sb } from '../../lib/supabase'
 import { avatarColour, avatarInitial } from '../../lib/utils'
 import BookDetailPanel from './BookDetailPanel'
+import { IcoOpenBook, IcoChat } from '../../components/icons'
 
 export default function FriendProfileSheet({ friend, chats, user, books: myBooks, onClose, onAddToTBR, onStartChat, onViewChat, onOpenChatModal }) {
   const [entries, setEntries]       = useState(null)
@@ -67,7 +68,7 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
         <div onClick={() => setDetailBook(b)} style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: 1, minWidth: 0, cursor: 'pointer' }}>
           {src
             ? <img src={src} style={{ width: 28, height: 42, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} alt="" onError={e => e.target.style.display='none'} />
-            : <div style={{ width: 28, height: 42, borderRadius: 4, background: 'var(--rt-surface)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem' }}>📖</div>
+            : <div style={{ width: 28, height: 42, borderRadius: 4, background: 'var(--rt-surface)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IcoOpenBook size={16} color="var(--rt-t3)" /></div>
           }
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.title}</div>
@@ -160,7 +161,7 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
           {!loading && !error && <>
             {recs.length > 0 && (
               <>
-                <SLabel accent="var(--rt-amber)">📚 Recommended for you ({recs.length})</SLabel>
+                <SLabel accent="var(--rt-amber)">Recommended for you ({recs.length})</SLabel>
                 {recs.map(r => {
                   const rTitle = r.book_title || r.book_ol_key || 'A book'
                   const b = { title: rTitle, author: r.book_author || '', coverId: r.cover_id, olKey: r.book_ol_key }
@@ -190,7 +191,7 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
                 const listed = onMyList(b.title, b.olKey)
                 return <BookRow key={i} b={b} actions={<>
                   {!listed && <button onClick={e => { e.stopPropagation(); onAddToTBR({ title: b.title, author: b.author, olKey: b.olKey, coverId: b.coverId }) }} style={{ background: 'var(--rt-surface)', color: 'var(--rt-navy)', border: '1px solid var(--rt-border-md)', borderRadius: 7, padding: '0.3rem 0.55rem', fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>+ TBR</button>}
-                  {b.olKey && <button onClick={e => { e.stopPropagation(); chat ? onViewChat(chat.id) : onStartChat(b) }} style={{ background: chat ? 'var(--rt-navy)' : 'var(--rt-amber)', color: '#fff', border: 'none', borderRadius: 7, padding: '0.3rem 0.6rem', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>💬 {chat ? 'View chat' : 'Start chat'}</button>}
+                  {b.olKey && <button onClick={e => { e.stopPropagation(); chat ? onViewChat(chat.id) : onStartChat(b) }} style={{ background: chat ? 'var(--rt-navy)' : 'var(--rt-amber)', color: '#fff', border: 'none', borderRadius: 7, padding: '0.3rem 0.6rem', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>{chat ? 'View chat' : 'Start chat'}</button>}
                 </>} />
               })
             }
@@ -203,7 +204,7 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
                   ? <button
                       onClick={e => { e.stopPropagation(); chat ? onViewChat(chat.id) : onStartChat(b) }}
                       style={{ background: chat ? 'var(--rt-navy)' : 'var(--rt-amber)', color: '#fff', border: 'none', borderRadius: 7, padding: '0.3rem 0.6rem', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                    >💬 {chat ? 'View chat' : 'Start chat'}</button>
+                    >{chat ? 'View chat' : 'Start chat'}</button>
                   : null}
                 />
               })}

@@ -91,6 +91,17 @@ export function useBooks(user) {
     )
   }
 
+  // Returns the existing book object if a duplicate exists, otherwise null.
+  function findDuplicate(title, author, excludeId = null) {
+    const norm = s => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+    const nt = norm(title), na = norm(author)
+    return books.find(b =>
+      b.id !== excludeId &&
+      norm(b.title) === nt &&
+      (!na || !norm(b.author) || norm(b.author) === na)
+    ) || null
+  }
+
   async function addBook(bookData) {
     // Optimistic local update first
     const tempId = crypto.randomUUID()
@@ -270,5 +281,5 @@ export function useBooks(user) {
     }
   }
 
-  return { books, syncing, addBook, updateBook, deleteBook, isDuplicate, syncFromCloud }
+  return { books, syncing, addBook, updateBook, deleteBook, isDuplicate, findDuplicate, syncFromCloud }
 }
