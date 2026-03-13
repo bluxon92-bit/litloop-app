@@ -68,7 +68,7 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
   }
 
   return (
-    <div style={{ maxWidth: 720, margin: '0 auto' }}>
+    <div className="rt-page" style={{ maxWidth: 720, margin: '0 auto' }}>
 
       {/* ── Navy hero header ── */}
       <div style={{
@@ -76,8 +76,6 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
         padding: '1.5rem 1.25rem 1.4rem',
         position: 'relative',
         marginBottom: '1.25rem',
-        marginLeft: '1.25rem',
-        marginRight: '1.25rem',
         borderRadius: '20px',
       }}>
         {/* Cog → settings */}
