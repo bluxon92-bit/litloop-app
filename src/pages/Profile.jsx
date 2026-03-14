@@ -22,11 +22,13 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
   const { user } = useAuthContext()
   const { books, updateBook } = useBooksContext()
   const {
-    myUsername, myDisplayName, myBio, topBookIds,
-    saveFavBooks
+    myUsername, myDisplayName, myBio, myAvatarUrl, topBookIds,
+    saveFavBooks, uploadAvatar
   } = useSocialContext()
 
   const [detailBook, setDetailBook]       = useState(null)
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarError, setAvatarError]         = useState(null)
   const [detailLocation, setDetailLocation] = useState(null)
   const [favEditorOpen, setFavEditorOpen] = useState(false)
   const [favSelected, setFavSelected]     = useState([])
@@ -47,6 +49,17 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
   const displayName  = myDisplayName || myUsername || user?.email?.split('@')[0] || 'Reader'
   const avatarBg     = avatarColour(user?.id || 'x')
   const avatarLetter = avatarInitial(displayName)
+
+  async function handleAvatarChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setAvatarUploading(true); setAvatarError(null)
+    const { error } = await uploadAvatar(file)
+    if (error) setAvatarError(error)
+    setAvatarUploading(false)
+    // Reset file input
+    e.target.value = ''
+  }
 
   function openFavEditor() { setFavSelected([...topBookIds]); setFavEditorOpen(true) }
   function toggleFav(id) {
@@ -71,6 +84,7 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
     <div className="rt-page" style={{ maxWidth: 760, margin: '0 auto' }}>
 
       {/* ── Navy hero header ── */}
+      <style>{`.avatar-label:hover .avatar-overlay { opacity: 1 !important }`}</style>
       <div style={{
         background: 'linear-gradient(160deg, var(--rt-navy) 0%, #243A5E 100%)',
         padding: '1.5rem 1.25rem 1.4rem',
@@ -95,12 +109,40 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
 
         {/* Avatar + name */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem' }}>
-          <div style={{
-            width: 54, height: 54, borderRadius: '50%', background: avatarBg,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'var(--rt-font-display)', fontSize: '1.3rem', fontWeight: 700,
-            color: '#fff', flexShrink: 0, border: '2.5px solid rgba(255,255,255,0.2)'
-          }}>{avatarLetter}</div>
+          <label style={{ cursor: 'pointer', flexShrink: 0, position: 'relative' }} title="Change photo">
+            <input
+              type="file"
+              accept="image/*"
+              style={{ position: 'absolute', inset: 0, opacity: 0, width: '100%', height: '100%', cursor: 'pointer', zIndex: 1 }}
+              onChange={handleAvatarChange}
+              disabled={avatarUploading}
+            />
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%', background: avatarBg,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontFamily: 'var(--rt-font-display)', fontSize: '1.4rem', fontWeight: 700,
+              color: '#fff', border: '2.5px solid rgba(255,255,255,0.2)',
+              overflow: 'hidden', position: 'relative',
+            }}>
+              {myAvatarUrl
+                ? <img src={myAvatarUrl} alt={displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : avatarLetter
+              }
+              {/* Camera overlay on hover */}
+              <div style={{
+                position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.45)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                opacity: avatarUploading ? 1 : 0, transition: 'opacity 0.15s',
+                borderRadius: '50%',
+              }} className="avatar-overlay">
+                {avatarUploading
+                  ? <div style={{ width: 18, height: 18, border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                  : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                }
+              </div>
+            </div>
+            {avatarError && <div style={{ position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)', fontSize: '0.6rem', color: '#fca5a5', whiteSpace: 'nowrap', marginTop: '0.25rem' }}>{avatarError}</div>}
+          </label>
           <div>
             <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.15rem', fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>{displayName}</div>
             {myUsername && <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.55)', marginTop: '0.15rem' }}>@{myUsername}</div>}

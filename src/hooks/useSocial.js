@@ -14,6 +14,7 @@ export function useSocial(user) {
   const [topBookIds, setTopBookIds]         = useState([])
   const [preferredMoods, setPreferredMoods] = useState([])
   const [profileLoaded, setProfileLoaded]   = useState(false)
+  const [myAvatarUrl, setMyAvatarUrl]       = useState(null)
   const channelRef                          = useRef(null)  // friendships realtime
   const recsChannelRef                      = useRef(null)  // recs realtime
 
@@ -22,6 +23,7 @@ export function useSocial(user) {
       setFriends([]); setPending([]); setOutgoingPending([])
       setFeed([]); setRecs([])
       setLoaded(false); setMyUsername(''); setMyDisplayName(''); setMyBio('')
+      setMyAvatarUrl(null)
       return
     }
     loadProfile()
@@ -37,7 +39,7 @@ export function useSocial(user) {
   async function loadProfile() {
     const { data } = await sb
       .from('profiles')
-      .select('username, display_name, bio, top_book_ids, preferred_moods')
+      .select('username, display_name, bio, top_book_ids, preferred_moods, avatar_url')
       .eq('id', user.id)
       .single()
     if (data) {
@@ -46,6 +48,7 @@ export function useSocial(user) {
       setMyBio(data.bio || '')
       setTopBookIds(data.top_book_ids || [])
       setPreferredMoods(data.preferred_moods || [])
+      setMyAvatarUrl(data.avatar_url || null)
     }
     setProfileLoaded(true)
   }
@@ -259,6 +262,43 @@ export function useSocial(user) {
     return { alreadyInLibrary: !!already }
   }
 
+  async function uploadAvatar(file) {
+    if (!user || !file) return { error: 'Not signed in' }
+    try {
+      // Resize/convert to jpeg blob via canvas for consistent format and smaller size
+      const bitmap = await createImageBitmap(file)
+      const size = Math.min(bitmap.width, bitmap.height)
+      const canvas = document.createElement('canvas')
+      canvas.width = 200; canvas.height = 200
+      const ctx = canvas.getContext('2d')
+      // Centre-crop to square
+      const sx = (bitmap.width - size) / 2
+      const sy = (bitmap.height - size) / 2
+      ctx.drawImage(bitmap, sx, sy, size, size, 0, 0, 200, 200)
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.85))
+
+      const path = `${user.id}/avatar.jpg`
+      const { error: uploadError } = await sb.storage
+        .from('profile-images')
+        .upload(path, blob, { contentType: 'image/jpeg', upsert: true })
+      if (uploadError) return { error: uploadError.message }
+
+      const { data: { publicUrl } } = sb.storage.from('profile-images').getPublicUrl(path)
+      // Add cache-buster so browser doesn't show old image after re-upload
+      const urlWithBust = `${publicUrl}?t=${Date.now()}`
+
+      const { error: dbError } = await sb.from('profiles')
+        .update({ avatar_url: urlWithBust })
+        .eq('id', user.id)
+      if (dbError) return { error: dbError.message }
+
+      setMyAvatarUrl(urlWithBust)
+      return { url: urlWithBust }
+    } catch (err) {
+      return { error: err.message }
+    }
+  }
+
   async function saveProfile(username, bio) {
     const clean = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '')
     const { error } = await sb.from('profiles').upsert(
@@ -344,10 +384,10 @@ export function useSocial(user) {
 
   return {
     friends, pending, outgoingPending, feed, recs, loaded,
-    myUsername, myDisplayName, myBio, topBookIds, preferredMoods, setPreferredMoods, profileLoaded,
+    myUsername, myDisplayName, myBio, myAvatarUrl, topBookIds, preferredMoods, setPreferredMoods, profileLoaded,
     loadSocialData, sendFriendRequest, sendRecommendation,
     acceptFriendRequest, declineFriendRequest, removeFriend,
     dismissRec, acceptRecToTBR, sendRec,
-    saveProfile, saveFavBooks, generateInviteLink
+    saveProfile, saveFavBooks, uploadAvatar, generateInviteLink
   }
 }
