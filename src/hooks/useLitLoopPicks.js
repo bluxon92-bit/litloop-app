@@ -29,7 +29,7 @@ function cleanBookTitle(title) {
     .trim()
 }
 
-const FEED_CACHE_KEY = 'litloop_feed_v1'
+const FEED_CACHE_KEY = 'litloop_feed_v2'
 // Separate key for the raw editorial data (books + dismissals) — long-lived
 const DATA_CACHE_KEY = 'litloop_data_v1'
 const DATA_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
@@ -83,6 +83,18 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
 
   // Track whether we have a valid session feed so we skip the rebuild on initial mount
   const hasFeedRef = useRef(_cached?.userId === userId && (_cached?.feed?.length > 0))
+
+  // After restoring from session cache, fetch covers for any books that are missing them
+  const coverFetchDoneRef = useRef(false)
+  useEffect(() => {
+    if (!hasFeedRef.current || coverFetchDoneRef.current || !feed.length) return
+    coverFetchDoneRef.current = true
+    const needsCovers = feed.filter(
+      book => !book.cover_id && book.ol_key && !coverCacheRef.current[book.ol_key]
+    )
+    if (needsCovers.length) fetchCoversSequentially(needsCovers)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feed])
 
   // Stable ref to coverCache for use inside async functions without stale closure
   const coverCacheRef = useRef(coverCache)
@@ -221,28 +233,29 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
         `q=${encodeURIComponent(cleanTitle + (cleanAuthor ? ' ' + cleanAuthor : ''))}&type=work`,
       ].filter(Boolean)
       let coverId = null
+      let olKey = null
       for (const params of strategies) {
-        const res  = await fetch(`https://openlibrary.org/search.json?${params}&fields=cover_i,title&limit=5`)
+        const res  = await fetch(`https://openlibrary.org/search.json?${params}&fields=cover_i,key,title&limit=5`)
         const data = await res.json()
         const doc  = (data.docs || []).find(d => d.cover_i && !JUNK.some(k => (d.title || '').toLowerCase().includes(k)))
-        coverId = doc?.cover_i || null
+        if (doc) { coverId = doc.cover_i || null; olKey = doc.key || null }
         if (coverId) break
       }
-      if (coverId) {
-        setCoverCache(prev => {
-          const next = { ...prev, [book.ol_key]: coverId }
-          coverCacheRef.current = next
-          try {
-            const raw = sessionStorage.getItem(FEED_CACHE_KEY)
-            if (raw) {
-              const cached = JSON.parse(raw)
-              cached.coverCache = next
-              sessionStorage.setItem(FEED_CACHE_KEY, JSON.stringify(cached))
-            }
-          } catch {}
-          return next
-        })
-      }
+      // Store both coverId and confirmed OL key (may differ from editorial ol_key)
+      const entry = { coverId, olKey }
+      setCoverCache(prev => {
+        const next = { ...prev, [book.ol_key]: entry }
+        coverCacheRef.current = next
+        try {
+          const raw = sessionStorage.getItem(FEED_CACHE_KEY)
+          if (raw) {
+            const cached = JSON.parse(raw)
+            cached.coverCache = next
+            sessionStorage.setItem(FEED_CACHE_KEY, JSON.stringify(cached))
+          }
+        } catch {}
+        return next
+      })
     } catch {}
   }
 
@@ -258,7 +271,17 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
   }
 
   function getCoverForBook(book) {
-    return book.cover_id || coverCache[book.ol_key] || null
+    const cached = coverCache[book.ol_key]
+    // cached may be a plain coverId (old format) or {coverId, olKey} object (new format)
+    const cachedCoverId = cached && typeof cached === 'object' ? cached.coverId : cached
+    return book.cover_id || cachedCoverId || null
+  }
+
+  // Returns the confirmed OL works key for a book (for description fetching)
+  function getOlKeyForBook(book) {
+    const cached = coverCache[book.ol_key]
+    const cachedKey = cached && typeof cached === 'object' ? cached.olKey : null
+    return cachedKey || book.ol_key || null
   }
 
   function shuffleFeed() {
@@ -285,5 +308,6 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
     dismissBook,
     shuffleFeed,
     getCoverForBook,
+    getOlKeyForBook,
   }
 }

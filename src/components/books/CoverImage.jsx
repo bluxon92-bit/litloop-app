@@ -1,18 +1,63 @@
-export default function CoverImage({ coverId, olKey, title, size = 'M', style = {} }) {
+import { useState, useEffect, useRef } from 'react'
+import { uploadCoverToSupabase } from '../../lib/coverCache'
+
+const gradients = [
+  'linear-gradient(135deg, #1a2744 0%, #2A6E69 100%)',
+  'linear-gradient(135deg, #c8891a 0%, #b43a3a 100%)',
+  'linear-gradient(135deg, #2A6E69 0%, #5c6bc0 100%)',
+  'linear-gradient(135deg, #7b3fa0 0%, #1a2744 100%)',
+  'linear-gradient(135deg, #2e7d52 0%, #5c6bc0 100%)',
+  'linear-gradient(135deg, #b43a3a 0%, #7a5c2e 100%)',
+]
+
+export default function CoverImage({ coverId, olKey, coverUrl, title, size = 'M', style = {}, onCoverUrlResolved }) {
   const sizes = { S: [38, 54], M: [56, 82], L: [80, 116] }
   const [w, h] = sizes[size] || sizes.M
 
-  const gradients = [
-    'linear-gradient(135deg, #1a2744 0%, #2A6E69 100%)',
-    'linear-gradient(135deg, #c8891a 0%, #b43a3a 100%)',
-    'linear-gradient(135deg, #2A6E69 0%, #5c6bc0 100%)',
-    'linear-gradient(135deg, #7b3fa0 0%, #1a2744 100%)',
-    'linear-gradient(135deg, #2e7d52 0%, #5c6bc0 100%)',
-    'linear-gradient(135deg, #b43a3a 0%, #7a5c2e 100%)',
-  ]
-
   const gradientIndex = (title || '').charCodeAt(0) % gradients.length
   const initial = (title || '?').charAt(0).toUpperCase()
+
+  // Initialise immediately with the best available URL so there's no loading flash:
+  // 1. Supabase coverUrl (best — cached by service worker)
+  // 2. OL URL built from coverId (instant, may be slow on bad connection)
+  // 3. null → gradient placeholder
+  function bestInitialUrl() {
+    if (coverUrl) return coverUrl
+    if (coverId) return `https://covers.openlibrary.org/b/id/${coverId}-M.jpg`
+    return null
+  }
+
+  const [resolvedUrl, setResolvedUrl] = useState(bestInitialUrl)
+  const [failed, setFailed] = useState(false)
+  const upgrading = useRef(false)
+
+  useEffect(() => {
+    // Always use coverUrl from DB if available
+    if (coverUrl) {
+      setResolvedUrl(coverUrl)
+      setFailed(false)
+      return
+    }
+
+    // Show OL URL immediately so there's no placeholder flash
+    if (coverId) {
+      setResolvedUrl(`https://covers.openlibrary.org/b/id/${coverId}-M.jpg`)
+      setFailed(false)
+    }
+
+    // Then silently upgrade to Supabase Storage in the background
+    // Once uploaded the service worker caches it for future instant loads
+    if (coverId && olKey && !upgrading.current) {
+      upgrading.current = true
+      uploadCoverToSupabase(coverId, olKey).then(url => {
+        if (url) {
+          setResolvedUrl(url)
+          onCoverUrlResolved?.(url)
+        }
+        upgrading.current = false
+      })
+    }
+  }, [coverUrl, coverId, olKey])
 
   const baseStyle = {
     width: w,
@@ -20,7 +65,7 @@ export default function CoverImage({ coverId, olKey, title, size = 'M', style = 
     borderRadius: 6,
     flexShrink: 0,
     boxShadow: '0 2px 8px rgba(26,39,68,0.15)',
-    ...style
+    ...style,
   }
 
   const placeholder = (
@@ -39,16 +84,14 @@ export default function CoverImage({ coverId, olKey, title, size = 'M', style = 
     </div>
   )
 
-  if (!coverId) return placeholder
+  if (!resolvedUrl || failed) return placeholder
 
   return (
     <img
-      src={`https://covers.openlibrary.org/b/id/${coverId}-M.jpg`}
+      src={resolvedUrl}
       alt={title}
       style={{ ...baseStyle, objectFit: 'cover' }}
-      onError={e => {
-        e.target.replaceWith(e.target.nextSibling)
-      }}
+      onError={() => setFailed(true)}
     />
   )
 }

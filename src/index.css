@@ -1164,7 +1164,7 @@
 }
 .rt-chat-list-item:last-child { border-bottom: none; }
 .rt-chat-list-item:hover { background: var(--rt-surface); }
-.rt-chat-list-cover { width: 38px; height: 52px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
+.rt-chat-list-cover { width: 56px; height: 82px; border-radius: 6px; object-fit: cover; flex-shrink: 0; }
 .rt-chat-list-cover--ph {
   width: 38px; height: 52px; border-radius: 4px; background: var(--rt-surface);
   display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0;

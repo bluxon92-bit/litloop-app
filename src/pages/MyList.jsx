@@ -112,16 +112,18 @@ function TBRList({ tbr, updateBook, deleteBook, openDetail }) {
             <span/><span/><span/>
           </div>
           <span className="rt-tbr-num">{i + 1}</span>
-          <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="S" />
+          <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="M" />
           <div className="rt-tbr-item-body">
             <div className="rt-book-title">{book.title}</div>
             {book.author && <div className="rt-book-author">{book.author}</div>}
+            <div style={{ marginTop: '0.4rem' }} onClick={e => e.stopPropagation()}>
+              <button
+                className="rt-start-reading-btn"
+                onClick={() => updateBook(book.id, { status: 'reading', dateStarted: new Date().toISOString().split('T')[0] })}
+              >Start</button>
+            </div>
           </div>
           <div className="rt-tbr-item-actions" onClick={e => e.stopPropagation()}>
-            <button
-              className="rt-start-reading-btn"
-              onClick={() => updateBook(book.id, { status: 'reading', dateStarted: new Date().toISOString().split('T')[0] })}
-            >Start</button>
             <button className="rt-delete rt-delete--quiet" onClick={() => deleteBook(book.id)}>×</button>
           </div>
         </div>
@@ -176,15 +178,17 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
   function tabPill(t) {
     const active = tab === t
     return {
+      position: 'relative', top: '-6px',
       background: active ? 'var(--rt-amber)' : 'var(--rt-border-md)',
       color: active ? '#fff' : 'var(--rt-t3)',
-      borderRadius: 99, fontSize: '0.62rem', fontWeight: 700,
-      padding: '0.1em 0.5em', lineHeight: '1.6', transition: 'all 0.15s',
+      borderRadius: 99, fontSize: '0.55rem', fontWeight: 700,
+      padding: '0.1em 0.45em', lineHeight: '1.6', transition: 'all 0.15s',
+      verticalAlign: 'top',
     }
   }
 
   return (
-    <div className="rt-page" style={{ maxWidth: 720, margin: '0 auto' }}>
+    <div className="rt-page" style={{ maxWidth: 760, margin: '0 auto' }}>
 
       {/* ── Page title ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 1rem' }}>
@@ -234,7 +238,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
               style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', marginBottom: '0.5rem', cursor: 'pointer' }}
               onClick={() => openDetail(book, 'mylist-reading')}
             >
-              <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="S" />
+              <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="M" />
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="rt-book-title">{book.title}</div>
                 {book.author && <div className="rt-book-author">{book.author}</div>}
@@ -280,7 +284,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
                 return (
                   <div key={book.id} className="rt-hist-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => openDetail(book, 'mylist-history')}>
                     <div className="rt-hist-card-inner">
-                      <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="S" />
+                      <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="M" />
                       <div className="rt-hist-body">
                         <div className="rt-book-title">{book.title}</div>
                         {book.author && <div className="rt-book-author">{book.author}</div>}
@@ -318,7 +322,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
             dnf.map(book => (
               <div key={book.id} className="rt-hist-card rt-hist-card--dnf" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => openDetail(book, 'mylist-dnf')}>
                 <div className="rt-hist-card-inner">
-                  <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="S" />
+                  <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="M" />
                   <div className="rt-hist-body">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                       <div className="rt-book-title">{book.title}</div>

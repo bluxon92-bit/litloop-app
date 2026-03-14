@@ -13,3 +13,6 @@ export function BooksProvider({ children }) {
 export function useBooksContext() {
   return useContext(BooksContext)
 }
+
+// Convenience re-export of the update fn for CoverImage consumers
+export { BooksContext }

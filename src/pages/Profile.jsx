@@ -61,14 +61,14 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
         <div style={{
           fontSize: '0.6rem', color: 'var(--rt-t2)', marginTop: 4,
           overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          maxWidth: 62, lineHeight: 1.2, fontWeight: 500
+          maxWidth: 80, lineHeight: 1.2, fontWeight: 500
         }}>{book.title}</div>
       </div>
     )
   }
 
   return (
-    <div className="rt-page" style={{ maxWidth: 720, margin: '0 auto' }}>
+    <div className="rt-page" style={{ maxWidth: 760, margin: '0 auto' }}>
 
       {/* ── Navy hero header ── */}
       <div style={{
@@ -109,7 +109,7 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
         </div>
       </div>
 
-      <div style={{ padding: '0 1.25rem 2rem' }}>
+      <div style={{ paddingBottom: '2rem' }}>
 
         {/* ── Currently reading (most recently started) ── */}
         {reading.length > 0 && (() => {
@@ -170,18 +170,12 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
                 }}
               >
                 {/* Cover */}
-                <div style={{ flexShrink: 0, width: 46, height: 66, borderRadius: 6, overflow: 'hidden', background: 'var(--rt-surface)' }}>
-                  {book.coverId
-                    ? <img src={`https://covers.openlibrary.org/b/id/${book.coverId}-S.jpg`}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt=""
-                        onError={e => e.target.style.display='none'} />
-                    : book.olKey
-                      ? <img src={`https://covers.openlibrary.org/b/olid/${book.olKey.replace('/works/','')}-S.jpg`}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt=""
-                          onError={e => e.target.style.display='none'} />
-                      : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IcoOpenBook size={22} color="var(--rt-t3)" /></div>
-                  }
-                </div>
+                <CoverImage
+                  coverId={book.coverId}
+                  olKey={book.olKey}
+                  title={book.title}
+                  size="M"
+                />
 
                 {/* Body */}
                 <div style={{ flex: 1, minWidth: 0 }}>

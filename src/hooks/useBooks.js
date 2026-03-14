@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { sb } from '../lib/supabase'
 
-const LOCAL_KEY = 'litloop_books_v1'
+const LOCAL_KEY = 'litloop_books_v2'
 
 function localLoad() {
   try { return JSON.parse(localStorage.getItem(LOCAL_KEY)) || [] }
@@ -61,6 +61,7 @@ export function useBooks(user) {
         author:       e.books?.author    || e.author_manual || '',
         coverId:      e.books?.cover_id  || null,
         olKey:        e.books?.ol_key    || null,
+        coverUrl:     e.books?.cover_url || null,
         status:       e.status,
         rating:       e.rating           || null,
         notes:        e.notes            || null,
@@ -120,6 +121,7 @@ export function useBooks(user) {
       added:        new Date().toISOString(),
       coverId:      bookData.coverId      || null,
       olKey:        bookData.olKey        || null,
+      coverUrl:     bookData.coverUrl     || null,
       userId:       user?.id              || null,
       favourite:    false,
       favOrder:     null,
@@ -281,5 +283,12 @@ export function useBooks(user) {
     }
   }
 
-  return { books, syncing, addBook, updateBook, deleteBook, isDuplicate, findDuplicate, syncFromCloud }
+  // Called by CoverImage after a successful lazy upload to Supabase Storage.
+  // Updates local state so subsequent renders use the cached URL immediately.
+  function updateCoverUrl(bookId, coverUrl) {
+    setBooks(prev => prev.map(b => b.id === bookId ? { ...b, coverUrl } : b))
+    // The DB is already updated inside uploadCoverToSupabase — no extra write needed here.
+  }
+
+  return { books, syncing, addBook, updateBook, deleteBook, isDuplicate, findDuplicate, syncFromCloud, updateCoverUrl }
 }

@@ -4,6 +4,7 @@ import { useChatContext } from '../context/ChatContext'
 import { useBooksContext } from '../context/BooksContext'
 import { useAuthContext } from '../context/AuthContext'
 import { avatarColour, avatarInitial, timeAgo } from '../lib/utils'
+import CoverImage from '../components/books/CoverImage'
 import BookDetailPanel from '../components/books/BookDetailPanel'
 import FriendProfileSheet from '../components/books/FriendProfileSheet'
 import AddBookModal from '../components/books/AddBookModal'
@@ -485,7 +486,7 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend }) 
   }
 
   return (
-    <div style={{ padding: '1.5rem', maxWidth: 720, margin: '0 auto', display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 100px)' }}>
+    <div className="rt-page" style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 100px)' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 1.25rem' }}>
         <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: 0 }}>Chat</h2>
         <button onClick={onAddFriend} style={{ background: 'var(--rt-amber-pale)', border: 'none', borderRadius: 99, padding: '0.25rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--rt-amber)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
@@ -567,11 +568,6 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend }) 
               </div>
             ) : (
               chats.map(chat => {
-                const coverSrc = chat.coverIdRaw
-                  ? `https://covers.openlibrary.org/b/id/${chat.coverIdRaw}-S.jpg`
-                  : chat.bookOlKey
-                    ? `https://covers.openlibrary.org/b/olid/${chat.bookOlKey.replace('/works/', '')}-S.jpg`
-                    : null
                 return (
                   <div
                     key={chat.id}
@@ -579,10 +575,13 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend }) 
                     style={{ display: 'flex', gap: '0.85rem', alignItems: 'center', cursor: 'pointer', marginBottom: '0.5rem' }}
                     onClick={() => openChatModal(chat)}
                   >
-                    {coverSrc
-                      ? <img src={coverSrc} className="rt-chat-list-cover" alt="" onError={e => e.target.style.display='none'} />
-                      : <div className="rt-chat-list-cover--ph"><IcoOpenBook size={20} color="var(--rt-t3)" /></div>
-                    }
+                    <CoverImage
+                      coverId={chat.coverIdRaw}
+                      olKey={chat.bookOlKey}
+                      title={chat.bookTitle}
+                      size="M"
+                      style={{ borderRadius: 6 }}
+                    />
                     <div className="rt-chat-list-body">
                       {chat.chatName && <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--rt-amber)', marginBottom: '0.1rem' }}>{chat.chatName}</div>}
                       <div className="rt-chat-list-title">{chat.bookTitle}</div>

@@ -89,7 +89,7 @@ export default function Home({ onNavigate, onOpenChatModal }) {
       {/* ── Welcome header ── */}
       <div style={{ marginBottom: '1.25rem' }}>
         <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 0.1rem' }}>
-          Welcome back{myDisplayName ? `, ${myDisplayName}` : ''}
+          Hi {myDisplayName || 'there'},
         </h2>
       </div>
 
@@ -201,11 +201,11 @@ export default function Home({ onNavigate, onOpenChatModal }) {
               .sort((a, b) => new Date(b.dateRead || b.added || 0) - new Date(a.dateRead || a.added || 0))
               .slice(0, 10)
               .map(book => (
-                <div key={book.id} onClick={() => openDetail(book, 'mylist-history')} style={{ cursor: 'pointer', flexShrink: 0, width: 64 }}>
-                  <div style={{ width: 64, height: 90, borderRadius: 6, overflow: 'hidden', boxShadow: '0 2px 8px rgba(26,39,68,0.13)' }}>
-                    <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="S" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <div key={book.id} onClick={() => openDetail(book, 'mylist-history')} style={{ cursor: 'pointer', flexShrink: 0, width: 80 }}>
+                  <div style={{ width: 80, height: 116, borderRadius: 6, overflow: 'hidden', boxShadow: '0 2px 8px rgba(26,39,68,0.13)' }}>
+                    <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="L" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
-                  <div style={{ fontSize: '0.6rem', color: 'var(--rt-t2)', marginTop: '0.35rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 64, lineHeight: 1.3, fontWeight: 500 }}>{book.title}</div>
+                  <div style={{ fontSize: '0.6rem', color: 'var(--rt-t2)', marginTop: '0.35rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 80, lineHeight: 1.3, fontWeight: 500 }}>{book.title}</div>
                 </div>
               ))}
           </div>
@@ -246,25 +246,31 @@ export default function Home({ onNavigate, onOpenChatModal }) {
               return (
                 <div key={ev.id} onClick={() => openDetail(feedBook, 'home-feed')}
                   style={{ display: 'flex', gap: '0.9rem', padding: '0.9rem 0', borderBottom: '1px solid var(--rt-border)', cursor: 'pointer' }}>
-                  <div style={{ width: 52, height: 74, borderRadius: 7, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 8px rgba(26,39,68,0.12)' }}>
-                    {coverId ? (
-                      <img src={`https://covers.openlibrary.org/b/id/${coverId}-S.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} alt={ev.book_title || ''} loading="lazy" onError={e => e.target.style.display = 'none'} />
-                    ) : olKey ? (
-                      <img src={`https://covers.openlibrary.org/b/olid/${olKey.replace('/works/', '')}-S.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} alt={ev.book_title || ''} loading="lazy" onError={e => e.target.style.display = 'none'} />
-                    ) : (
-                      <IcoOpenBook size={24} color="var(--rt-t3)" />
-                    )}
+                  {/* Cover — same size as Currently Reading */}
+                  <div style={{ width: 64, height: 92, borderRadius: 7, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.12)' }}>
+                    <CoverImage
+                      coverId={coverId}
+                      olKey={olKey}
+                      title={ev.book_title || ''}
+                      size="M"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.3rem' }}>
-                      <div style={{ width: 22, height: 22, borderRadius: '50%', background: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 700, color: '#fff', flexShrink: 0 }}>{init}</div>
+                    {/* Stars + avatar + username on one line */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.3rem', flexWrap: 'wrap' }}>
+                      {stars && <span style={{ fontSize: '0.88rem', color: 'var(--rt-amber)', letterSpacing: '0.5px', lineHeight: 1 }}>{stars}</span>}
+                      <span style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>by</span>
+                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.5rem', fontWeight: 700, color: '#fff', flexShrink: 0 }}>{init}</div>
                       <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--rt-t2)' }}>{displayName}{username !== displayName ? ` · @${username}` : ''}</span>
                     </div>
-                    <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.15rem' }}>{ev.book_title || 'Unknown book'}</div>
-                    {ev.book_author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.25rem' }}>{ev.book_author}</div>}
-                    {stars && <div style={{ fontSize: '0.88rem', color: 'var(--rt-amber)', letterSpacing: '0.5px', marginBottom: '0.3rem' }}>{stars}</div>}
+                    {/* Title */}
+                    <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.1rem' }}>{ev.book_title || 'Unknown book'}</div>
+                    {/* Author */}
+                    {ev.book_author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.3rem' }}>{ev.book_author}</div>}
+                    {/* Review excerpt */}
                     {reviewText ? (
-                      <div style={{ fontSize: '0.82rem', color: 'var(--rt-t2)', lineHeight: 1.55, display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{reviewText}</div>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--rt-t2)', lineHeight: 1.55, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{reviewText}</div>
                     ) : (
                       <div style={{ fontSize: '0.75rem', color: 'var(--rt-t3)', fontStyle: 'italic' }}>finished reading</div>
                     )}
