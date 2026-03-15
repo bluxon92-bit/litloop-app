@@ -132,10 +132,11 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
         if (key) reviewMap[key] = r
       })
 
-      setEntries(finalEntries.map(e => {
+      const enrichedEntries = finalEntries.map(e => {
         const olKey = e.books?.ol_key || e.ol_key || null
         const enriched = olKey ? reviewMap[olKey] : null
         return {
+          id:          e.id,
           title:       e.books?.title    || e.title_manual  || '',
           author:      e.books?.author   || e.author_manual || '',
           coverId:     e.books?.cover_id || null,
@@ -145,21 +146,18 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
           reviewedAt:  enriched?.reviewed_at || enriched?.date_finished || null,
           reviewBody:  enriched?.review_is_public ? (enriched?.review_body || null) : null,
         }
-      }))
+      })
+      setEntries(enrichedEntries)
 
-      // Fetch favourite books by UUID
-      if (topIds.length > 0) {
-        const { data: favData } = await sb
-          .from('books')
-          .select('id, title, author, cover_id, ol_key')
-          .in('id', topIds)
-        if (favData) {
-          const byId = Object.fromEntries(favData.map(b => [b.id, b]))
-          setFavBooks(topIds.map(id => byId[id]).filter(Boolean).map(b => ({
-            id: b.id, title: b.title, author: b.author,
-            coverId: b.cover_id, olKey: b.ol_key,
-          })))
-        }
+      // top_book_ids stores reading_entries IDs — match against already-loaded entries
+      if (topIds.length > 0 && enrichedEntries.length > 0) {
+        const byEntryId = Object.fromEntries(enrichedEntries.map(e => [e.id, e]))
+        setFavBooks(
+          topIds
+            .map(id => byEntryId[id])
+            .filter(Boolean)
+            .map(e => ({ id: e.id, title: e.title, author: e.author, coverId: e.coverId, olKey: e.olKey }))
+        )
       }
     } catch(e) {
       console.error('[FriendProfilePage] load error:', e)

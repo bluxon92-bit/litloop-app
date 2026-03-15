@@ -10,7 +10,6 @@ import Discover from '../../pages/Discover'
 import Chat, { ChatThreadModal } from '../../pages/Chat'
 import Profile from '../../pages/Profile'
 import AccountSettings from '../../pages/AccountSettings'
-import FriendProfilePage from '../../pages/FriendProfilePage'
 import AddBookModal from '../books/AddBookModal'
 import { avatarColour, avatarInitial, timeAgo } from '../../lib/utils'
 import { sb } from '../../lib/supabase'
@@ -153,7 +152,7 @@ function FabRecommendModal({ books, friends, user, recs, sendRecommendation, onC
   const [step, setStep]         = useState('book') // 'book' | 'friends'
   const [search, setSearch]     = useState('')
   const [selectedBook, setSelectedBook] = useState(null)
-  const [selectedFriends, setSelectedFriends] = useState(() => new Set())
+  const [selectedFriends, setSelectedFriends] = useState(() => preselectedFriendId ? new Set([preselectedFriendId]) : new Set())
   const [note, setNote]         = useState('')
   const [sending, setSending]   = useState(false)
   const [sent, setSent]         = useState(false)
@@ -807,10 +806,10 @@ export default function AppShell() {
           leaveChat } = useChatContext()
   const { pending, outgoingPending, feed, recs, friends, sendRecommendation, generateInviteLink, sendFriendRequest,
           acceptFriendRequest, declineFriendRequest,
-          myUsername, myAvatarUrl, myDisplayName, saveProfile, setPreferredMoods, profileLoaded } = useSocialContext()
+          myUsername, saveProfile, setPreferredMoods, profileLoaded,
+          notifications: socialNotifs, markNotificationsRead } = useSocialContext()
   const { books, addBook } = useBooksContext()
   const [activeTab, setActiveTab]         = useState('home')
-  const [friendProfileFriend, setFriendProfileFriend] = useState(null) // friend to show full profile page
   const [onboardingDone, setOnboardingDone] = useState(false)
   const showOnboarding = profileLoaded && !onboardingDone && !myUsername
   const [notifOpen, setNotifOpen]         = useState(false)
@@ -821,7 +820,7 @@ export default function AppShell() {
   const [dismissedRequests, setDismissedRequests] = useState(new Set()) // friendshipIds hidden by ×
   const bellRef = useRef(null)
 
-  function onNavigate(tab) { setActiveTab(tab); setFriendProfileFriend(null) }
+  function onNavigate(tab) { setActiveTab(tab) }
 
   async function openChatModal(chatIdOrObj, book) {
     // If a full chat object is passed, use it directly
@@ -864,21 +863,23 @@ export default function AppShell() {
     return chats.find(c => c.bookOlKey === olKey) || null
   }
 
-  // Close notif popup on outside click
+  const unreadSocialNotifs = (socialNotifs || []).filter(n => !n.read)
+  const notifCount = totalUnread + pending.length + unreadSocialNotifs.length
+
+  const displayName  = user?.email?.split('@')[0] || 'Me'
+  const avatarBg     = avatarColour(user?.id || 'x')
+  const avatarLetter = avatarInitial(displayName)
+
+  // Close notif popup on outside click + mark social notifs read on open
   useEffect(() => {
     if (!notifOpen) return
+    if (unreadSocialNotifs?.length > 0) markNotificationsRead?.()
     function handler(e) {
       if (bellRef.current && !bellRef.current.contains(e.target)) setNotifOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [notifOpen])
-
-  const displayName  = user?.email?.split('@')[0] || 'Me'
-  const avatarBg     = avatarColour(user?.id || 'x')
-  const avatarLetter = avatarInitial(displayName)
-
-  const notifCount = totalUnread + pending.length
 
   // Build notifications list — chats with unread messages first, then social
   const unreadChats = (chats || []).filter(c => c.unread > 0)
@@ -914,37 +915,30 @@ export default function AppShell() {
       time: ev.created_at,
       action: () => { setActiveTab('home'); setNotifOpen(false) }
     })),
-  ].slice(0, 8)
+    ...(socialNotifs || []).map(n => ({
+      id: 'social-' + n.id,
+      icon: n.type === 'review_like' ? '❤️' : n.type === 'review_comment' ? '💬' : '🔔',
+      text: n.type === 'review_like'
+        ? `${n.actorName || 'Someone'} liked your review of "${n.bookTitle || 'a book'}"`
+        : n.type === 'review_comment'
+        ? `${n.actorName || 'Someone'} commented on your review of "${n.bookTitle || 'a book'}"`
+        : n.body || 'New notification',
+      time: n.created_at,
+      unread: !n.read,
+      action: () => { setActiveTab('home'); setNotifOpen(false) }
+    })),
+  ].slice(0, 10)
 
   function renderPage() {
-    // Friend profile page overlays current tab
-    if (friendProfileFriend) {
-      return (
-        <FriendProfilePage
-          friend={friendProfileFriend}
-          chats={chats}
-          user={user}
-          books={books}
-          onBack={() => setFriendProfileFriend(null)}
-          onStartChat={b => startOrOpenChat(b.olKey, b.title, b.author, b.coverId, [friendProfileFriend.userId])}
-          onViewChat={chatId => { const c = chats.find(x => x.id === chatId); if (c) openChatModal(c) }}
-          onAddToTBR={({ title, author, olKey, coverId }) => addBook({ title, author, status: 'tbr', olKey, coverId })}
-          onViewProfile={f => setFriendProfileFriend(f)}
-          onAddFriend={f => sendFriendRequest(f.username || '')}
-          myAvatarUrl={myAvatarUrl}
-          myDisplayName={myDisplayName || displayName}
-        />
-      )
-    }
     switch (activeTab) {
-      case 'home':     return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} onViewFriendProfile={f => setFriendProfileFriend(f)} />
+      case 'home':     return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} />
       case 'mylist':   return <MyList          onNavigate={onNavigate} onOpenChatModal={openChatModal} />
       case 'stats':    return <Stats           onNavigate={onNavigate} />
       case 'discover': return <Discover        onNavigate={onNavigate} onOpenChatModal={openChatModal} onRecommend={() => setFabAction('recommend')} />
       case 'chat':     return <Chat            onNavigate={onNavigate} onOpenChatModal={openChatModal} onAddFriend={() => setFabAction('friend')} onOpenChatWithFriend={openChatWithFriend} />
       case 'profile':  return <Profile         onNavigate={onNavigate} onOpenChatModal={openChatModal} />
       case 'account':  return <AccountSettings onNavigate={onNavigate} />
-      default:         return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} onViewFriendProfile={f => setFriendProfileFriend(f)} />
+      default:         return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} />
     }
   }
 
@@ -1079,9 +1073,9 @@ export default function AppShell() {
                 ) : (
                   notifications.map(n => (
                     <div key={n.id} onClick={n.action}
-                      style={{ display: 'flex', gap: '0.65rem', padding: '0.75rem 1rem', borderBottom: '1px solid var(--rt-border)', cursor: 'pointer', alignItems: 'flex-start' }}
+                      style={{ display: 'flex', gap: '0.65rem', padding: '0.75rem 1rem', borderBottom: '1px solid var(--rt-border)', cursor: 'pointer', alignItems: 'flex-start', background: n.unread ? 'var(--rt-amber-pale)' : 'transparent' }}
                       onMouseEnter={e => e.currentTarget.style.background = 'var(--rt-surface)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                      onMouseLeave={e => e.currentTarget.style.background = n.unread ? 'var(--rt-amber-pale)' : 'transparent'}
                     >
                       <span style={{ fontSize: '1rem', flexShrink: 0, marginTop: 1 }}>{n.icon}</span>
                       <div style={{ flex: 1, minWidth: 0 }}>
