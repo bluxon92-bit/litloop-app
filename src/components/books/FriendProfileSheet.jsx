@@ -1,15 +1,19 @@
 import { useState, useEffect } from 'react'
 import { sb } from '../../lib/supabase'
-import { avatarColour, avatarInitial } from '../../lib/utils'
+import { avatarColour, avatarInitial, fmtDate, timeAgo } from '../../lib/utils'
 import BookDetailPanel from './BookDetailPanel'
+import CoverImage from './CoverImage'
 import { IcoOpenBook, IcoChat } from '../../components/icons'
 
-export default function FriendProfileSheet({ friend, chats, user, books: myBooks, onClose, onAddToTBR, onStartChat, onViewChat, onOpenChatModal }) {
-  const [entries, setEntries]       = useState(null)
-  const [recs, setRecs]             = useState([])
-  const [loading, setLoading]       = useState(true)
-  const [error, setError]           = useState(null)
-  const [detailBook, setDetailBook] = useState(null)   // drilled-in book
+export default function FriendProfileSheet({ friend, chats, user, books: myBooks, onClose, onAddToTBR, onStartChat, onViewChat, onOpenChatModal, onViewProfile }) {
+  const [entries, setEntries]         = useState(null)
+  const [recs, setRecs]               = useState([])
+  const [loading, setLoading]         = useState(true)
+  const [error, setError]             = useState(null)
+  const [detailBook, setDetailBook]   = useState(null)
+  const [showAllChats, setShowAllChats]         = useState(false)
+  const [showAllReading, setShowAllReading]     = useState(false)
+  const [showAllMutual, setShowAllMutual]       = useState(false)
 
   useEffect(() => { if (friend) loadFriendData() }, [friend?.userId])
 
@@ -53,12 +57,27 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
   const myReadSet    = new Set(myBooks.filter(b => b.status === 'read').map(b => b.title?.toLowerCase()))
   const mutualBooks  = readBooks.filter(b => myReadSet.has(b.title?.toLowerCase()))
 
+  // Chats with this friend — sorted by most recent activity
+  const friendChats = (chats || [])
+    .filter(c => (c.participantIds || []).includes(friend.userId))
+    .sort((a, b) => (b.lastMessageAt || '') > (a.lastMessageAt || '') ? 1 : -1)
+
   const colour = avatarColour(friend.userId)
   const init   = avatarInitial(friend.displayName)
+  const avatarUrl = friend.avatarUrl || null
 
   /* ── Reusable inner components ── */
   function SLabel({ children, accent }) {
     return <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: accent || 'var(--rt-t3)', marginBottom: '0.45rem', marginTop: '1rem' }}>{children}</div>
+  }
+
+  function SeeAllBtn({ count, shown, onToggle }) {
+    if (count <= 3) return null
+    return (
+      <button onClick={onToggle} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', color: 'var(--rt-amber)', fontWeight: 700, padding: '0.4rem 0', display: 'block' }}>
+        {shown ? 'Show less ↑' : `See all (${count}) ↓`}
+      </button>
+    )
   }
 
   function BookRow({ b, actions }) {
@@ -80,7 +99,7 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
     )
   }
 
-  /* ── Drilled-in book view — use standard BookDetailPanel ── */
+  /* ── Drilled-in book view ── */
   if (detailBook) {
     const chat = existingChat(detailBook.olKey)
     return (
@@ -98,10 +117,7 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
           setDetailBook(null)
           onOpenChatModal ? onOpenChatModal(chatId, book) : onStartChat(detailBook)
         }}
-        onViewChat={() => {
-          if (chat) onViewChat(chat.id)
-          setDetailBook(null)
-        }}
+        onViewChat={() => { if (chat) onViewChat(chat.id); setDetailBook(null) }}
         onMarkFinished={() => setDetailBook(null)}
         onStartReading={() => setDetailBook(null)}
         onEdit={() => setDetailBook(null)}
@@ -139,7 +155,10 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
         {/* Navy hero */}
         <div style={{ background: 'linear-gradient(160deg, var(--rt-navy), #2A4A6B)', padding: '1.1rem 1.1rem 1.1rem', flexShrink: 0, position: 'relative' }}>
           <button onClick={onClose} style={{ position: 'absolute', top: '0.7rem', right: '0.7rem', background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '50%', width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.95rem', color: 'rgba(255,255,255,0.7)', cursor: 'pointer' }}>×</button>
-          <div style={{ width: 46, height: 46, borderRadius: '50%', background: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.15rem', fontWeight: 700, color: '#fff', marginBottom: '0.6rem', border: '2px solid rgba(255,255,255,0.2)' }}>{init}</div>
+
+          <div style={{ width: 46, height: 46, borderRadius: '50%', background: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.15rem', fontWeight: 700, color: '#fff', marginBottom: '0.6rem', border: '2px solid rgba(255,255,255,0.2)', overflow: 'hidden' }}>
+            {avatarUrl ? <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : init}
+          </div>
           <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.05rem', fontWeight: 700, color: '#fff' }}>{friend.displayName}</div>
           {friend.username && <div style={{ fontSize: '0.73rem', color: 'rgba(255,255,255,0.45)', marginTop: '0.1rem' }}>@{friend.username}</div>}
           {!loading && entries && (
@@ -152,6 +171,23 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
               ))}
             </div>
           )}
+
+          {/* View full profile button */}
+          {onViewProfile && (
+            <button
+              onClick={() => { onClose(); onViewProfile(friend) }}
+              style={{
+                marginTop: '0.85rem',
+                background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.25)',
+                borderRadius: 99, padding: '0.35rem 0.85rem',
+                fontSize: '0.72rem', fontWeight: 700, color: '#fff',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.35rem',
+                width: 'fit-content',
+              }}
+            >
+              View full profile →
+            </button>
+          )}
         </div>
 
         {/* Body */}
@@ -159,6 +195,40 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
           {loading && <div style={{ textAlign: 'center', color: 'var(--rt-t3)', padding: '2rem', fontSize: '0.83rem' }}>Loading…</div>}
           {error && <div style={{ color: '#991b1b', fontSize: '0.83rem', padding: '1rem' }}>{error}</div>}
           {!loading && !error && <>
+
+            {/* ── Chats together ── */}
+            {friendChats.length > 0 && (
+              <>
+                <SLabel>Chats together ({friendChats.length})</SLabel>
+                {(showAllChats ? friendChats : friendChats.slice(0, 3)).map(c => (
+                  <div key={c.id}
+                    onClick={() => { onViewChat?.(c.id); onClose() }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.5rem 0.65rem', borderRadius: 'var(--rt-r3)', background: 'var(--rt-surface)', border: '1px solid var(--rt-border)', marginBottom: '0.35rem', cursor: 'pointer' }}
+                  >
+                    {/* Book cover */}
+                    <div style={{ width: 28, height: 42, borderRadius: 4, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-border)' }}>
+                      {(c.coverIdRaw || c.bookOlKey) && (
+                        <img
+                          src={c.coverIdRaw ? `https://covers.openlibrary.org/b/id/${c.coverIdRaw}-S.jpg` : `https://covers.openlibrary.org/b/olid/${(c.bookOlKey||'').replace('/works/','')}-S.jpg`}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt=""
+                          onError={e => e.target.style.display='none'}
+                        />
+                      )}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      {c.chatName && <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--rt-amber)', marginBottom: '0.1rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.chatName}</div>}
+                      <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.bookTitle || 'Chat'}</div>
+                      {c.lastMessagePreview && <div style={{ fontSize: '0.68rem', color: 'var(--rt-t3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.lastMessagePreview}</div>}
+                    </div>
+                    {c.unread > 0 && <div style={{ background: 'var(--rt-amber)', color: '#fff', borderRadius: 99, fontSize: '0.6rem', fontWeight: 700, padding: '0.1em 0.45em', flexShrink: 0 }}>{c.unread}</div>}
+                    <span style={{ fontSize: '0.68rem', color: 'var(--rt-t3)', flexShrink: 0 }}>{c.lastMessageAt ? timeAgo(c.lastMessageAt) : '→'}</span>
+                  </div>
+                ))}
+                <SeeAllBtn count={friendChats.length} shown={showAllChats} onToggle={() => setShowAllChats(v => !v)} />
+              </>
+            )}
+
+            {/* ── Recommendations ── */}
             {recs.length > 0 && (
               <>
                 <SLabel accent="var(--rt-amber)">Recommended for you ({recs.length})</SLabel>
@@ -183,22 +253,27 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
               </>
             )}
 
+            {/* ── Currently reading ── */}
             <SLabel>Currently reading</SLabel>
             {readingBooks.length === 0
               ? <p style={{ fontSize: '0.78rem', color: 'var(--rt-t3)', fontStyle: 'italic' }}>Nothing in progress.</p>
-              : readingBooks.map((b, i) => {
-                const chat = existingChat(b.olKey)
-                const listed = onMyList(b.title, b.olKey)
-                return <BookRow key={i} b={b} actions={<>
-                  {!listed && <button onClick={e => { e.stopPropagation(); onAddToTBR({ title: b.title, author: b.author, olKey: b.olKey, coverId: b.coverId }) }} style={{ background: 'var(--rt-surface)', color: 'var(--rt-navy)', border: '1px solid var(--rt-border-md)', borderRadius: 7, padding: '0.3rem 0.55rem', fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>+ TBR</button>}
-                  {b.olKey && <button onClick={e => { e.stopPropagation(); chat ? onViewChat(chat.id) : onStartChat(b) }} style={{ background: chat ? 'var(--rt-navy)' : 'var(--rt-amber)', color: '#fff', border: 'none', borderRadius: 7, padding: '0.3rem 0.6rem', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>{chat ? 'View chat' : 'Start chat'}</button>}
-                </>} />
-              })
+              : <>
+                  {(showAllReading ? readingBooks : readingBooks.slice(0, 3)).map((b, i) => {
+                    const chat = existingChat(b.olKey)
+                    const listed = onMyList(b.title, b.olKey)
+                    return <BookRow key={i} b={b} actions={<>
+                      {!listed && <button onClick={e => { e.stopPropagation(); onAddToTBR({ title: b.title, author: b.author, olKey: b.olKey, coverId: b.coverId }) }} style={{ background: 'var(--rt-surface)', color: 'var(--rt-navy)', border: '1px solid var(--rt-border-md)', borderRadius: 7, padding: '0.3rem 0.55rem', fontSize: '0.68rem', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>+ TBR</button>}
+                      {b.olKey && <button onClick={e => { e.stopPropagation(); chat ? onViewChat(chat.id) : onStartChat(b) }} style={{ background: chat ? 'var(--rt-navy)' : 'var(--rt-amber)', color: '#fff', border: 'none', borderRadius: 7, padding: '0.3rem 0.6rem', fontSize: '0.68rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>{chat ? 'View chat' : 'Start chat'}</button>}
+                    </>} />
+                  })}
+                  <SeeAllBtn count={readingBooks.length} shown={showAllReading} onToggle={() => setShowAllReading(v => !v)} />
+                </>
             }
 
+            {/* ── Both read ── */}
             {mutualBooks.length > 0 && <>
               <SLabel>Both read ({mutualBooks.length})</SLabel>
-              {mutualBooks.slice(0, 10).map((b, i) => {
+              {(showAllMutual ? mutualBooks : mutualBooks.slice(0, 3)).map((b, i) => {
                 const chat = existingChat(b.olKey)
                 return <BookRow key={i} b={b} actions={b.olKey
                   ? <button
@@ -208,6 +283,7 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
                   : null}
                 />
               })}
+              <SeeAllBtn count={mutualBooks.length} shown={showAllMutual} onToggle={() => setShowAllMutual(v => !v)} />
             </>}
           </>}
         </div>

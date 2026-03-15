@@ -263,7 +263,7 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
           book={finishBook}
           user={user}
           onClose={() => setFinishBook(null)}
-          onSaved={changes => { updateBook(finishBook.id, changes); setFinishBook(null) }}
+          onSaved={changes => { updateBook(finishBook.id, changes) }}
         />
       )}
 

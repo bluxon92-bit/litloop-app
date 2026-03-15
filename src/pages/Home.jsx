@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { sb } from '../lib/supabase'
 import { useBooksContext } from '../context/BooksContext'
 import { useSocialContext } from '../context/SocialContext'
 import { useChatContext } from '../context/ChatContext'
@@ -8,16 +9,71 @@ import CoverImage from '../components/books/CoverImage'
 import BookDetailPanel from '../components/books/BookDetailPanel'
 import AddBookModal from '../components/books/AddBookModal'
 import BookSheet, { FinishModal } from '../components/books/BookSheet'
+import ReviewThreadSheet from '../components/ReviewThreadSheet'
 import { IcoOpenBook } from '../components/icons'
 
-export default function Home({ onNavigate, onOpenChatModal }) {
+// ── Engagement bar — likes + comments ─────────────────────────
+function FeedEngagementBar({ entryId, user, onOpenThread }) {
+  const [likes, setLikes]     = useState([])
+  const [commentCount, setCommentCount] = useState(0)
+  const [liking, setLiking]   = useState(false)
+
+  useEffect(() => {
+    if (!entryId) return
+    // Fetch like count + own like
+    sb.from('review_likes').select('id, user_id').eq('entry_id', entryId)
+      .then(({ data }) => setLikes(data || []))
+    // Fetch comment count
+    sb.from('review_comments').select('id', { count: 'exact', head: true }).eq('entry_id', entryId)
+      .then(({ count }) => setCommentCount(count || 0))
+  }, [entryId])
+
+  const myLike = likes.find(l => l.user_id === user?.id)
+
+  async function toggleLike(e) {
+    e.stopPropagation()
+    if (!user || liking) return
+    setLiking(true)
+    if (myLike) {
+      await sb.from('review_likes').delete().eq('id', myLike.id)
+      setLikes(prev => prev.filter(l => l.id !== myLike.id))
+    } else {
+      const { data } = await sb.from('review_likes')
+        .insert({ entry_id: entryId, user_id: user.id })
+        .select('id, user_id').single()
+      if (data) setLikes(prev => [...prev, data])
+    }
+    setLiking(false)
+  }
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', paddingTop: '0.4rem', borderTop: '1px solid var(--rt-border)' }}>
+      <button onClick={toggleLike} disabled={liking}
+        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: myLike ? '#C84B4B' : 'var(--rt-t3)' }}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill={myLike ? '#C84B4B' : 'none'} stroke={myLike ? '#C84B4B' : 'currentColor'} strokeWidth="1.8">
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+        </svg>
+        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: myLike ? '#C84B4B' : 'var(--rt-t3)' }}>{likes.length || ''}</span>
+      </button>
+      <button onClick={e => { e.stopPropagation(); onOpenThread() }}
+        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--rt-t3)' }}>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+        </svg>
+        <span style={{ fontSize: '0.78rem', color: 'var(--rt-t3)' }}>{commentCount || ''}</span>
+      </button>
+    </div>
+  )
+}
+
+export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile }) {
   const { user } = useAuthContext()
   const { books, addBook, updateBook, deleteBook, findDuplicate } = useBooksContext()
-  const { friends, feed, recs, loaded: socialLoaded, myDisplayName } = useSocialContext()
-  const { chats, totalUnread } = useChatContext()
+  const { friends, feed, recs, loaded: socialLoaded, myDisplayName, myAvatarUrl, sendFriendRequest } = useSocialContext()
+  const { chats, totalUnread, startOrOpenChat } = useChatContext()
 
   const [goal, setGoal]                     = useState(loadGoal)
   const [detailBook, setDetailBook]         = useState(null)
+  const [activeReview, setActiveReview]     = useState(null) // review thread sheet
   const [detailLocation, setDetailLocation] = useState(null)
   const [finishBook, setFinishBook]         = useState(null)
   const [editBook, setEditBook]             = useState(null)
@@ -228,6 +284,7 @@ export default function Home({ onNavigate, onOpenChatModal }) {
               const profile     = ev.profiles || null
               const username    = profile?.username    || profile?.display_name || 'friend'
               const displayName = profile?.display_name || profile?.username    || 'friend'
+              const avatarUrl   = profile?.avatar_url   || null
               const colour      = avatarColour(ev.user_id)
               const init        = avatarInitial(displayName)
               const rating      = ev.rating || 0
@@ -235,6 +292,7 @@ export default function Home({ onNavigate, onOpenChatModal }) {
               const reviewText  = ev.review_body || ''
               const coverId     = ev.cover_id || null
               const olKey       = ev.book_ol_key || null
+              const isDnfEvent  = ev.status === 'dnf'
 
               const feedBook = {
                 id: ev.id, title: ev.book_title || 'Unknown book',
@@ -244,35 +302,50 @@ export default function Home({ onNavigate, onOpenChatModal }) {
               }
 
               return (
-                <div key={ev.id} onClick={() => openDetail(feedBook, 'home-feed')}
-                  style={{ display: 'flex', gap: '0.9rem', padding: '0.9rem 0', borderBottom: '1px solid var(--rt-border)', cursor: 'pointer' }}>
-                  {/* Cover — same size as Currently Reading */}
-                  <div style={{ width: 64, height: 92, borderRadius: 7, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.12)' }}>
-                    <CoverImage
-                      coverId={coverId}
-                      olKey={olKey}
-                      title={ev.book_title || ''}
-                      size="M"
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    />
+                <div key={ev.id} style={{ display: 'flex', gap: '0.9rem', padding: '0.9rem 0', borderBottom: '1px solid var(--rt-border)' }}>
+                  {/* Cover */}
+                  <div onClick={() => openDetail(feedBook, 'home-feed')}
+                    style={{ width: 64, height: 92, borderRadius: 7, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.12)', cursor: 'pointer' }}>
+                    <CoverImage coverId={coverId} olKey={olKey} title={ev.book_title || ''} size="M"
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    {/* Stars + avatar + username on one line */}
+                    {/* Stars / DNF badge + avatar + username */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.3rem', flexWrap: 'wrap' }}>
-                      {stars && <span style={{ fontSize: '0.88rem', color: 'var(--rt-amber)', letterSpacing: '0.5px', lineHeight: 1 }}>{stars}</span>}
+                      {isDnfEvent
+                        ? <span style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', background: '#fee2e2', color: '#991b1b', borderRadius: 4, padding: '0.15em 0.5em' }}>Did not finish</span>
+                        : stars && <span style={{ fontSize: '0.88rem', color: 'var(--rt-amber)', letterSpacing: '0.5px', lineHeight: 1 }}>{stars}</span>
+                      }
                       <span style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>by</span>
-                      <div style={{ width: 18, height: 18, borderRadius: '50%', background: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.5rem', fontWeight: 700, color: '#fff', flexShrink: 0 }}>{init}</div>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--rt-t2)' }}>{displayName}{username !== displayName ? ` · @${username}` : ''}</span>
+                      <div
+                        onClick={e => { e.stopPropagation(); onViewFriendProfile?.({ userId: ev.user_id, displayName, username, avatarUrl }) }}
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: onViewFriendProfile ? 'pointer' : 'default' }}
+                      >
+                        <div style={{ width: 18, height: 18, borderRadius: '50%', background: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.5rem', fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden' }}>{avatarUrl ? <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : init}</div>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 600, color: onViewFriendProfile ? 'var(--rt-amber)' : 'var(--rt-t2)', textDecoration: onViewFriendProfile ? 'underline' : 'none', textUnderlineOffset: 2 }}>{displayName}{username !== displayName ? ` · @${username}` : ''}</span>
+                      </div>
                     </div>
-                    {/* Title */}
-                    <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.1rem' }}>{ev.book_title || 'Unknown book'}</div>
-                    {/* Author */}
-                    {ev.book_author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.3rem' }}>{ev.book_author}</div>}
+                    {/* Title + author — clickable to book detail */}
+                    <div onClick={() => openDetail(feedBook, 'home-feed')} style={{ cursor: 'pointer' }}>
+                      <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.1rem' }}>{ev.book_title || 'Unknown book'}</div>
+                      {ev.book_author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.3rem' }}>{ev.book_author}</div>}
+                    </div>
                     {/* Review excerpt */}
                     {reviewText ? (
-                      <div style={{ fontSize: '0.82rem', color: 'var(--rt-t2)', lineHeight: 1.55, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{reviewText}</div>
+                      <div onClick={() => reviewText && setActiveReview({ entryId: ev.id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, olKey, reviewBody: reviewText, rating, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })}
+                        style={{ fontSize: '0.82rem', color: 'var(--rt-t2)', lineHeight: 1.55, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', cursor: 'pointer', marginBottom: '0.5rem' }}>
+                        {reviewText}
+                      </div>
                     ) : (
-                      <div style={{ fontSize: '0.75rem', color: 'var(--rt-t3)', fontStyle: 'italic' }}>finished reading</div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--rt-t3)', fontStyle: 'italic', marginBottom: '0.5rem' }}>finished reading</div>
+                    )}
+                    {/* Engagement bar — only on reviews */}
+                    {reviewText && (
+                      <FeedEngagementBar
+                        entryId={ev.id}
+                        user={user}
+                        onOpenThread={() => setActiveReview({ entryId: ev.id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, olKey, reviewBody: reviewText, rating, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })}
+                      />
                     )}
                   </div>
                 </div>
@@ -283,6 +356,33 @@ export default function Home({ onNavigate, onOpenChatModal }) {
       )}
 
       {/* ── Modals ── */}
+      {activeReview && (
+        <ReviewThreadSheet
+          review={activeReview}
+          user={user}
+          friends={friends}
+          chats={chats}
+          myAvatarUrl={myAvatarUrl}
+          myDisplayName={myDisplayName}
+          onClose={() => setActiveReview(null)}
+          onAddToTBR={() => {
+            addBook({ title: activeReview.bookTitle, author: activeReview.bookAuthor, status: 'tbr', olKey: activeReview.olKey, coverId: activeReview.coverId })
+            setActiveReview(null)
+          }}
+          onStartChat={() => {
+            const r = activeReview
+            startOrOpenChat(r.olKey, r.bookTitle, r.bookAuthor, r.coverId, [r.reviewer.userId])
+            setActiveReview(null)
+          }}
+          onViewChat={chatId => {
+            const c = chats.find(x => x.id === chatId)
+            if (c) onOpenChatModal(c, { title: activeReview.bookTitle })
+            setActiveReview(null)
+          }}
+          onViewProfile={f => { setActiveReview(null); onViewFriendProfile?.(f) }}
+          onAddFriend={f => sendFriendRequest(f.username || f.userId)}
+        />
+      )}
       {detailBook && (
         <BookDetailPanel
           book={detailBook}

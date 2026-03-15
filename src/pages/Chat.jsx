@@ -7,6 +7,7 @@ import { avatarColour, avatarInitial, timeAgo } from '../lib/utils'
 import CoverImage from '../components/books/CoverImage'
 import BookDetailPanel from '../components/books/BookDetailPanel'
 import FriendProfileSheet from '../components/books/FriendProfileSheet'
+import FriendProfilePage from '../pages/FriendProfilePage'
 import AddBookModal from '../components/books/AddBookModal'
 import { IcoOpenBook, IcoChat, IcoDoorExit, IcoUsers } from '../components/icons'
 
@@ -16,57 +17,48 @@ const THEIR_BUBBLE = { bg: '#F5F0E8', color: '#1a2744' }   // pale cream
 
 
 // ── Participant avatars row ───────────────────────────────────
-function ParticipantsRow({ participants, currentUserId, onAdd }) {
+function ParticipantsRow({ participants, currentUserId }) {
   const [expanded, setExpanded] = useState(false)
   const others = participants.filter(p => p.userId !== currentUserId)
-  const MAX_SHOW = 3
-  const visible  = others.slice(0, MAX_SHOW)
-  const overflow = others.length - MAX_SHOW
+
+  if (!others.length) return null
 
   return (
-    <div style={{ position: 'relative' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'nowrap' }}>
-        {visible.map(p => (
+    <div>
+      {/* Avatar row — tap to toggle names */}
+      <div
+        onClick={() => setExpanded(v => !v)}
+        style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', userSelect: 'none' }}
+      >
+        {others.map(p => (
           <div
             key={p.userId}
             title={p.displayName}
             style={{
-              width: 22, height: 22, borderRadius: '50%',
+              width: 30, height: 30, borderRadius: '50%',
               background: avatarColour(p.userId),
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontSize: '0.5rem', fontWeight: 700, color: '#fff',
-              border: '1.5px solid rgba(255,255,255,0.3)', flexShrink: 0,
+              fontSize: '0.6rem', fontWeight: 700, color: '#fff',
+              border: '2px solid rgba(255,255,255,0.25)', flexShrink: 0,
+              overflow: 'hidden',
             }}
-          >{avatarInitial(p.displayName)}</div>
+          >{p.avatarUrl ? <img src={p.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : avatarInitial(p.displayName)}</div>
         ))}
-        {overflow > 0 && (
-          <button
-            onClick={() => setExpanded(e => !e)}
-            style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 99, padding: '0.1rem 0.45rem', fontSize: '0.58rem', fontWeight: 700, color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}
-          >+{overflow}</button>
-        )}
-        <button
-          onClick={onAdd}
-          style={{ marginLeft: '0.2rem', background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 99, padding: '0.15rem 0.5rem', fontSize: '0.6rem', fontWeight: 700, color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}
-        >+ Add</button>
+        <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.4)', marginLeft: '0.2rem' }}>
+          {expanded ? '▴' : '▾'}
+        </span>
       </div>
 
-      {/* Expanded participant list */}
-      {expanded && others.length > MAX_SHOW && (
-        <div
-          onClick={() => setExpanded(false)}
-          style={{
-            position: 'absolute', top: '100%', left: 0, zIndex: 10, marginTop: '0.35rem',
-            background: 'var(--rt-white)', borderRadius: 'var(--rt-r3)',
-            border: '1px solid var(--rt-border-md)', boxShadow: 'var(--rt-s2)',
-            padding: '0.5rem 0.75rem', minWidth: 160,
-          }}
-        >
+      {/* Expanded names */}
+      {expanded && (
+        <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
           {others.map(p => (
-            <div key={p.userId} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.25rem 0' }}>
-              <div style={{ width: 20, height: 20, borderRadius: '50%', background: avatarColour(p.userId), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.5rem', fontWeight: 700, color: '#fff', flexShrink: 0 }}>{avatarInitial(p.displayName)}</div>
-              <span style={{ fontSize: '0.78rem', color: 'var(--rt-navy)', fontWeight: 500 }}>{p.displayName}</span>
-              {p.username && <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)' }}>@{p.username}</span>}
+            <div key={p.userId} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: 'rgba(255,255,255,0.1)', borderRadius: 99, padding: '0.2rem 0.55rem' }}>
+              <div style={{ width: 16, height: 16, borderRadius: '50%', background: avatarColour(p.userId), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.42rem', fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden' }}>
+                {p.avatarUrl ? <img src={p.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : avatarInitial(p.displayName)}
+              </div>
+              <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.8)', fontWeight: 500 }}>{p.displayName}</span>
+              {p.username && <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.4)' }}>@{p.username}</span>}
             </div>
           ))}
         </div>
@@ -292,6 +284,14 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
               {showMenu && (
                 <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: 'var(--rt-white)', borderRadius: 'var(--rt-r3)', border: '1px solid var(--rt-border)', boxShadow: '0 8px 24px rgba(10,15,30,0.18)', zIndex: 10, minWidth: 160, overflow: 'hidden' }}
                   onClick={e => e.stopPropagation()}>
+                  <button onClick={async () => {
+                    const p = await loadParticipants(chat.id)
+                    setParticipants(p); setParticipantsLoaded(true)
+                    setShowAddPpl(true); setShowMenu(false)
+                  }}
+                    style={{ width: '100%', padding: '0.75rem 1rem', background: 'none', border: 'none', textAlign: 'left', fontSize: '0.85rem', color: 'var(--rt-navy)', fontWeight: 600, cursor: 'pointer', borderBottom: '1px solid var(--rt-border)' }}>
+                    + Add members
+                  </button>
                   <button onClick={() => { setMenuAction('leave'); setShowMenu(false) }}
                     style={{ width: '100%', padding: '0.75rem 1rem', background: 'none', border: 'none', textAlign: 'left', fontSize: '0.85rem', color: '#dc2626', fontWeight: 600, cursor: 'pointer' }}>
                     <IcoDoorExit size={14} color="#dc2626" style={{ marginRight: '0.35rem', verticalAlign: 'middle' }} /> Leave chat
@@ -317,13 +317,6 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
             <ParticipantsRow
               participants={participants}
               currentUserId={user?.id}
-              onAdd={async () => {
-                // Always ensure fresh participants before opening add modal
-                const p = await loadParticipants(chat.id)
-                setParticipants(p)
-                setParticipantsLoaded(true)
-                setShowAddPpl(true)
-              }}
             />
           </div>
         </div>
@@ -448,10 +441,11 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend }) 
   const [addFriendInput, setAddFriendInput]   = useState('')
   const [addFriendMsg, setAddFriendMsg]       = useState(null)
   const [addFriendLoading, setAddFriendLoading] = useState(false)
-  const [dismissedAccepted, setDismissedAccepted] = useState(new Set()) // friendshipIds dismissed by user
+  const [dismissedAccepted, setDismissedAccepted] = useState(new Set())
   const [friendSheet, setFriendSheet]         = useState(null)
+  const [friendProfileFriend, setFriendProfileFriend] = useState(null) // friend to view full profile
   const [addModal, setAddModal]               = useState(false)
-  const [activeChatModal, setActiveChatModal] = useState(null)  // chat object for modal
+  const [activeChatModal, setActiveChatModal] = useState(null)
 
   function openChatModal(chat) {
     openThread(chat.id)
@@ -483,6 +477,22 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend }) 
   function findExistingChat(olKey) {
     if (!olKey || !chats) return null
     return chats.find(c => c.bookOlKey === olKey) || null
+  }
+
+  // ── Friend profile full page overlay ──
+  if (friendProfileFriend) {
+    return (
+      <FriendProfilePage
+        friend={friendProfileFriend}
+        chats={chats}
+        user={user}
+        books={books}
+        onBack={() => setFriendProfileFriend(null)}
+        onStartChat={b => startOrOpenChat(b.olKey, b.title, b.author, b.coverId, [friendProfileFriend.userId])}
+        onViewChat={chatId => { const c = chats.find(x => x.id === chatId); if (c) openChatModal(c) }}
+        onAddToTBR={({ title, author, olKey, coverId }) => addBook({ title, author, status: 'tbr', olKey, coverId })}
+      />
+    )
   }
 
   return (
@@ -568,11 +578,14 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend }) 
               </div>
             ) : (
               chats.map(chat => {
+                // Build participant display from friends list
+                const otherIds = (chat.participantIds || []).filter(id => id !== user?.id)
+                const chatFriends = otherIds.map(id => friends.find(f => f.userId === id)).filter(Boolean)
                 return (
                   <div
                     key={chat.id}
                     className="rt-card"
-                    style={{ display: 'flex', gap: '0.85rem', alignItems: 'center', cursor: 'pointer', marginBottom: '0.5rem' }}
+                    style={{ display: 'flex', gap: '0.85rem', alignItems: 'flex-start', cursor: 'pointer', marginBottom: '0.5rem' }}
                     onClick={() => openChatModal(chat)}
                   >
                     <CoverImage
@@ -580,17 +593,34 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend }) 
                       olKey={chat.bookOlKey}
                       title={chat.bookTitle}
                       size="M"
-                      style={{ borderRadius: 6 }}
+                      style={{ borderRadius: 6, flexShrink: 0 }}
                     />
-                    <div className="rt-chat-list-body">
-                      {chat.chatName && <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--rt-amber)', marginBottom: '0.1rem' }}>{chat.chatName}</div>}
-                      <div className="rt-chat-list-title">{chat.bookTitle}</div>
+                    <div className="rt-chat-list-body" style={{ flex: 1, minWidth: 0 }}>
+                      {/* Top row: chat name + participant avatars */}
+                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.1rem' }}>
+                        <div style={{ minWidth: 0 }}>
+                          {chat.chatName && <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--rt-amber)', marginBottom: '0.1rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.chatName}</div>}
+                          <div className="rt-chat-list-title">{chat.bookTitle}</div>
+                        </div>
+                        {/* Participant avatars — top right */}
+                        {chatFriends.length > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.1rem', flexShrink: 0, marginTop: '0.1rem' }}>
+                            {chatFriends.slice(0, 4).map(f => (
+                              <div key={f.userId} title={f.displayName} style={{ width: 18, height: 18, borderRadius: '50%', background: avatarColour(f.userId), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.42rem', fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden', border: '1.5px solid var(--rt-white)' }}>
+                                {f.avatarUrl ? <img src={f.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : avatarInitial(f.displayName)}
+                              </div>
+                            ))}
+                            {otherIds.length > 4 && <span style={{ fontSize: '0.6rem', color: 'var(--rt-t3)', marginLeft: '0.15rem' }}>+{otherIds.length - 4}</span>}
+                          </div>
+                        )}
+                      </div>
                       {chat.bookAuthor && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.15rem' }}>{chat.bookAuthor}</div>}
                       {chat.lastMessagePreview && <div className="rt-chat-list-preview">{chat.lastMessagePreview}</div>}
-                    </div>
-                    <div className="rt-chat-list-meta">
-                      {chat.lastMessageAt && <div>{timeAgo(chat.lastMessageAt)}</div>}
-                      {chat.unread > 0 && <div className="rt-chat-unread">{chat.unread}</div>}
+                      {/* Bottom row: timestamp + unread — bottom right */}
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '0.4rem', marginTop: '0.3rem' }}>
+                        {chat.unread > 0 && <div className="rt-chat-unread">{chat.unread}</div>}
+                        {chat.lastMessageAt && <div style={{ fontSize: '0.68rem', color: 'var(--rt-t3)' }}>{timeAgo(chat.lastMessageAt)}</div>}
+                      </div>
                     </div>
                   </div>
                 )
@@ -700,6 +730,7 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend }) 
             const stub = { id: chatId, bookTitle: book?.title, bookAuthor: book?.author, coverIdRaw: book?.coverId, bookOlKey: book?.olKey }
             openChatModal(chats.find(c => c.id === chatId) || stub)
           }}
+          onViewProfile={friend => { setFriendProfileFriend(friend) }}
         />
       )}
 

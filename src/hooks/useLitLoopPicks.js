@@ -36,7 +36,7 @@ const DATA_TTL_MS = 30 * 24 * 60 * 60 * 1000 // 30 days
 
 function readFeedCache() {
   try {
-    const raw = sessionStorage.getItem(FEED_CACHE_KEY)
+    const raw = localStorage.getItem(FEED_CACHE_KEY)
     if (!raw) return null
     const { feed, coverCache, userId: cachedUid, activeMood } = JSON.parse(raw)
     return { feed, coverCache, userId: cachedUid, activeMood }
@@ -45,7 +45,7 @@ function readFeedCache() {
 
 function writeFeedCache(userId, feed, coverCache, activeMood) {
   try {
-    sessionStorage.setItem(FEED_CACHE_KEY, JSON.stringify({ userId, feed, coverCache, activeMood }))
+    localStorage.setItem(FEED_CACHE_KEY, JSON.stringify({ userId, feed, coverCache, activeMood }))
   } catch {}
 }
 
@@ -247,11 +247,11 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
         const next = { ...prev, [book.ol_key]: entry }
         coverCacheRef.current = next
         try {
-          const raw = sessionStorage.getItem(FEED_CACHE_KEY)
+          const raw = localStorage.getItem(FEED_CACHE_KEY)
           if (raw) {
             const cached = JSON.parse(raw)
             cached.coverCache = next
-            sessionStorage.setItem(FEED_CACHE_KEY, JSON.stringify(cached))
+            localStorage.setItem(FEED_CACHE_KEY, JSON.stringify(cached))
           }
         } catch {}
         return next
@@ -286,14 +286,14 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
 
   function shuffleFeed() {
     // Clear session feed cache and force a fresh shuffle
-    try { sessionStorage.removeItem(FEED_CACHE_KEY) } catch {}
+    try { localStorage.removeItem(FEED_CACHE_KEY) } catch {}
     hasFeedRef.current = false
     buildFeedFromState(activeMood, true)
   }
 
   function setActiveMoodAndRebuild(mood) {
     // Clear session cache, update mood state, and immediately build with new mood
-    try { sessionStorage.removeItem(FEED_CACHE_KEY) } catch {}
+    try { localStorage.removeItem(FEED_CACHE_KEY) } catch {}
     hasFeedRef.current = false
     setActiveMood(mood)
     buildFeedFromState(mood, true)

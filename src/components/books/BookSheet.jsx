@@ -298,11 +298,12 @@ function AmberBtn({ onClick, disabled, children }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// FINISH WORKFLOW — 3 steps embedded in one ModalShell
-// step 0 = Rate  |  step 1 = Write  |  step 2 = Done
-// From step 2: recommend (step 3) or chat (step 4), both return to step 2
+// FINISH WORKFLOW — 2 steps
+// step 0 = How was it? (stars + date + review + genre + private notes)
+// step 1 = Share (recommend friends — book already saved)
+// DNF: saves immediately from step 0, no share step
 // ─────────────────────────────────────────────────────────────
-const FINISH_STEPS = ['RATE IT', 'WRITE', 'SHARE']
+const FINISH_STEPS = ['HOW WAS IT?', 'SHARE']
 
 // ── FriendItem — must be defined outside FinishModal to avoid React #310 ──
 function FriendItem({ friend, dateRead, selected, onToggle }) {
@@ -323,7 +324,8 @@ function FriendItem({ friend, dateRead, selected, onToggle }) {
         width: 34, height: 34, borderRadius: '50%', background: colour,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         fontSize: '0.85rem', fontWeight: 700, color: '#fff', flexShrink: 0,
-      }}>{avatarInitial(friend.displayName)}</div>
+        overflow: 'hidden',
+      }}>{friend.avatarUrl ? <img src={friend.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : avatarInitial(friend.displayName)}</div>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--rt-navy)' }}>{friend.displayName}</div>
         <div style={{ fontSize: '0.7rem', color: 'var(--rt-t3)' }}>
@@ -344,47 +346,49 @@ function FriendItem({ friend, dateRead, selected, onToggle }) {
 export function FinishModal({ book, user, onClose, onSaved }) {
   const { friends, sendRecommendation, feed } = useSocialContext()
 
-const [step, setStep]         = useState(0)
-const [rating, setRating]     = useState(0)
-const [isDnf, setIsDnf]       = useState(false)
-const [date, setDate]         = useState(new Date().toISOString().split('T')[0])
-const [genre, setGenre]       = useState(book.genre || '')
-const [shareReview, setShareReview] = useState(false)
-const [reviewText, setReviewText]   = useState('')
-const [privateNotes, setPrivateNotes] = useState('')
-const [committed, setCommitted] = useState(null)
+  const [step, setStep]               = useState(0)
+  const [rating, setRating]           = useState(0)
+  const [isDnf, setIsDnf]             = useState(false)
+  const [date, setDate]               = useState(new Date().toISOString().split('T')[0])
+  const [genre, setGenre]             = useState(book.genre || '')
+  const [reviewText, setReviewText]   = useState('')
+  const [showPrivate, setShowPrivate] = useState(false)
+  const [privateNotes, setPrivateNotes] = useState('')
+  const [saving, setSaving]           = useState(false)
 
-// Step 2 state (must be declared before any returns)
-const [selectedIds, setSelectedIds]   = useState([])
-const [friendSearch, setFriendSearch] = useState('')
-const [shareMsg, setShareMsg]         = useState('')
-const [shareSent, setShareSent]       = useState(false)
-const [shareSending, setShareSending] = useState(false)
-const [shareError, setShareError]     = useState(null)
-const [saving, setSaving]             = useState(false)
-
-
+  // Step 1 (share) state — declared before any early returns
+  const [selectedIds, setSelectedIds]   = useState([])
+  const [friendSearch, setFriendSearch] = useState('')
+  const [shareMsg, setShareMsg]         = useState('')
+  const [shareSent, setShareSent]       = useState(false)
+  const [shareSending, setShareSending] = useState(false)
+  const [shareError, setShareError]     = useState(null)
 
   async function commitBook() {
+    setSaving(true)
     const status = isDnf ? 'dnf' : 'read'
+    // DNF: only post review to feed if they wrote one
+    const hasReview = reviewText.trim().length > 0
     const changes = {
       status,
       dateRead:     date,
       rating:       status === 'read' ? (rating || null) : null,
       notes:        privateNotes.trim() || null,
-      reviewBody:   (shareReview && reviewText.trim()) ? reviewText.trim() : null,
-      reviewPublic: shareReview && !!reviewText.trim(),
+      reviewBody:   hasReview ? reviewText.trim() : null,
+      reviewPublic: hasReview,
       genre:        genre || book.genre || null,
       updatedAt:    new Date().toISOString(),
     }
-    setCommitted(changes)
-    // Persist via context (updateBook handles cloud sync)
-    onSaved(changes)   // moves book to history in local state
-    setStep(2)
+    onSaved(changes)
+    setSaving(false)
+    if (isDnf) {
+      onClose()
+    } else {
+      setStep(1)
+    }
   }
 
-
-  // ── Step 0 — Rate it ──
+  // ── Step 0 — How was it? ──
   if (step === 0) {
     return (
       <ModalShell onClose={onClose} maxWidth={520}>
@@ -392,97 +396,72 @@ const [saving, setSaving]             = useState(false)
           stepBar={<StepBar steps={FINISH_STEPS} current={0} />}
         />
         <div style={{ overflowY: 'auto', flex: 1, padding: '1.25rem 1rem' }}>
-          <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '1rem' }}>RATE IT</div>
 
-          {/* Stars */}
-          <div style={{ marginBottom: '1.25rem' }}>
-            <div style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.6rem' }}>How many stars?</div>
-            <div style={{ display: 'flex', justifyContent: 'center' }}>
-              <Stars value={rating} onChange={setRating} size="2.4rem" />
-            </div>
-          </div>
-
-          {/* DNF pill */}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.25rem' }}>
+          {/* DNF toggle — top right */}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1rem' }}>
             <button
               onClick={() => setIsDnf(p => !p)}
               style={{
                 display: 'flex', alignItems: 'center', gap: '0.4rem',
-                background: isDnf ? 'var(--rt-navy)' : 'var(--rt-cream)',
-                border: `1.5px solid ${isDnf ? 'var(--rt-navy)' : 'var(--rt-border-md)'}`,
+                background: isDnf ? '#991b1b' : 'var(--rt-cream)',
+                border: `1.5px solid ${isDnf ? '#991b1b' : 'var(--rt-border-md)'}`,
                 borderRadius: 99, padding: '0.3rem 0.85rem',
                 fontSize: '0.75rem', fontWeight: 700,
                 color: isDnf ? '#fff' : 'var(--rt-t2)',
                 cursor: 'pointer', transition: 'all 0.15s',
               }}
             >
-              <div style={{
-                width: 8, height: 8, borderRadius: '50%',
-                background: isDnf ? '#fff' : 'var(--rt-t3)',
-              }} />
-              DNF
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: isDnf ? '#fff' : 'var(--rt-t3)' }} />
+              Did not finish
             </button>
           </div>
 
-          {/* Date */}
-          <div>
-            <div style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>Date finished</div>
+          {/* Stars — hidden for DNF */}
+          {!isDnf && (
+            <div style={{ marginBottom: '1.25rem', textAlign: 'center' }}>
+              <div style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.6rem' }}>Your rating</div>
+              <Stars value={rating} onChange={setRating} size="2.4rem" />
+            </div>
+          )}
+
+          {/* Date finished */}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>
+              {isDnf ? 'Date stopped' : 'Date finished'}
+            </div>
             <input
               type="date" value={date} onChange={e => setDate(e.target.value)}
               style={{ width: '100%', boxSizing: 'border-box', padding: '0.7rem 0.85rem', border: '1.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)', fontFamily: 'var(--rt-font-body)', fontSize: '0.88rem', color: 'var(--rt-navy)', background: 'var(--rt-cream)', outline: 'none' }}
             />
           </div>
-        </div>
-        <SheetFooter
-          left={<GhostBtn onClick={onClose}>Cancel</GhostBtn>}
-          right={<PrimaryBtn onClick={() => isDnf ? commitBook() : setStep(1)}>{isDnf ? 'Mark as DNF' : 'Next →'}</PrimaryBtn>}
-        />
-      </ModalShell>
-    )
-  }
 
-  // ── Step 1 — Write ──
-  if (step === 1) {
-    return (
-      <ModalShell onClose={onClose} maxWidth={520}>
-        <SheetHeader book={book} onClose={onClose}
-          stepBar={<StepBar steps={FINISH_STEPS} current={1} />}
-        />
-        <div style={{ overflowY: 'auto', flex: 1, padding: '1.25rem 1rem' }}>
-          <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.85rem' }}>WRITE</div>
-
-          {/* Share a review toggle */}
-          <ToggleSwitch
-            checked={shareReview}
-            onChange={setShareReview}
-            label="Share a review"
-            sub="Friends can see this and comment"
-          />
-
-          {/* Public review textarea — only when toggled on */}
-          {shareReview && (
-            <div style={{ marginBottom: '1rem' }}>
-              <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--rt-navy)', marginBottom: '0.4rem' }}>
-                Your review <span style={{ fontWeight: 400, color: 'var(--rt-t3)' }}>(public)</span>
+          {/* Review — main field, always visible */}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+              <div style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--rt-navy)' }}>
+                {isDnf ? 'Why didn\'t you finish?' : 'Your review'}
               </div>
-              <textarea
-                rows={4} value={reviewText} onChange={e => setReviewText(e.target.value)}
-                placeholder="Write something others would find useful…"
-                style={{ width: '100%', boxSizing: 'border-box', border: '1.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)', padding: '0.65rem 0.85rem', fontFamily: 'var(--rt-font-body)', fontSize: '0.85rem', color: 'var(--rt-navy)', background: 'var(--rt-white)', resize: 'none', outline: 'none' }}
-              />
+              {!isDnf && (
+                <div style={{ fontSize: '0.65rem', color: 'var(--rt-teal)', fontWeight: 600 }}>
+                  👥 Shared with friends
+                </div>
+              )}
             </div>
-          )}
-
-          {/* Private notes divider */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', margin: '0.75rem 0' }}>
-            <div style={{ flex: 1, height: 1, background: 'var(--rt-border)' }} />
-            <span style={{ fontSize: '0.68rem', color: 'var(--rt-t3)', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.25rem' }}><IcoLock size={10} color="var(--rt-t3)" /> Private notes</span>
-            <div style={{ flex: 1, height: 1, background: 'var(--rt-border)' }} />
+            <textarea
+              rows={4} value={reviewText} onChange={e => setReviewText(e.target.value)}
+              placeholder={isDnf ? 'What put you off? (optional)' : 'What did you think? Your friends would love to know…'}
+              style={{ width: '100%', boxSizing: 'border-box', border: '1.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)', padding: '0.65rem 0.85rem', fontFamily: 'var(--rt-font-body)', fontSize: '0.85rem', color: 'var(--rt-navy)', background: 'var(--rt-white)', resize: 'none', outline: 'none' }}
+            />
+            {isDnf && reviewText.trim() && (
+              <div style={{ marginTop: '0.35rem', fontSize: '0.68rem', color: 'var(--rt-t3)' }}>
+                This will appear in your friends' feed marked as Did Not Finish.
+              </div>
+            )}
           </div>
 
           {/* Genre */}
-          <div style={{ marginBottom: '0.85rem' }}>
-            <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.4rem' }}>Genre</div>
+          <div style={{ marginBottom: '1rem' }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>Genre</div>
             <select
               value={genre} onChange={e => setGenre(e.target.value)}
               style={{ width: '100%', padding: '0.65rem 0.85rem', border: '1.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)', fontFamily: 'var(--rt-font-body)', fontSize: '0.85rem', color: 'var(--rt-navy)', background: 'var(--rt-white)', outline: 'none' }}
@@ -492,28 +471,44 @@ const [saving, setSaving]             = useState(false)
             </select>
           </div>
 
-          {/* Private notes textarea */}
+          {/* Private notes — behind toggle */}
           <div>
-            <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--rt-navy)', marginBottom: '0.15rem' }}>
-              Only you can see this
-              <span style={{ fontWeight: 400, color: 'var(--rt-t3)', textTransform: 'none', letterSpacing: 0 }}> — helps Claude recommend books</span>
-            </div>
-            <textarea
-              rows={4} value={privateNotes} onChange={e => setPrivateNotes(e.target.value)}
-              placeholder="What did you think? Even a few words helps…"
-              style={{ width: '100%', boxSizing: 'border-box', border: '1.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)', padding: '0.65rem 0.85rem', fontFamily: 'var(--rt-font-body)', fontSize: '0.85rem', color: 'var(--rt-navy)', background: 'var(--rt-cream)', resize: 'none', outline: 'none' }}
-            />
+            <button
+              onClick={() => setShowPrivate(p => !p)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: '0.5rem', width: '100%',
+                background: 'none', border: 'none', cursor: 'pointer', padding: '0.5rem 0',
+              }}
+            >
+              <IcoLock size={12} color="var(--rt-t3)" />
+              <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--rt-t3)', letterSpacing: '0.05em' }}>
+                {showPrivate ? '▾' : '▸'} Private thoughts
+              </span>
+              <span style={{ fontSize: '0.68rem', color: 'var(--rt-t3)', fontWeight: 400 }}>— only you can see this</span>
+            </button>
+            {showPrivate && (
+              <textarea
+                rows={3} value={privateNotes} onChange={e => setPrivateNotes(e.target.value)}
+                placeholder="Notes to yourself — context, quotes, feelings…"
+                style={{ marginTop: '0.4rem', width: '100%', boxSizing: 'border-box', border: '1.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)', padding: '0.65rem 0.85rem', fontFamily: 'var(--rt-font-body)', fontSize: '0.85rem', color: 'var(--rt-navy)', background: 'var(--rt-cream)', resize: 'none', outline: 'none' }}
+              />
+            )}
           </div>
+
         </div>
         <SheetFooter
-          left={<GhostBtn onClick={() => setStep(0)}>← Back</GhostBtn>}
-          right={<PrimaryBtn onClick={() => setStep(2)}>Next →</PrimaryBtn>}
+          left={<GhostBtn onClick={onClose}>Cancel</GhostBtn>}
+          right={
+            <PrimaryBtn onClick={commitBook} disabled={saving}>
+              {saving ? 'Saving…' : isDnf ? 'Save' : 'Save & Continue →'}
+            </PrimaryBtn>
+          }
         />
       </ModalShell>
     )
   }
 
-  // ── Step 2 — Share ──
+  // ── Step 1 — Share ──
   // Friends who've read this book (matched by olKey in feed)
   const friendsWhoRead = book.olKey
     ? friends.filter(f =>
@@ -553,16 +548,10 @@ const [saving, setSaving]             = useState(false)
     setShareMsg('')
   }
 
-  async function handleSave() {
-    setSaving(true)
-    await commitBook()
-    setSaving(false)
-  }
-
   return (
     <ModalShell onClose={onClose} maxWidth={520}>
       <SheetHeader book={book} onClose={onClose}
-        stepBar={<StepBar steps={FINISH_STEPS} current={2} />}
+        stepBar={<StepBar steps={FINISH_STEPS} current={1} />}
       />
       <div style={{ overflowY: 'auto', flex: 1, padding: '1.1rem 1rem 0.5rem' }}>
         <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.85rem' }}>SHARE</div>
@@ -656,8 +645,8 @@ const [saving, setSaving]             = useState(false)
       </div>
 
       <SheetFooter
-        left={<GhostBtn onClick={() => setStep(1)}>← Back</GhostBtn>}
-        right={<PrimaryBtn onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save →'}</PrimaryBtn>}
+        left={null}
+        right={<PrimaryBtn onClick={onClose}>Done ✓</PrimaryBtn>}
       />
     </ModalShell>
   )

@@ -34,7 +34,7 @@ export default function AddBookModal({ defaultStatus, books, onAdd, onClose, use
   const [genre, setGenre]   = useState('')
   const [notes, setNotes]   = useState('')
   const [review, setReview] = useState('')
-  const [isPublic, setIsPublic] = useState(false)
+  const [showPrivateNotes, setShowPrivateNotes] = useState(false)
   const [date, setDate]     = useState(new Date().toISOString().split('T')[0])
   const [olKey, setOlKey]   = useState(null)
   const [coverId, setCoverId] = useState(null)
@@ -108,8 +108,9 @@ async function searchOL(q) {
         rating:       status === 'read' ? (rating || null) : null,
         genre:        genre || null,
         notes:        notes.trim() || null,
-        reviewBody:   (isPublic && review.trim()) ? review.trim() : null,
-        reviewPublic: isPublic && !!review.trim(),
+        reviewBody:   review.trim() || null,
+        reviewPublic: !!review.trim(),
+        notes:        (showPrivateNotes && notes.trim()) ? notes.trim() : null,
         dateRead:     status === 'read' ? (date || null) : null,
         dateStarted:  status === 'reading' ? new Date().toISOString().split('T')[0] : null,
         olKey:        olKey || null,
@@ -132,8 +133,9 @@ async function searchOL(q) {
       rating:       status === 'read' ? (rating || null) : null,
       genre:        genre || null,
       notes:        notes.trim() || null,
-      reviewBody:   (isPublic && review.trim()) ? review.trim() : null,
-      reviewPublic: isPublic && !!review.trim(),
+      reviewBody:   review.trim() || null,
+      reviewPublic: !!review.trim(),
+      notes:        (showPrivateNotes && notes.trim()) ? notes.trim() : null,
       dateRead:     status === 'read' ? (date || null) : null,
       dateStarted:  status === 'reading' ? new Date().toISOString().split('T')[0] : null,
       olKey:        olKey || null,
@@ -295,33 +297,41 @@ async function searchOL(q) {
 
         {(status === 'read' || status === 'reading') && (
           <>
-            <div style={{ marginBottom: '1rem' }}>
-              <label className="rt-field-label">Private notes</label>
-              <textarea
-                className="rt-textarea" rows={3} placeholder="Your private notes…"
-                value={notes} onChange={e => setNotes(e.target.value)}
-                style={{ width: '100%', resize: 'none' }}
-              />
-            </div>
             {status === 'read' && (
-              <>
-                <div style={{ marginBottom: '0.5rem' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', userSelect: 'none' }}>
-                    <input type="checkbox" checked={isPublic} onChange={e => setIsPublic(e.target.checked)} />
-                    <span style={{ fontSize: '0.85rem', color: 'var(--rt-navy)' }}>Share a public review</span>
-                  </label>
+              <div style={{ marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                  <label className="rt-field-label" style={{ margin: 0 }}>Your review</label>
+                  <span style={{ fontSize: '0.65rem', color: 'var(--rt-teal)', fontWeight: 600 }}>👥 Shared with friends</span>
                 </div>
-                {isPublic && (
-                  <div style={{ marginBottom: '1rem' }}>
-                    <textarea
-                      className="rt-textarea" rows={4} placeholder="Write your review…"
-                      value={review} onChange={e => setReview(e.target.value)}
-                      style={{ width: '100%', resize: 'none' }}
-                    />
-                  </div>
-                )}
-              </>
+                <textarea
+                  className="rt-textarea" rows={4} placeholder="What did you think? Your friends would love to know…"
+                  value={review} onChange={e => setReview(e.target.value)}
+                  style={{ width: '100%', resize: 'none' }}
+                />
+              </div>
             )}
+            <div style={{ marginBottom: '0.5rem' }}>
+              <button
+                type="button"
+                onClick={() => setShowPrivateNotes(p => !p)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '0.5rem',
+                  background: 'none', border: 'none', cursor: 'pointer', padding: '0.4rem 0',
+                }}
+              >
+                <span style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', fontWeight: 700 }}>
+                  {showPrivateNotes ? '▾' : '▸'} 🔒 Private thoughts
+                </span>
+                <span style={{ fontSize: '0.68rem', color: 'var(--rt-t3)', fontWeight: 400 }}>— only you can see this</span>
+              </button>
+              {showPrivateNotes && (
+                <textarea
+                  className="rt-textarea" rows={3} placeholder="Notes to yourself — context, quotes, feelings…"
+                  value={notes} onChange={e => setNotes(e.target.value)}
+                  style={{ width: '100%', resize: 'none' }}
+                />
+              )}
+            </div>
           </>
         )}
 

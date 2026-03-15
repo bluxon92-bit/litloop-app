@@ -161,6 +161,7 @@ function LitLoopPicksSection({ feed, loading, moods, activeMood, setActiveMood, 
 function BookModal({ book, added, dupMsg, onReread, onClose, onAddToTBR, onRecommend, onChat, onDismiss }) {
   const [desc, setDesc]               = useState('')
   const [descLoading, setDescLoading] = useState(true)
+  const [showFullDesc, setShowFullDesc] = useState(false)
 
   useEffect(() => {
     setDesc(''); setDescLoading(true)
@@ -179,7 +180,7 @@ function BookModal({ book, added, dupMsg, onReread, onClose, onAddToTBR, onRecom
     async function load() {
       try {
         const cacheKey = `litloop_desc_${book._key || book.title}`
-        const cached = sessionStorage.getItem(cacheKey)
+        const cached = localStorage.getItem(cacheKey)
         if (cached) { if (!cancelled) { setDesc(cached); setDescLoading(false) }; return }
 
         // 1. Try with provided olKey first
@@ -197,7 +198,7 @@ function BookModal({ book, added, dupMsg, onReread, onClose, onAddToTBR, onRecom
         }
 
         if (description) {
-          try { sessionStorage.setItem(cacheKey, description) } catch {}
+          try { localStorage.setItem(cacheKey, description) } catch {}
         }
         if (!cancelled) setDesc(description)
       } catch {}
@@ -208,7 +209,7 @@ function BookModal({ book, added, dupMsg, onReread, onClose, onAddToTBR, onRecom
   }, [book._key, book.title, book.olKey])
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} className="rt-modal-backdrop" onClick={onClose}>
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} className="rt-modal-backdrop" onClick={onClose}>
       <style>{`@media (min-width: 768px) { .rt-modal-backdrop { align-items: center !important; } .rt-modal-sheet { border-radius: 16px !important; max-height: 80vh !important; } }`}</style>
       <div className="rt-modal-sheet" style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
         <div style={{ background: 'linear-gradient(160deg, #111C35 0%, var(--rt-navy) 100%)', padding: '1.25rem', display: 'flex', gap: '1rem', alignItems: 'flex-start', flexShrink: 0 }}>
@@ -249,7 +250,19 @@ function BookModal({ book, added, dupMsg, onReread, onClose, onAddToTBR, onRecom
             {descLoading
               ? <div style={{ color: 'var(--rt-t3)', fontSize: '0.82rem' }}>Loading…</div>
               : desc
-              ? <p style={{ fontSize: '0.88rem', color: 'var(--rt-t2)', lineHeight: 1.65, margin: 0 }}>{desc.length > 500 ? desc.slice(0, 500) + '…' : desc}</p>
+              ? <>
+                  <p style={{ fontSize: '0.88rem', color: 'var(--rt-t2)', lineHeight: 1.65, margin: 0 }}>
+                    {showFullDesc || desc.length <= 500 ? desc : desc.slice(0, 500) + '…'}
+                  </p>
+                  {desc.length > 500 && (
+                    <button
+                      onClick={() => setShowFullDesc(v => !v)}
+                      style={{ background: 'none', border: 'none', padding: '0.3rem 0', fontSize: '0.82rem', color: 'var(--rt-amber)', fontWeight: 700, cursor: 'pointer', display: 'block', marginTop: '0.25rem' }}
+                    >
+                      {showFullDesc ? 'Show less' : 'Read more'}
+                    </button>
+                  )}
+                </>
               : <p style={{ fontSize: '0.85rem', color: 'var(--rt-t3)', fontStyle: 'italic', margin: 0 }}>No description available.</p>
             }
           </div>

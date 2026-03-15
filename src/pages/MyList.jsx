@@ -363,7 +363,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
           book={editBook}
           user={user}
           onClose={() => setEditBook(null)}
-          onSaved={changes => { updateBook(editBook.id, changes); setEditBook(null) }}
+          onSaved={changes => { updateBook(editBook.id, changes) }}
         />
       )}
 

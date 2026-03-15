@@ -3,10 +3,11 @@ import { sb } from '../lib/supabase'
 
 export function useSocial(user) {
   const [friends, setFriends]               = useState([])
-  const [pending, setPending]               = useState([])         // incoming requests
-  const [outgoingPending, setOutgoingPending] = useState([])       // requests I sent, awaiting acceptance
+  const [pending, setPending]               = useState([])
+  const [outgoingPending, setOutgoingPending] = useState([])
   const [feed, setFeed]                     = useState([])
   const [recs, setRecs]                     = useState([])
+  const [notifications, setNotifications]   = useState([])
   const [loaded, setLoaded]                 = useState(false)
   const [myUsername, setMyUsername]         = useState('')
   const [myDisplayName, setMyDisplayName]   = useState('')
@@ -15,8 +16,9 @@ export function useSocial(user) {
   const [preferredMoods, setPreferredMoods] = useState([])
   const [profileLoaded, setProfileLoaded]   = useState(false)
   const [myAvatarUrl, setMyAvatarUrl]       = useState(null)
-  const channelRef                          = useRef(null)  // friendships realtime
-  const recsChannelRef                      = useRef(null)  // recs realtime
+  const channelRef                          = useRef(null)
+  const recsChannelRef                      = useRef(null)
+  const notifChannelRef                     = useRef(null)
 
   useEffect(() => {
     if (!user) {
@@ -28,11 +30,13 @@ export function useSocial(user) {
     }
     loadProfile()
     loadSocialData()
+    loadNotifications()
     setupRealtime()
     handleInviteParam()
     return () => {
       if (channelRef.current)     { sb.removeChannel(channelRef.current);     channelRef.current = null }
       if (recsChannelRef.current) { sb.removeChannel(recsChannelRef.current); recsChannelRef.current = null }
+      if (notifChannelRef.current){ sb.removeChannel(notifChannelRef.current); notifChannelRef.current = null }
     }
   }, [user?.id])
 
@@ -173,6 +177,35 @@ export function useSocial(user) {
     }
   }
 
+  async function loadNotifications() {
+    const { data } = await sb
+      .from('notifications')
+      .select('id, type, actor_id, entry_id, comment_id, read, read_at, created_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .limit(30)
+    if (!data?.length) { setNotifications([]); return }
+    // Fetch actor profiles separately via RPC
+    const actorIds = [...new Set(data.map(n => n.actor_id).filter(Boolean))]
+    let profileMap = {}
+    if (actorIds.length) {
+      const { data: profiles } = await sb.rpc('get_profiles_by_ids', { user_ids: actorIds })
+      ;(profiles || []).forEach(p => { profileMap[p.id] = p })
+    }
+    setNotifications(data.map(n => ({
+      ...n,
+      read: n.read || !!n.read_at,
+      profiles: profileMap[n.actor_id] || null,
+    })))
+  }
+
+  async function markNotificationsRead(ids) {
+    if (!ids?.length) return
+    const now = new Date().toISOString()
+    await sb.from('notifications').update({ read: true, read_at: now }).in('id', ids)
+    setNotifications(prev => prev.map(n => ids.includes(n.id) ? { ...n, read: true } : n))
+  }
+
   function setupRealtime() {
     if (channelRef.current) { sb.removeChannel(channelRef.current); channelRef.current = null }
 
@@ -200,6 +233,16 @@ export function useSocial(user) {
       }, () => loadSocialData())
       .subscribe()
     recsChannelRef.current = recsCh
+
+    // Realtime for notifications
+    if (notifChannelRef.current) { sb.removeChannel(notifChannelRef.current); notifChannelRef.current = null }
+    const notifCh = sb.channel(`notifications_${user.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'staging', table: 'notifications',
+        filter: `user_id=eq.${user.id}`
+      }, () => loadNotifications())
+      .subscribe()
+    notifChannelRef.current = notifCh
   }
 
   // ── Add friend via @username (uses RPC to bypass RLS) ────────
@@ -383,11 +426,12 @@ export function useSocial(user) {
   }
 
   return {
-    friends, pending, outgoingPending, feed, recs, loaded,
+    friends, pending, outgoingPending, feed, recs, notifications, loaded,
     myUsername, myDisplayName, myBio, myAvatarUrl, topBookIds, preferredMoods, setPreferredMoods, profileLoaded,
     loadSocialData, sendFriendRequest, sendRecommendation,
     acceptFriendRequest, declineFriendRequest, removeFriend,
     dismissRec, acceptRecToTBR, sendRec,
-    saveProfile, saveFavBooks, uploadAvatar, generateInviteLink
+    saveProfile, saveFavBooks, uploadAvatar, generateInviteLink,
+    loadNotifications, markNotificationsRead,
   }
 }

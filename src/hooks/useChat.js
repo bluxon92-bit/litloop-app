@@ -192,6 +192,7 @@ export function useChat(user) {
         userId:      p.id,
         displayName: p.display_name || p.username || 'Friend',
         username:    p.username || null,
+        avatarUrl:   p.avatar_url || null,
         isCreator:   p.id === creatorId,
       }))
     } catch(e) {
