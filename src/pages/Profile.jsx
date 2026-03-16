@@ -199,44 +199,42 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
 
         {/* ── My reviews ── */}
         {reviews.length > 0 && (
-          <div className="rt-card" style={{ marginBottom: '1.1rem' }}>
-            <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.85rem' }}>My reviews</div>
-            {reviews.map(book => (
-              <div
-                key={book.id}
-                onClick={() => { setDetailBook(book); setDetailLocation('mylist-history') }}
-                style={{
-                  display: 'flex', gap: '0.85rem', alignItems: 'flex-start',
-                  padding: '0.85rem 0', borderBottom: '1px solid var(--rt-border)',
-                  cursor: 'pointer',
-                }}
-              >
-                {/* Cover */}
-                <CoverImage
-                  coverId={book.coverId}
-                  olKey={book.olKey}
-                  title={book.title}
-                  size="M"
-                />
-
-                {/* Body */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{book.title}</div>
-                  {book.rating > 0 && (
-                    <div style={{ fontSize: '0.88rem', color: 'var(--rt-amber)', marginBottom: '0.25rem', letterSpacing: '1px' }}>
-                      {'★'.repeat(book.rating)}{'☆'.repeat(5 - book.rating)}
+          <div style={{ marginBottom: '1.1rem' }}>
+            <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.75rem' }}>My reviews</div>
+            {reviews.map(book => {
+              const stars = book.rating > 0 ? '★'.repeat(book.rating) + '☆'.repeat(5 - book.rating) : null
+              const dateStr = book.dateRead ? fmtDate(book.dateRead) : null
+              return (
+                <div
+                  key={book.id}
+                  onClick={() => { setDetailBook(book); setDetailLocation('mylist-history') }}
+                  style={{ background: 'var(--rt-white)', border: '1px solid var(--rt-border)', borderRadius: 12, padding: '0.75rem', marginBottom: '0.65rem', cursor: 'pointer' }}
+                >
+                  {/* Header: cover + meta */}
+                  <div style={{ display: 'flex', gap: '0.65rem', marginBottom: '0.65rem' }}>
+                    <div style={{ width: 52, height: 76, borderRadius: 4, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)' }}>
+                      <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{book.title}</div>
+                      {book.author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.3rem' }}>{book.author}</div>}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
+                        {stars && <span style={{ fontSize: '0.78rem', color: 'var(--rt-amber)', letterSpacing: '0.5px' }}>{stars}</span>}
+                        {dateStr && <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)' }}>{stars ? '· ' : ''}{dateStr}</span>}
+                      </div>
+                    </div>
+                  </div>
+                  {/* Review body */}
+                  {book.reviewBody && (
+                    <div style={{ borderLeft: '3px solid var(--rt-navy)', paddingLeft: '0.6rem' }}>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--rt-navy)', lineHeight: 1.6, margin: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        {book.reviewBody}
+                      </p>
                     </div>
                   )}
-                  <div style={{ fontSize: '0.8rem', color: 'var(--rt-t2)', lineHeight: 1.5,
-                    display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                    {book.reviewBody}
-                  </div>
-                  {book.dateRead && (
-                    <div style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginTop: '0.3rem' }}>{fmtDate(book.dateRead)}</div>
-                  )}
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

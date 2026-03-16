@@ -809,7 +809,7 @@ export default function AppShell() {
   const { pending, outgoingPending, feed, recs, friends, sendRecommendation, generateInviteLink, sendFriendRequest,
           acceptFriendRequest, declineFriendRequest,
           myUsername, saveProfile, setPreferredMoods, profileLoaded,
-          notifications: socialNotifs, markNotificationsRead } = useSocialContext()
+          notifications: socialNotifs, markNotificationsRead, loadSocialData } = useSocialContext()
   const { books, addBook } = useBooksContext()
   const [activeTab, setActiveTab]         = useState('home')
   const [onboardingDone, setOnboardingDone] = useState(false)
@@ -1219,7 +1219,7 @@ export default function AppShell() {
           user={user}
           books={books}
           onClose={() => setFabAction(null)}
-          onPosted={() => { setFabAction(null); /* feed will refresh on next load */ }}
+          onPosted={() => { setFabAction(null); loadSocialData() }}
         />
       )}
       {fabAction === 'addbook' && (

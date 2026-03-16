@@ -45,21 +45,25 @@ function FeedEngagementBar({ entryId, user, onOpenThread }) {
     }
     setLiking(false)
   }
+  const engageBtnStyle = (active) => ({
+    display: 'flex', alignItems: 'center', gap: '0.3rem',
+    background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+    color: active ? '#C84B4B' : 'var(--rt-t3)',
+    fontSize: '0.82rem', fontWeight: 500,
+  })
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', paddingTop: '0.4rem', borderTop: '1px solid var(--rt-border)' }}>
-      <button onClick={toggleLike} disabled={liking}
-        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: myLike ? '#C84B4B' : 'var(--rt-t3)' }}>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill={myLike ? '#C84B4B' : 'none'} stroke={myLike ? '#C84B4B' : 'currentColor'} strokeWidth="1.8">
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem' }}>
+      <button onClick={toggleLike} disabled={liking} style={engageBtnStyle(!!myLike)}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill={myLike ? '#C84B4B' : 'none'} stroke={myLike ? '#C84B4B' : 'currentColor'} strokeWidth="1.8">
           <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
         </svg>
-        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: myLike ? '#C84B4B' : 'var(--rt-t3)' }}>{likes.length || ''}</span>
+        <span>{likes.length > 0 ? likes.length : 'Like'}</span>
       </button>
-      <button onClick={e => { e.stopPropagation(); onOpenThread() }}
-        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--rt-t3)' }}>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <button onClick={e => { e.stopPropagation(); onOpenThread() }} style={engageBtnStyle(false)}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
         </svg>
-        <span style={{ fontSize: '0.78rem', color: 'var(--rt-t3)' }}>{commentCount || ''}</span>
+        <span>{commentCount > 0 ? commentCount : 'Comment'}</span>
       </button>
     </div>
   )
@@ -80,6 +84,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
   const [addModal, setAddModal]             = useState(false)
   const [crCarouselIdx, setCrCarouselIdx]   = useState(0)
   const [toast, setToast]                   = useState(null)
+  const [feedLimit, setFeedLimit]           = useState(10)
   const toastTimer                          = useRef(null)
 
   useEffect(() => {
@@ -262,8 +267,9 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
 
       {/* ── Recently Read carousel ── */}
       {read.length > 0 && (
-        <div className="rt-card" style={{ marginBottom: '1.25rem', padding: '1rem 1rem 0.75rem' }}>
+        <>
           <div className="rt-section-heading" style={{ marginBottom: '0.75rem' }}>Recently Read</div>
+          <div className="rt-card" style={{ marginBottom: '1.25rem', padding: '1rem 1rem 0.75rem' }}>
           <div style={{ display: 'flex', gap: '0.85rem', overflowX: 'auto', paddingBottom: '0.5rem', scrollbarWidth: 'none', msOverflowStyle: 'none' }} className="rt-recent-carousel">
             {[...read]
               .sort((a, b) => new Date(b.dateRead || b.added || 0) - new Date(a.dateRead || a.added || 0))
@@ -278,21 +284,23 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
               ))}
           </div>
         </div>
+        </>
       )}
 
-      {/* ── Friends' Reviews ── */}
+      {/* ── Friend's Feed ── */}
       {user && (
-        <div className="rt-card" style={{ marginBottom: '1.25rem' }}>
-          <div className="rt-section-heading" style={{ marginBottom: '0.85rem' }}>Friends' Reviews</div>
+        <div style={{ marginBottom: '1.25rem' }}>
+          <div className="rt-section-heading" style={{ marginBottom: '0.85rem' }}>Friend's Feed</div>
           {!socialLoaded ? (
             <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>Loading…</div>
           ) : reviewEvents.length === 0 ? (
             <div className="rt-feed-empty">
               <div className="rt-feed-empty-icon"><IcoOpenBook size={32} color="var(--rt-t3)" /></div>
-              <p>{friends.length === 0 ? 'Add friends to see their reviews here.' : 'No reviews from friends yet.'}</p>
+              <p>{friends.length === 0 ? 'Add friends to see their posts here.' : 'Nothing from friends yet.'}</p>
             </div>
           ) : (
-            reviewEvents.slice(0, 10).map(ev => {
+            <>
+            {reviewEvents.slice(0, feedLimit).map(ev => {
               const profile     = ev.profiles || null
               const username    = profile?.username    || profile?.display_name || 'friend'
               const displayName = profile?.display_name || profile?.username    || 'friend'
@@ -306,51 +314,69 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
               const olKey       = ev.book_ol_key || null
               const isDnfEvent  = ev.status === 'dnf'
 
+              // Shared inline elements
+              const avatarEl = (
+                <div onClick={e => { e.stopPropagation(); onViewFriendProfile?.({ userId: ev.user_id, displayName, username, avatarUrl }) }}
+                  style={{ width: 14, height: 14, borderRadius: '50%', background: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.45rem', fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden', cursor: onViewFriendProfile ? 'pointer' : 'default' }}>
+                  {avatarUrl ? <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : init}
+                </div>
+              )
+              const dateStr = ev.created_at ? new Date(ev.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''
+              const cardStyle = { background: 'var(--rt-white)', border: '1px solid var(--rt-border)', borderRadius: 12, padding: '0.75rem', marginBottom: '0.65rem' }
+              const coverEl = (
+                <div style={{ width: 64, height: 92, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)' }}>
+                  <CoverImage coverId={coverId} olKey={olKey} title={ev.book_title || ''} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+              )
+
               // ── Moment card ──────────────────────────────
               if (ev.event_type === 'book_moment' && ev.moment_id) {
                 const isQuote  = ev.moment_type === 'quote'
+                const barCol   = isQuote ? 'var(--rt-amber)' : 'var(--rt-teal)'
                 const badgeBg  = isQuote ? 'var(--rt-amber-pale)' : '#e1f5ee'
                 const badgeCol = isQuote ? 'var(--rt-amber-text)' : '#085041'
-                const barCol   = isQuote ? 'var(--rt-amber)' : 'var(--rt-teal)'
                 const badgeTxt = isQuote ? 'Quote' : 'Reading update'
                 return (
-                  <div key={ev.id} style={{ padding: '0.9rem 0', borderBottom: '1px solid var(--rt-border)' }}>
-                    {/* Avatar + name + time */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.65rem' }}>
-                      <div style={{ width: 24, height: 24, borderRadius: '50%', background: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden' }}>
-                        {avatarUrl ? <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : init}
-                      </div>
-                      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--rt-navy)' }}>{displayName}</span>
-                      <span style={{ fontSize: '0.7rem', color: 'var(--rt-t3)', marginLeft: 'auto' }}>{ev.created_at ? new Date(ev.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''}</span>
-                    </div>
-                    {/* Book row */}
-                    {ev.book_title && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.65rem' }}>
-                        <div style={{ width: 28, height: 40, borderRadius: 3, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)' }}>
-                          <CoverImage coverId={coverId} olKey={olKey} title={ev.book_title} size="S" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <div key={ev.id} style={cardStyle}>
+                    {/* Header: cover + meta */}
+                    <div style={{ display: 'flex', gap: '0.65rem', marginBottom: '0.65rem' }}>
+                      {coverEl}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.book_title || ''}</div>
+                        {ev.book_author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.3rem' }}>{ev.book_author}</div>}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
+                          <span style={{ background: badgeBg, color: badgeCol, borderRadius: 99, padding: '0.1em 0.5em', fontSize: '0.65rem', fontWeight: 700 }}>
+                            {badgeTxt}{ev.page_ref ? ` · p. ${ev.page_ref}` : ''}
+                          </span>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)' }}>·</span>
+                          {avatarEl}
+                          <span
+                            onClick={e => { e.stopPropagation(); onViewFriendProfile?.({ userId: ev.user_id, displayName, username, avatarUrl }) }}
+                            style={{ fontSize: '0.7rem', fontWeight: 600, color: onViewFriendProfile ? 'var(--rt-amber)' : 'var(--rt-t2)', cursor: onViewFriendProfile ? 'pointer' : 'default', textDecoration: onViewFriendProfile ? 'underline' : 'none', textUnderlineOffset: 2 }}>
+                            {displayName}
+                          </span>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)' }}>· {dateStr}</span>
                         </div>
-                        <div>
-                          <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--rt-navy)' }}>{ev.book_title}</div>
-                          {ev.book_author && <div style={{ fontSize: '0.7rem', color: 'var(--rt-t3)' }}>{ev.book_author}</div>}
-                        </div>
                       </div>
-                    )}
-                    {/* Badge */}
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: badgeBg, color: badgeCol, borderRadius: 99, padding: '2px 8px', fontSize: '0.65rem', fontWeight: 700, marginBottom: '0.5rem' }}>
-                      {badgeTxt}{ev.page_ref ? ` · p. ${ev.page_ref}` : ''}
                     </div>
-                    {/* Body with coloured left border */}
-                    <div style={{ borderLeft: `3px solid ${barCol}`, paddingLeft: '0.65rem', marginBottom: '0.6rem' }}>
+                    {/* Body — tap opens thread */}
+                    <div
+                      onClick={() => setActiveReview({ entryId: ev.moment_id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, olKey, reviewBody: ev.moment_body, rating: null, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })}
+                      style={{ borderLeft: `3px solid ${barCol}`, paddingLeft: '0.6rem', marginBottom: '0.6rem', cursor: 'pointer' }}>
                       <p style={{ fontSize: '0.85rem', color: 'var(--rt-navy)', lineHeight: 1.6, margin: 0, fontStyle: isQuote ? 'italic' : 'normal', fontFamily: isQuote ? 'Georgia, serif' : 'inherit' }}>
-                        {ev.moment_body || ev.review_body}
+                        {ev.moment_body}
                       </p>
                     </div>
-                    {/* Engagement */}
-                    <FeedEngagementBar entryId={ev.id} user={user} onOpenThread={() => {}} />
+                    <FeedEngagementBar
+                      entryId={ev.moment_id}
+                      user={user}
+                      onOpenThread={() => setActiveReview({ entryId: ev.moment_id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, olKey, reviewBody: ev.moment_body, rating: null, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })}
+                    />
                   </div>
                 )
               }
 
+              // ── Review / DNF card ────────────────────────
               const feedBook = {
                 id: ev.id, title: ev.book_title || 'Unknown book',
                 author: ev.book_author || '', coverId, olKey,
@@ -358,56 +384,61 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
                 friendName: displayName, friendUserId: ev.user_id,
               }
 
+              if (!reviewText && !isDnfEvent) return null
+
               return (
-                <div key={ev.id} style={{ display: 'flex', gap: '0.9rem', padding: '0.9rem 0', borderBottom: '1px solid var(--rt-border)' }}>
-                  {/* Cover */}
-                  <div onClick={() => openDetail(feedBook, 'home-feed')}
-                    style={{ width: 64, height: 92, borderRadius: 7, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.12)', cursor: 'pointer' }}>
-                    <CoverImage coverId={coverId} olKey={olKey} title={ev.book_title || ''} size="M"
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {/* Stars / DNF badge + avatar + username */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.3rem', flexWrap: 'wrap' }}>
-                      {isDnfEvent
-                        ? <span style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', background: '#fee2e2', color: '#991b1b', borderRadius: 4, padding: '0.15em 0.5em' }}>Did not finish</span>
-                        : stars && <span style={{ fontSize: '0.88rem', color: 'var(--rt-amber)', letterSpacing: '0.5px', lineHeight: 1 }}>{stars}</span>
-                      }
-                      <span style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>by</span>
-                      <div
-                        onClick={e => { e.stopPropagation(); onViewFriendProfile?.({ userId: ev.user_id, displayName, username, avatarUrl }) }}
-                        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', cursor: onViewFriendProfile ? 'pointer' : 'default' }}
-                      >
-                        <div style={{ width: 18, height: 18, borderRadius: '50%', background: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.5rem', fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden' }}>{avatarUrl ? <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : init}</div>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 600, color: onViewFriendProfile ? 'var(--rt-amber)' : 'var(--rt-t2)', textDecoration: onViewFriendProfile ? 'underline' : 'none', textUnderlineOffset: 2 }}>{displayName}{username !== displayName ? ` · @${username}` : ''}</span>
-                      </div>
-                    </div>
-                    {/* Title + author — clickable to book detail */}
-                    <div onClick={() => openDetail(feedBook, 'home-feed')} style={{ cursor: 'pointer' }}>
-                      <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.1rem' }}>{ev.book_title || 'Unknown book'}</div>
+                <div key={ev.id} style={cardStyle}>
+                  {/* Header: cover + meta */}
+                  <div style={{ display: 'flex', gap: '0.65rem', marginBottom: reviewText ? '0.65rem' : 0 }}
+                    onClick={() => openDetail(feedBook, 'home-feed')}>
+                    {coverEl}
+                    <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
+                      <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.book_title || 'Unknown book'}</div>
                       {ev.book_author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.3rem' }}>{ev.book_author}</div>}
-                    </div>
-                    {/* Review excerpt */}
-                    {reviewText ? (
-                      <div onClick={() => reviewText && setActiveReview({ entryId: ev.id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, olKey, reviewBody: reviewText, rating, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })}
-                        style={{ fontSize: '0.82rem', color: 'var(--rt-t2)', lineHeight: 1.55, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', cursor: 'pointer', marginBottom: '0.5rem' }}>
-                        {reviewText}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
+                        {isDnfEvent
+                          ? <span style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', background: '#fee2e2', color: '#991b1b', borderRadius: 4, padding: '0.1em 0.45em' }}>Did not finish</span>
+                          : stars && <span style={{ fontSize: '0.78rem', color: 'var(--rt-amber)', letterSpacing: '0.5px' }}>{stars}</span>
+                        }
+                        <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)' }}>·</span>
+                        {avatarEl}
+                        <span
+                          onClick={e => { e.stopPropagation(); onViewFriendProfile?.({ userId: ev.user_id, displayName, username, avatarUrl }) }}
+                          style={{ fontSize: '0.7rem', fontWeight: 600, color: onViewFriendProfile ? 'var(--rt-amber)' : 'var(--rt-t2)', cursor: onViewFriendProfile ? 'pointer' : 'default', textDecoration: onViewFriendProfile ? 'underline' : 'none', textUnderlineOffset: 2 }}>
+                          {displayName}
+                        </span>
+                        <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)' }}>· {dateStr}</span>
                       </div>
-                    ) : (
-                      <div style={{ fontSize: '0.75rem', color: 'var(--rt-t3)', fontStyle: 'italic', marginBottom: '0.5rem' }}>finished reading</div>
-                    )}
-                    {/* Engagement bar — only on reviews */}
-                    {reviewText && (
+                    </div>
+                  </div>
+                  {/* Review body */}
+                  {reviewText && (
+                    <>
+                      <div onClick={() => setActiveReview({ entryId: ev.id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, olKey, reviewBody: reviewText, rating, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })}
+                        style={{ borderLeft: '3px solid var(--rt-navy)', paddingLeft: '0.6rem', marginBottom: '0.6rem', cursor: 'pointer' }}>
+                        <p style={{ fontSize: '0.85rem', color: 'var(--rt-navy)', lineHeight: 1.6, margin: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                          {reviewText}
+                        </p>
+                      </div>
                       <FeedEngagementBar
                         entryId={ev.id}
                         user={user}
                         onOpenThread={() => setActiveReview({ entryId: ev.id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, olKey, reviewBody: reviewText, rating, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })}
                       />
-                    )}
-                  </div>
+                    </>
+                  )}
                 </div>
               )
-            })
+            })}
+            {reviewEvents.length > feedLimit && (
+              <button
+                onClick={() => setFeedLimit(n => n + 10)}
+                style={{ display: 'block', width: '100%', background: 'none', border: '1px solid var(--rt-border-md)', borderRadius: 99, padding: '0.55rem', fontSize: '0.82rem', color: 'var(--rt-t2)', cursor: 'pointer', marginTop: '0.25rem' }}
+              >
+                Load more
+              </button>
+            )}
+            </>
           )}
         </div>
       )}

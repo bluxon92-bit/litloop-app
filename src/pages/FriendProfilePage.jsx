@@ -61,21 +61,25 @@ function FeedEngagementBar({ entryId, user, onOpenThread }) {
     setLiking(false)
   }
 
+  const engageBtnStyle = (active) => ({
+    display: 'flex', alignItems: 'center', gap: '0.3rem',
+    background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+    color: active ? '#C84B4B' : 'var(--rt-t3)',
+    fontSize: '0.82rem', fontWeight: 500,
+  })
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', paddingTop: '0.4rem', borderTop: '1px solid var(--rt-border)' }}>
-      <button onClick={toggleLike} disabled={liking}
-        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: myLike ? '#C84B4B' : 'var(--rt-t3)' }}>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill={myLike ? '#C84B4B' : 'none'} stroke={myLike ? '#C84B4B' : 'currentColor'} strokeWidth="1.8">
+    <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem' }}>
+      <button onClick={toggleLike} disabled={liking} style={engageBtnStyle(!!myLike)}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill={myLike ? '#C84B4B' : 'none'} stroke={myLike ? '#C84B4B' : 'currentColor'} strokeWidth="1.8">
           <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
         </svg>
-        <span style={{ fontSize: '0.78rem', fontWeight: 600, color: myLike ? '#C84B4B' : 'var(--rt-t3)' }}>{likes.length || ''}</span>
+        <span>{likes.length > 0 ? likes.length : 'Like'}</span>
       </button>
-      <button onClick={e => { e.stopPropagation(); onOpenThread() }}
-        style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: 'var(--rt-t3)' }}>
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <button onClick={e => { e.stopPropagation(); onOpenThread() }} style={engageBtnStyle(false)}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
           <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
         </svg>
-        <span style={{ fontSize: '0.78rem', color: 'var(--rt-t3)' }}>{commentCount || ''}</span>
+        <span>{commentCount > 0 ? commentCount : 'Comment'}</span>
       </button>
     </div>
   )
@@ -332,35 +336,43 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
 
           {/* ── Reviews ── */}
           {reviews.length > 0 && (
-            <div className="rt-card" style={{ marginBottom: '1.1rem' }}>
-              <SLabel>{friend.displayName.split(' ')[0]}'s reviews</SLabel>
-              {reviews.map((b, i) => (
-                <div key={i} style={{ padding: '0.85rem 0', borderBottom: i < reviews.length - 1 ? '1px solid var(--rt-border)' : 'none' }}>
-                  <div onClick={() => setDetailBook({ ...b, friendName: friend.displayName })}
-                    style={{ display: 'flex', gap: '0.85rem', alignItems: 'flex-start', cursor: 'pointer', marginBottom: '0.5rem' }}>
-                    <CoverImage coverId={b.coverId} olKey={b.olKey} title={b.title} size="M" />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '0.5rem', marginBottom: '0.15rem' }}>
-                        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{b.title}</div>
-                        {b.rating > 0 && <div style={{ fontSize: '0.78rem', color: 'var(--rt-amber)', letterSpacing: '1px', flexShrink: 0 }}>{'★'.repeat(b.rating)}{'☆'.repeat(5 - b.rating)}</div>}
+            <div style={{ marginBottom: '1.1rem' }}>
+              <SLabel style={{ marginBottom: '0.75rem' }}>{friend.displayName.split(' ')[0]}'s reviews</SLabel>
+              {reviews.map((b, i) => {
+                const stars = b.rating > 0 ? '★'.repeat(b.rating) + '☆'.repeat(5 - b.rating) : null
+                const dateStr = b.reviewedAt ? fmtDate(b.reviewedAt) : null
+                const openThread = () => setActiveReview({
+                  entryId: b.entryId, bookTitle: b.title, bookAuthor: b.author,
+                  coverId: b.coverId, olKey: b.olKey, reviewBody: b.reviewBody,
+                  rating: b.rating, reviewedAt: b.reviewedAt,
+                  reviewer: { userId: friend.userId, displayName: friend.displayName, avatarUrl: friend.avatarUrl },
+                })
+                return (
+                  <div key={i} style={{ background: 'var(--rt-white)', border: '1px solid var(--rt-border)', borderRadius: 12, padding: '0.75rem', marginBottom: '0.65rem' }}>
+                    {/* Header: cover + meta */}
+                    <div style={{ display: 'flex', gap: '0.65rem', marginBottom: '0.65rem' }}>
+                      <div style={{ width: 52, height: 76, borderRadius: 4, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)' }}>
+                        <CoverImage coverId={b.coverId} olKey={b.olKey} title={b.title} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       </div>
-                      {b.author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.3rem' }}>{b.author}</div>}
-                      <div style={{ fontSize: '0.8rem', color: 'var(--rt-t2)', lineHeight: 1.55, marginBottom: '0.25rem', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{b.reviewBody}</div>
-                      {b.reviewedAt && <div style={{ fontSize: '0.68rem', color: 'var(--rt-t3)' }}>{fmtDate(b.reviewedAt)}</div>}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.title}</div>
+                        {b.author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.3rem' }}>{b.author}</div>}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
+                          {stars && <span style={{ fontSize: '0.78rem', color: 'var(--rt-amber)', letterSpacing: '0.5px' }}>{stars}</span>}
+                          {dateStr && <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)' }}>{stars ? '· ' : ''}{dateStr}</span>}
+                        </div>
+                      </div>
                     </div>
+                    {/* Review body — tap opens thread */}
+                    <div onClick={openThread} style={{ borderLeft: '3px solid var(--rt-navy)', paddingLeft: '0.6rem', marginBottom: '0.6rem', cursor: 'pointer' }}>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--rt-navy)', lineHeight: 1.6, margin: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                        {b.reviewBody}
+                      </p>
+                    </div>
+                    <FeedEngagementBar entryId={b.entryId} user={user} onOpenThread={openThread} />
                   </div>
-                  <FeedEngagementBar
-                    entryId={b.entryId}
-                    user={user}
-                    onOpenThread={() => setActiveReview({
-                      entryId: b.entryId, bookTitle: b.title, bookAuthor: b.author,
-                      coverId: b.coverId, olKey: b.olKey, reviewBody: b.reviewBody,
-                      rating: b.rating, reviewedAt: b.reviewedAt,
-                      reviewer: { userId: friend.userId, displayName: friend.displayName, avatarUrl: friend.avatarUrl },
-                    })}
-                  />
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
