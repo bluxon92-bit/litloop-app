@@ -14,6 +14,7 @@ import AddBookModal from '../books/AddBookModal'
 import { avatarColour, avatarInitial, timeAgo } from '../../lib/utils'
 import { sb } from '../../lib/supabase'
 import { IcoBook, IcoChat as IcoChatBubble, IcoUsers as IcoUsersGroup } from '../icons'
+import logo from '../../assets/Ltiloop-logo-b-w.png'
 
 // ── SVG icons ─────────────────────────────────────────────────
 function IcoHome(active) {
@@ -952,7 +953,7 @@ export default function AppShell() {
         position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 50, boxShadow: 'var(--rt-s1)'
       }}>
         <div style={{ marginBottom: '2rem', paddingLeft: '0.5rem' }}>
-          <h1 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.5rem', fontWeight: 700, color: 'var(--rt-navy)', margin: 0 }}>LitLoop</h1>
+          <img src={logo} alt="LitLoop" style={{ height: '28px', display: 'block' }} />
         </div>
 
         {SIDEBAR_TABS.map((tab, idx) => {
@@ -1036,7 +1037,7 @@ export default function AppShell() {
         </div>
 
         {/* Centre: LitLoop wordmark */}
-        <h1 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.2rem', fontWeight: 700, color: 'var(--rt-navy)', margin: 0, textAlign: 'center' }}>LitLoop</h1>
+        <img src={logo} alt="LitLoop" style={{ height: '24px', display: 'block' }} />
 
         {/* Right: stats + bell */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', justifyContent: 'flex-end' }}>
