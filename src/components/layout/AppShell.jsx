@@ -8,6 +8,7 @@ import MyList from '../../pages/MyList'
 import Stats from '../../pages/Stats'
 import Discover from '../../pages/Discover'
 import Chat, { ChatThreadModal } from '../../pages/Chat'
+import MomentComposer from '../MomentComposer'
 import Profile from '../../pages/Profile'
 import AccountSettings from '../../pages/AccountSettings'
 import AddBookModal from '../books/AddBookModal'
@@ -816,7 +817,7 @@ export default function AppShell() {
   const [notifOpen, setNotifOpen]         = useState(false)
   const [activeChatModal, setActiveChatModal] = useState(null)
   const [fabOpen, setFabOpen]             = useState(false)
-  const [fabAction, setFabAction]         = useState(null) // 'addbook'|'recommend'|'chat'|'friend'
+  const [fabAction, setFabAction]         = useState(null) // 'addbook'|'recommend'|'chat'|'friend'|'moment'
   const [fabChatPreselect, setFabChatPreselect] = useState(null) // userId to pre-select in FabChatModal
   const [dismissedRequests, setDismissedRequests] = useState(new Set()) // friendshipIds hidden by ×
   const bellRef = useRef(null)
@@ -1170,10 +1171,11 @@ export default function AppShell() {
         <div style={{ position: 'fixed', right: '1.25rem', zIndex: 199, display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.6rem' }}
           className="rt-fab-items">
           {[
-            { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, label: 'Add friend',  action: 'friend' },
-            { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>, label: 'Recommend',   action: 'recommend' },
-            { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, label: 'Start chat',  action: 'chat' },
-            { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>, label: 'Add book',    action: 'addbook' },
+            { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, label: 'Add friend',    action: 'friend' },
+            { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>, label: 'Recommend',     action: 'recommend' },
+            { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>, label: 'Start chat',    action: 'chat' },
+            { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 2v7c0 1.25.75 2 2 2h3c-.25 2-1 4-3 4"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 2v7c0 1.25.75 2 2 2h3c-.25 2-1 4-3 4"/></svg>, label: 'Share moment',  action: 'moment' },
+            { icon: <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>, label: 'Add book',      action: 'addbook' },
           ].map((item, i) => (
             <div key={item.action} className="fab-item"
               style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', opacity: 0 }}>
@@ -1212,6 +1214,14 @@ export default function AppShell() {
       </button>
 
       {/* ── FAB action modals ── */}
+      {fabAction === 'moment' && (
+        <MomentComposer
+          user={user}
+          books={books}
+          onClose={() => setFabAction(null)}
+          onPosted={() => { setFabAction(null); /* feed will refresh on next load */ }}
+        />
+      )}
       {fabAction === 'addbook' && (
         <AddBookModal
           books={books}

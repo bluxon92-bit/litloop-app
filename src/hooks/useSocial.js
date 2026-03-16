@@ -113,7 +113,7 @@ export function useSocial(user) {
         } else {
           const { data: own } = await sb
             .from('feed_events')
-            .select('id, user_id, event_type, book_ol_key, book_title, book_author, cover_id, review_body, rating, created_at')
+            .select('id, user_id, event_type, book_ol_key, book_title, book_author, cover_id, review_body, rating, created_at, moment_id, page_ref, moment_type, moment_body')
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
             .limit(40)
@@ -122,7 +122,7 @@ export function useSocial(user) {
       } else {
         const { data: own } = await sb
           .from('feed_events')
-          .select('id, user_id, event_type, book_ol_key, book_title, book_author, cover_id, review_body, rating, created_at')
+          .select('id, user_id, event_type, book_ol_key, book_title, book_author, cover_id, review_body, rating, created_at, moment_id, page_ref, moment_type, moment_body')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(40)

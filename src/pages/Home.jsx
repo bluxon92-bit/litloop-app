@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { sb } from '../lib/supabase'
 import { useBooksContext } from '../context/BooksContext'
 import { useSocialContext } from '../context/SocialContext'
@@ -79,6 +79,15 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
   const [editBook, setEditBook]             = useState(null)
   const [addModal, setAddModal]             = useState(false)
   const [crCarouselIdx, setCrCarouselIdx]   = useState(0)
+  const [toast, setToast]                   = useState(null)
+  const toastTimer                          = useRef(null)
+
+  useEffect(() => {
+    if (!toast) return
+    clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => setToast(null), 2500)
+    return () => clearTimeout(toastTimer.current)
+  }, [toast])
 
   const year     = new Date().getFullYear()
   const read     = books.filter(b => b.status === 'read')
@@ -113,21 +122,24 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
     })
   }
 
-  // Feed: deduplicate — prefer posted_review over finished for same user+book
+  // Feed: moments pass through unfiltered; reviews deduplicate (prefer posted_review over finished)
   const reviewEvents = (() => {
-    const all = (feed || []).filter(ev =>
+    const moments = (feed || []).filter(ev =>
+      friendIds.has(ev.user_id) && ev.event_type === 'book_moment'
+    )
+    const reviews = (feed || []).filter(ev =>
       friendIds.has(ev.user_id) &&
       (ev.event_type === 'posted_review' || ev.event_type === 'finished')
     )
     const seen = new Map()
-    for (const ev of all) {
+    for (const ev of reviews) {
       const key = `${ev.user_id}__${ev.book_ol_key}`
       const existing = seen.get(key)
       if (!existing) { seen.set(key, ev); continue }
-      // prefer posted_review over finished
       if (ev.event_type === 'posted_review') seen.set(key, ev)
     }
-    return [...seen.values()].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    const deduped = [...seen.values()]
+    return [...moments, ...deduped].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
   })()
 
   function findExistingChat(olKey) {
@@ -294,6 +306,51 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
               const olKey       = ev.book_ol_key || null
               const isDnfEvent  = ev.status === 'dnf'
 
+              // ── Moment card ──────────────────────────────
+              if (ev.event_type === 'book_moment' && ev.moment_id) {
+                const isQuote  = ev.moment_type === 'quote'
+                const badgeBg  = isQuote ? 'var(--rt-amber-pale)' : '#e1f5ee'
+                const badgeCol = isQuote ? 'var(--rt-amber-text)' : '#085041'
+                const barCol   = isQuote ? 'var(--rt-amber)' : 'var(--rt-teal)'
+                const badgeTxt = isQuote ? 'Quote' : 'Reading update'
+                return (
+                  <div key={ev.id} style={{ padding: '0.9rem 0', borderBottom: '1px solid var(--rt-border)' }}>
+                    {/* Avatar + name + time */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.65rem' }}>
+                      <div style={{ width: 24, height: 24, borderRadius: '50%', background: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.55rem', fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden' }}>
+                        {avatarUrl ? <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : init}
+                      </div>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--rt-navy)' }}>{displayName}</span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--rt-t3)', marginLeft: 'auto' }}>{ev.created_at ? new Date(ev.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''}</span>
+                    </div>
+                    {/* Book row */}
+                    {ev.book_title && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.65rem' }}>
+                        <div style={{ width: 28, height: 40, borderRadius: 3, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)' }}>
+                          <CoverImage coverId={coverId} olKey={olKey} title={ev.book_title} size="S" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--rt-navy)' }}>{ev.book_title}</div>
+                          {ev.book_author && <div style={{ fontSize: '0.7rem', color: 'var(--rt-t3)' }}>{ev.book_author}</div>}
+                        </div>
+                      </div>
+                    )}
+                    {/* Badge */}
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: badgeBg, color: badgeCol, borderRadius: 99, padding: '2px 8px', fontSize: '0.65rem', fontWeight: 700, marginBottom: '0.5rem' }}>
+                      {badgeTxt}{ev.page_ref ? ` · p. ${ev.page_ref}` : ''}
+                    </div>
+                    {/* Body with coloured left border */}
+                    <div style={{ borderLeft: `3px solid ${barCol}`, paddingLeft: '0.65rem', marginBottom: '0.6rem' }}>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--rt-navy)', lineHeight: 1.6, margin: 0, fontStyle: isQuote ? 'italic' : 'normal', fontFamily: isQuote ? 'Georgia, serif' : 'inherit' }}>
+                        {ev.moment_body || ev.review_body}
+                      </p>
+                    </div>
+                    {/* Engagement */}
+                    <FeedEngagementBar entryId={ev.id} user={user} onOpenThread={() => {}} />
+                  </div>
+                )
+              }
+
               const feedBook = {
                 id: ev.id, title: ev.book_title || 'Unknown book',
                 author: ev.book_author || '', coverId, olKey,
@@ -368,11 +425,13 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
           onAddToTBR={() => {
             addBook({ title: activeReview.bookTitle, author: activeReview.bookAuthor, status: 'tbr', olKey: activeReview.olKey, coverId: activeReview.coverId })
             setActiveReview(null)
+            setToast(`Added "${activeReview.bookTitle}" to your list`)
           }}
-          onStartChat={() => {
+          onStartChat={async () => {
             const r = activeReview
-            startOrOpenChat(r.olKey, r.bookTitle, r.bookAuthor, r.coverId, [r.reviewer.userId])
             setActiveReview(null)
+            const chatId = await startOrOpenChat(r.olKey, r.bookTitle, r.bookAuthor, r.coverId, [r.reviewer.userId])
+            if (chatId) onOpenChatModal(chatId, { title: r.bookTitle, author: r.bookAuthor, coverId: r.coverId, olKey: r.olKey })
           }}
           onViewChat={chatId => {
             const c = chats.find(x => x.id === chatId)
@@ -443,6 +502,20 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
           onClose={() => setAddModal(false)}
           user={user}
         />
+      )}
+
+      {/* ── Toast notification ── */}
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--rt-navy)', color: '#fff', borderRadius: 99,
+          padding: '0.55rem 1.1rem', fontSize: '0.82rem', fontWeight: 600,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.25)', zIndex: 9999,
+          whiteSpace: 'nowrap', pointerEvents: 'none',
+          animation: 'rt-fadein 0.15s ease',
+        }}>
+          {toast}
+        </div>
       )}
     </div>
   )

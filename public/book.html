@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Dynamic meta — overwritten by JS once book data loads -->
+  <title>LitLoop</title>
+  <meta name="description" content="Track your reading life with LitLoop." />
+  <link rel="canonical" href="" id="canonical" />
+
+  <!-- Open Graph -->
+  <meta property="og:type"        content="book" />
+  <meta property="og:site_name"   content="LitLoop" />
+  <meta property="og:title"       content="" id="og-title" />
+  <meta property="og:description" content="" id="og-desc" />
+  <meta property="og:image"       content="" id="og-image" />
+  <meta property="og:url"         content="" id="og-url" />
+
+  <!-- Supabase JS -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --navy:        #1a2744;
+      --navy-light:  #243358;
+      --amber:       #c8891a;
+      --amber-pale:  #faeeda;
+      --amber-text:  #633806;
+      --cream:       #f7f4ef;
+      --white:       #ffffff;
+      --border:      rgba(26,39,68,0.1);
+      --border-md:   rgba(26,39,68,0.18);
+      --t1:          #1a2744;
+      --t2:          #4a5568;
+      --t3:          #8a94a6;
+      --teal:        #2A6E69;
+      --r3:          8px;
+      --r4:          12px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--cream);
+      color: var(--t1);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .page { max-width: 720px; margin: 0 auto; }
+
+    /* ── Hero ── */
+    .hero {
+      background: var(--navy);
+      border-radius: 0 0 24px 24px;
+      padding: 32px 24px 28px;
+      margin-bottom: 20px;
+    }
+
+    .hero-top {
+      display: flex;
+      gap: 20px;
+      align-items: flex-start;
+      margin-bottom: 20px;
+    }
+
+    .cover-wrap {
+      width: 100px;
+      min-width: 100px;
+      height: 144px;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      background: rgba(255,255,255,0.08);
+      flex-shrink: 0;
+    }
+
+    @media (min-width: 540px) {
+      .cover-wrap { width: 120px; min-width: 120px; height: 174px; }
+    }
+
+    .cover-wrap img { width: 100%; height: 100%; object-fit: cover; }
+    .cover-ph { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 36px; }
+
+    .hero-meta { flex: 1; min-width: 0; }
+
+    .hero-title {
+      font-size: clamp(18px, 4vw, 24px);
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.25;
+      margin-bottom: 5px;
+    }
+
+    .hero-author {
+      font-size: 14px;
+      color: rgba(255,255,255,0.6);
+      margin-bottom: 12px;
+    }
+
+    .pills { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 16px; }
+
+    .pill {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 99px;
+    }
+
+    .pill-amber { background: rgba(200,137,26,0.25); color: #FAC775; }
+    .pill-ghost { background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.6); }
+
+    .hero-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    .btn-review {
+      background: var(--amber);
+      color: #fff;
+      border: none;
+      border-radius: 99px;
+      padding: 8px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .btn-add {
+      background: rgba(255,255,255,0.12);
+      color: rgba(255,255,255,0.85);
+      border: none;
+      border-radius: 99px;
+      padding: 8px 18px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .btn-review:hover { background: #b8790f; }
+    .btn-add:hover    { background: rgba(255,255,255,0.18); }
+
+    .hero-desc {
+      font-size: 13px;
+      color: rgba(255,255,255,0.62);
+      line-height: 1.75;
+      border-top: 0.5px solid rgba(255,255,255,0.1);
+      padding-top: 18px;
+      margin-bottom: 22px;
+    }
+
+    .hero-stats {
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
+
+    .stat {
+      text-align: center;
+      padding: 0 18px 0 0;
+      margin-right: 18px;
+      border-right: 0.5px solid rgba(255,255,255,0.12);
+    }
+    .stat:last-of-type { border-right: none; }
+
+    .stat-val {
+      font-size: 20px;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1;
+      margin-bottom: 3px;
+    }
+
+    .stat-label {
+      font-size: 10px;
+      color: rgba(255,255,255,0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+    }
+
+    .engage-row { margin-left: auto; display: flex; gap: 14px; }
+
+    .engage-btn {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.45);
+      font-size: 12px;
+      cursor: pointer;
+      padding: 0;
+    }
+    .engage-btn:hover { color: rgba(255,255,255,0.7); }
+
+    /* ── Content sections ── */
+    .section { padding: 0 16px; margin-bottom: 20px; }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+      color: var(--t3);
+      margin-bottom: 10px;
+    }
+
+    .card {
+      background: var(--white);
+      border: 0.5px solid var(--border);
+      border-radius: var(--r4);
+      padding: 1rem 1.1rem;
+      margin-bottom: 10px;
+    }
+
+    .reviewer-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: #fff;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+    .reviewer-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--t1);
+    }
+
+    .reviewer-date {
+      font-size: 11px;
+      color: var(--t3);
+    }
+
+    .stars { font-size: 13px; margin-left: auto; }
+    .star-on  { color: var(--amber); }
+    .star-off { color: var(--border-md); }
+
+    .review-body {
+      font-size: 13px;
+      color: var(--t2);
+      line-height: 1.65;
+      border-left: 2px solid var(--amber);
+      padding-left: 10px;
+    }
+
+    .review-status {
+      font-size: 12px;
+      color: var(--t3);
+      font-style: italic;
+    }
+
+    .card-footer {
+      display: flex;
+      gap: 16px;
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 0.5px solid var(--border);
+    }
+
+    .card-action {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: none;
+      border: none;
+      font-size: 12px;
+      color: var(--t3);
+      cursor: pointer;
+      padding: 0;
+    }
+    .card-action:hover { color: var(--amber); }
+
+    .load-more {
+      display: block;
+      width: 100%;
+      background: none;
+      border: 0.5px solid var(--border-md);
+      border-radius: 99px;
+      padding: 8px;
+      font-size: 13px;
+      color: var(--t2);
+      cursor: pointer;
+      margin-top: 4px;
+    }
+    .load-more:hover { border-color: var(--amber); color: var(--amber); }
+
+    .empty-state {
+      text-align: center;
+      padding: 24px 16px;
+      color: var(--t3);
+      font-size: 13px;
+    }
+
+    /* ── CTA footer ── */
+    .cta {
+      background: var(--navy);
+      border-radius: 20px 20px 0 0;
+      padding: 32px 24px 40px;
+      text-align: center;
+      margin-top: 8px;
+    }
+
+    .cta-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+
+    .cta-sub {
+      font-size: 13px;
+      color: rgba(255,255,255,0.55);
+      line-height: 1.65;
+      margin-bottom: 20px;
+    }
+
+    .cta-btns { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+    .btn-signup {
+      background: var(--amber);
+      color: #fff;
+      border: none;
+      border-radius: 99px;
+      padding: 10px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .btn-signin {
+      background: rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.85);
+      border: none;
+      border-radius: 99px;
+      padding: 10px 24px;
+      font-size: 14px;
+      cursor: pointer;
+      text-decoration: none;
+    }
+
+    .cta-wordmark {
+      font-size: 11px;
+      color: rgba(255,255,255,0.25);
+      margin-top: 20px;
+    }
+
+    /* ── Auth modal ── */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+    .modal-overlay.open { display: flex; }
+
+    .modal {
+      background: var(--white);
+      border-radius: 16px;
+      padding: 28px 24px;
+      max-width: 360px;
+      width: 100%;
+      text-align: center;
+    }
+
+    .modal-title  { font-size: 17px; font-weight: 700; color: var(--navy); margin-bottom: 8px; }
+    .modal-sub    { font-size: 13px; color: var(--t2); margin-bottom: 20px; line-height: 1.6; }
+    .modal-btns   { display: flex; flex-direction: column; gap: 8px; }
+
+    .modal-btn-primary {
+      background: var(--navy);
+      color: #fff;
+      border: none;
+      border-radius: 99px;
+      padding: 11px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      display: block;
+    }
+
+    .modal-btn-secondary {
+      background: none;
+      color: var(--t2);
+      border: 0.5px solid var(--border-md);
+      border-radius: 99px;
+      padding: 11px;
+      font-size: 14px;
+      cursor: pointer;
+      text-decoration: none;
+      display: block;
+    }
+
+    .modal-close {
+      display: block;
+      margin-top: 14px;
+      font-size: 12px;
+      color: var(--t3);
+      cursor: pointer;
+      background: none;
+      border: none;
+    }
+
+    /* ── Skeleton loaders ── */
+    .skeleton {
+      background: linear-gradient(90deg, #e8e4dd 25%, #f0ece5 50%, #e8e4dd 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.4s infinite;
+      border-radius: 4px;
+    }
+    @keyframes shimmer { 0% { background-position: 200% 0 } 100% { background-position: -200% 0 } }
+
+    .skel-line { height: 14px; margin-bottom: 8px; }
+    .skel-cover { width: 100px; height: 144px; border-radius: 8px; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Hero skeleton shown while loading -->
+  <div class="hero" id="hero">
+    <div class="hero-top">
+      <div class="skeleton skel-cover"></div>
+      <div style="flex:1">
+        <div class="skeleton skel-line" style="width:70%;height:22px;margin-bottom:10px;"></div>
+        <div class="skeleton skel-line" style="width:40%;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Friends reviews -->
+  <div class="section" id="friends-section" style="display:none">
+    <div class="section-label">Your friends' reviews</div>
+    <div id="friends-list"></div>
+    <button class="load-more" id="friends-load-more" style="display:none">Load more friend reviews</button>
+  </div>
+
+  <!-- All reviews -->
+  <div class="section">
+    <div class="section-label">All LitLoop reviews</div>
+    <div id="reviews-list">
+      <div class="card"><div class="skeleton skel-line" style="width:60%"></div><div class="skeleton skel-line"></div></div>
+    </div>
+    <button class="load-more" id="reviews-load-more" style="display:none">Load more reviews</button>
+  </div>
+
+  <!-- CTA -->
+  <div class="cta" id="cta-section">
+    <div class="cta-title">Track your reading on LitLoop</div>
+    <div class="cta-sub">Share reviews with friends, discover your next read,<br>and build your reading life.</div>
+    <div class="cta-btns">
+      <a class="btn-signup" id="cta-signup" href="#">Create free account</a>
+      <a class="btn-signin" id="cta-signin" href="#">Sign in</a>
+    </div>
+    <div class="cta-wordmark">LitLoop · app.litloop.co</div>
+  </div>
+
+</div>
+
+<!-- Auth modal -->
+<div class="modal-overlay" id="auth-modal">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">Join the conversation</div>
+    <div class="modal-sub" id="modal-sub">Sign in or create a free account to leave reviews, like, and comment.</div>
+    <div class="modal-btns">
+      <a class="modal-btn-primary" id="modal-signup" href="#">Create free account</a>
+      <a class="modal-btn-secondary" id="modal-signin" href="#">Sign in</a>
+    </div>
+    <button class="modal-close" onclick="closeModal()">Maybe later</button>
+  </div>
+</div>
+
+<script>
+// ── Supabase init ────────────────────────────────────────────
+const { createClient } = supabase
+const sb = createClient(
+  'https://danknyhumorgkvidrdve.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRhbmtueWh1bW9yZ2t2aWRyZHZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3OTMzMzksImV4cCI6MjA4ODM2OTMzOX0.uTbNT_MBipxNCJckFI2JFACvftdtSy3M-YRQuJVDziU',
+  { db: { schema: 'staging' } }
+)
+
+// ── Parse slug from URL ──────────────────────────────────────
+// Production: /book/ol8479867w-the-name-of-the-wind (Netlify rewrites to book.html)
+// Dev:        /book.html?slug=ol8479867w-the-name-of-the-wind
+function parseSlug() {
+  let slug = ''
+  if (window.location.pathname.includes('/book/')) {
+    slug = window.location.pathname.replace(/.*\/book\//, '')
+  } else {
+    slug = new URLSearchParams(window.location.search).get('slug') || ''
+  }
+  const olPart = slug.split('-')[0].toUpperCase()
+  return '/works/' + olPart
+}
+
+function toSlug(olKey, title) {
+  const key   = olKey.replace('/works/', '').toLowerCase()
+  const clean = (title || '')
+    .replace(/\s*\(.*?\)\s*/g, '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/-+$/g, '')
+  return key + (clean ? '-' + clean : '')
+}
+
+// ── Avatar helpers ───────────────────────────────────────────
+const AVATAR_COLOURS = ['#1a2744','#c8891a','#2A6E69','#5c6bc0','#b43a3a','#7b3fa0','#2e7d52']
+function avatarColour(str) {
+  let h = 0
+  for (let i = 0; i < (str||'').length; i++) h = (h * 31 + str.charCodeAt(i)) & 0xffff
+  return AVATAR_COLOURS[h % AVATAR_COLOURS.length]
+}
+function avatarInitial(name) { return (name || '?').charAt(0).toUpperCase() }
+
+function avatarHtml(profile) {
+  const name = profile.display_name || profile.username || '?'
+  if (profile.avatar_url) {
+    return `<div class="avatar"><img src="${profile.avatar_url}" alt="${name}" /></div>`
+  }
+  return `<div class="avatar" style="background:${avatarColour(profile.user_id || name)}">${avatarInitial(name)}</div>`
+}
+
+function starsHtml(rating) {
+  if (!rating) return ''
+  let s = ''
+  for (let i = 1; i <= 5; i++) {
+    s += `<span class="${i <= rating ? 'star-on' : 'star-off'}">★</span>`
+  }
+  return `<div class="stars">${s}</div>`
+}
+
+function fmtDate(iso) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
+}
+
+function statusLabel(status) {
+  if (status === 'reading') return 'currently reading'
+  if (status === 'read')    return 'finished'
+  return status || ''
+}
+
+// ── App state ────────────────────────────────────────────────
+const APP_URL    = 'https://app.litloop.co'
+let olKey        = null
+let bookData     = null
+let currentUser  = null
+let reviewOffset = 0
+let friendOffset = 0
+const PAGE_SIZE  = 10
+const FRIEND_SIZE = 5
+
+// ── Modal ────────────────────────────────────────────────────
+function openModal(action) {
+  const slug   = bookData ? toSlug(olKey, bookData.title) : ''
+  const ref    = `?ref=book-page&book=${encodeURIComponent(olKey)}&action=${action}`
+  document.getElementById('modal-signup').href = `${APP_URL}${ref}`
+  document.getElementById('modal-signin').href = `${APP_URL}/signin${ref}`
+  document.getElementById('auth-modal').classList.add('open')
+}
+function closeModal() {
+  document.getElementById('auth-modal').classList.remove('open')
+}
+document.getElementById('auth-modal').addEventListener('click', e => {
+  if (e.target === e.currentTarget) closeModal()
+})
+
+// ── Render hero ──────────────────────────────────────────────
+function renderHero(book, stats) {
+  const coverUrl = book.cover_id
+    ? `https://covers.openlibrary.org/b/id/${book.cover_id}-L.jpg`
+    : book.ol_key
+    ? `https://covers.openlibrary.org/b/olid/${book.ol_key.replace('/works/','')}-L.jpg`
+    : null
+
+  const cover = coverUrl
+    ? `<img src="${coverUrl}" alt="${book.title}" />`
+    : `<div class="cover-ph">📖</div>`
+
+  const avgRating = stats.avg_rating ? parseFloat(stats.avg_rating).toFixed(1) : '—'
+  const cleanTitle = book.title.replace(/\s*\(.*?\)\s*/g, '').trim()
+  const slug      = toSlug(olKey, book.title)
+  const pageUrl   = `https://app.litloop.co/book/${slug}`
+  const ref       = `?ref=book-page&book=${encodeURIComponent(olKey)}`
+
+  // Update meta tags — use cleanTitle (brackets stripped) for SEO, full title for h1
+  document.title = `${cleanTitle} by ${book.author} | LitLoop`
+  document.querySelector('meta[name="description"]').content =
+    `See reviews for ${cleanTitle} by ${book.author} and join the discussion at LitLoop.`
+  document.getElementById('canonical').href = pageUrl
+  document.querySelector('#og-title').content  = `${cleanTitle} by ${book.author} | LitLoop`
+  document.querySelector('#og-desc').content   = `See reviews for ${cleanTitle} by ${book.author} and join the discussion at LitLoop.`
+  document.querySelector('#og-image').content  = coverUrl || ''
+  document.querySelector('#og-url').content    = pageUrl
+
+  // CTA links
+  document.getElementById('cta-signup').href = `${APP_URL}${ref}&action=signup`
+  document.getElementById('cta-signin').href = `${APP_URL}/signin${ref}`
+
+  document.getElementById('hero').innerHTML = `
+    <div class="hero-top">
+      <div class="cover-wrap">${cover}</div>
+      <div class="hero-meta">
+        <h1 class="hero-title">${book.title}</h1>
+        <div class="hero-author">by ${book.author || 'Unknown author'}</div>
+        ${(book.genre || book.pages || book.year) ? `
+        <div class="pills">
+          ${book.genre ? `<span class="pill pill-amber">${book.genre}</span>` : ''}
+          ${book.pages ? `<span class="pill pill-ghost">${book.pages} pages</span>` : ''}
+          ${book.year  ? `<span class="pill pill-ghost">${book.year}</span>`  : ''}
+        </div>` : ''}
+        <div class="hero-actions">
+          <button class="btn-review" id="btn-review">★ Leave a review</button>
+          <button class="btn-add"    id="btn-add">+ Add to list</button>
+        </div>
+      </div>
+    </div>
+    ${book.description ? `<div class="hero-desc">${book.description}</div>` : ''}
+    <div class="hero-stats">
+      <div class="stat">
+        <div class="stat-val">${avgRating}</div>
+        <div class="stat-label">avg rating</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">${stats.reader_count || 0}</div>
+        <div class="stat-label">readers</div>
+      </div>
+      <div class="stat">
+        <div class="stat-val">${stats.review_count || 0}</div>
+        <div class="stat-label">reviews</div>
+      </div>
+      <div class="engage-row">
+        <button class="engage-btn" id="engage-comments" title="Comments">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span>${stats.review_count || 0}</span>
+        </button>
+      </div>
+    </div>
+  `
+
+  // Wire up action buttons
+  document.getElementById('btn-review').onclick = () => {
+    if (currentUser) window.location.href = `${APP_URL}${ref}&action=review`
+    else openModal('review')
+  }
+  document.getElementById('btn-add').onclick = async () => {
+    if (!currentUser) { openModal('add-tbr'); return }
+    const btn = document.getElementById('btn-add')
+    btn.textContent = 'Adding…'
+    btn.disabled = true
+    // Find book_id first
+    const { data: bk } = await sb.from('books').select('id').eq('ol_key', olKey).single()
+    if (bk) {
+      await sb.from('reading_entries').insert({
+        user_id:    currentUser.id,
+        book_id:    bk.id,
+        status:     'tbr',
+        added_at:   new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+    }
+    btn.textContent = '✓ Added'
+    btn.style.background = 'rgba(42,110,105,0.3)'
+  }
+  document.getElementById('engage-comments').onclick = () => {
+    if (!currentUser) openModal('comment')
+  }
+}
+
+// ── Render a single review card ──────────────────────────────
+function reviewCardHtml(entry, showFooter = true) {
+  const name    = entry.display_name || entry.username || 'Reader'
+  const date    = entry.reviewed_at || entry.updated_at
+  const dateStr = date ? fmtDate(date) : statusLabel(entry.status)
+
+  const body = entry.review_body
+    ? `<div class="review-body">${entry.review_body}</div>`
+    : `<div class="review-status">${statusLabel(entry.status)}</div>`
+
+  const footer = showFooter ? `
+    <div class="card-footer">
+      <button class="card-action" data-action="like" data-id="${entry.id}">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        Like
+      </button>
+      <button class="card-action" data-action="comment" data-id="${entry.id}">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Comment
+      </button>
+    </div>` : ''
+
+  return `
+    <div class="card">
+      <div class="reviewer-row">
+        ${avatarHtml({ ...entry, user_id: entry.user_id })}
+        <div>
+          <div class="reviewer-name">${name}</div>
+          <div class="reviewer-date">${dateStr}</div>
+        </div>
+        ${starsHtml(entry.rating)}
+      </div>
+      ${body}
+      ${footer}
+    </div>`
+}
+
+// ── Wire up like/comment buttons ─────────────────────────────
+function wireCardActions(container) {
+  container.querySelectorAll('[data-action]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (!currentUser) openModal(btn.dataset.action)
+    })
+  })
+}
+
+// ── Load public reviews ──────────────────────────────────────
+async function loadReviews(append = false) {
+  const { data, error } = await sb
+    .from('reading_entries')
+    .select(`
+      id, user_id, rating, review_body, status, reviewed_at, updated_at,
+      books!inner(ol_key),
+      profiles(display_name, username, avatar_url)
+    `)
+    .eq('books.ol_key', olKey)
+    .eq('review_is_public', true)
+    .not('review_body', 'is', null)
+    .order('reviewed_at', { ascending: false, nullsFirst: false })
+    .range(reviewOffset, reviewOffset + PAGE_SIZE - 1)
+
+  const list = document.getElementById('reviews-list')
+  const btn  = document.getElementById('reviews-load-more')
+
+  if (error || !data?.length) {
+    if (!append) list.innerHTML = `<div class="empty-state">No public reviews yet — be the first!</div>`
+    btn.style.display = 'none'
+    return
+  }
+
+  // Flatten profiles join
+  const entries = data.map(e => ({
+    ...e,
+    display_name: e.profiles?.display_name,
+    username:     e.profiles?.username,
+    avatar_url:   e.profiles?.avatar_url,
+  }))
+
+  if (!append) list.innerHTML = ''
+  const frag = document.createDocumentFragment()
+  const tmp  = document.createElement('div')
+  tmp.innerHTML = entries.map(e => reviewCardHtml(e)).join('')
+  while (tmp.firstChild) frag.appendChild(tmp.firstChild)
+  list.appendChild(frag)
+  wireCardActions(list)
+
+  reviewOffset += data.length
+  btn.style.display = data.length < PAGE_SIZE ? 'none' : 'block'
+}
+
+// ── Load friend reviews ───────────────────────────────────────
+async function loadFriendReviews(append = false) {
+  if (!currentUser) return
+
+  const { data, error } = await sb.rpc('get_friend_reviews_for_book', {
+    p_user_id: currentUser.id,
+    p_ol_key:  olKey,
+    p_limit:   FRIEND_SIZE,
+    p_offset:  friendOffset,
+  })
+
+  const section = document.getElementById('friends-section')
+  const list    = document.getElementById('friends-list')
+  const btn     = document.getElementById('friends-load-more')
+
+  if (error || !data?.length) {
+    if (!append) {
+      section.style.display = 'block'
+      list.innerHTML = `<div class="empty-state">None of your friends have read this yet.</div>`
+    }
+    btn.style.display = 'none'
+    return
+  }
+
+  section.style.display = 'block'
+  if (!append) list.innerHTML = ''
+
+  const frag = document.createDocumentFragment()
+  const tmp  = document.createElement('div')
+  tmp.innerHTML = data.map(e => reviewCardHtml(e, !!currentUser)).join('')
+  while (tmp.firstChild) frag.appendChild(tmp.firstChild)
+  list.appendChild(frag)
+  wireCardActions(list)
+
+  friendOffset += data.length
+  btn.style.display = data.length < FRIEND_SIZE ? 'none' : 'block'
+}
+
+// ── Main ─────────────────────────────────────────────────────
+async function init() {
+  olKey = parseSlug()
+
+  // Check auth session
+  const { data: { session } } = await sb.auth.getSession()
+  currentUser = session?.user || null
+
+  // Hide CTA if logged in
+  if (currentUser) {
+    document.getElementById('cta-section').style.display = 'none'
+  }
+
+  // Fetch book + stats in parallel
+  const [bookRes, statsRes] = await Promise.all([
+    sb.from('books')
+      .select('ol_key, title, author, cover_id, description')
+      .eq('ol_key', olKey)
+      .single(),
+    sb.rpc('get_book_stats', { p_ol_key: olKey }),
+  ])
+
+  bookData = bookRes.data
+  if (!bookData) {
+    document.getElementById('hero').innerHTML = `
+      <div style="text-align:center;padding:32px;color:rgba(255,255,255,0.6)">
+        Book not found. <a href="https://app.litloop.co" style="color:var(--amber)">Go to LitLoop →</a>
+      </div>`
+    return
+  }
+
+  // Fetch description from Open Library if not yet stored
+  if (!bookData.description) {
+    try {
+      const olId = olKey.replace('/works/', '')
+      const res  = await fetch(`https://openlibrary.org/works/${olId}.json`)
+      if (res.ok) {
+        const json = await res.json()
+        const desc = json.description
+        if (desc) {
+          bookData.description = typeof desc === 'string' ? desc : desc.value || ''
+          // Trim to a reasonable length for display
+          if (bookData.description.length > 600) {
+            bookData.description = bookData.description.slice(0, 600).replace(/\s+\S*$/, '') + '…'
+          }
+          // Store back to Supabase so next load doesn't need to fetch
+          sb.from('books')
+            .update({ description: bookData.description })
+            .eq('ol_key', olKey)
+            .then(() => {})
+        }
+      }
+    } catch (e) {
+      // OL fetch failed — page renders fine without description
+    }
+  }
+
+  const stats = statsRes.data?.[0] || { reader_count: 0, review_count: 0, avg_rating: null }
+  renderHero(bookData, stats)
+
+  // Load reviews
+  await Promise.all([
+    loadReviews(),
+    loadFriendReviews(),
+  ])
+
+  // Load more buttons
+  document.getElementById('reviews-load-more').onclick = () => loadReviews(true)
+  document.getElementById('friends-load-more').onclick  = () => loadFriendReviews(true)
+}
+
+init()
+</script>
+</body>
+</html>
