@@ -80,7 +80,8 @@ export default function MomentComposer({ user, books, onClose, onPosted, presele
   if (step === 'book') {
     return (
       <ModalShell onClose={onClose} maxWidth={480}>
-        <div style={{ background: 'linear-gradient(160deg,#111C35,var(--rt-navy))', padding: '1.5rem 1rem 0.75rem', flexShrink: 0, marginTop: '-14px' }}>
+        <style>{`.rt-ms-handle { visibility: hidden; margin: 0 !important; height: 0 !important; }`}</style>
+        <div style={{ background: 'linear-gradient(160deg,#111C35,var(--rt-navy))', padding: '1.25rem 1rem 0.75rem', flexShrink: 0, borderRadius: '20px 20px 0 0' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
             <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: '#fff' }}>Share a moment</div>
             <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '50%', width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '0.95rem' }}>×</button>
@@ -90,7 +91,7 @@ export default function MomentComposer({ user, books, onClose, onPosted, presele
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search your books…"
-            style={{ width: '100%', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '0.5rem 0.75rem', fontSize: '0.85rem', color: '#fff', outline: 'none', fontFamily: 'var(--rt-font-body)' }}
+            style={{ width: '100%', boxSizing: 'border-box', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 8, padding: '0.5rem 0.75rem', fontSize: '0.85rem', color: '#fff', outline: 'none', fontFamily: 'var(--rt-font-body)' }}
           />
         </div>
 
@@ -141,8 +142,9 @@ export default function MomentComposer({ user, books, onClose, onPosted, presele
 
   return (
     <ModalShell onClose={onClose} maxWidth={480}>
+      <style>{`.rt-ms-handle { visibility: hidden; margin: 0 !important; height: 0 !important; }`}</style>
       {/* Header */}
-      <div style={{ background: 'linear-gradient(160deg,#111C35,var(--rt-navy))', padding: '1.5rem 1rem 0.9rem', flexShrink: 0, marginTop: '-14px' }}>
+      <div style={{ background: 'linear-gradient(160deg,#111C35,var(--rt-navy))', padding: '1.25rem 1rem 0.9rem', flexShrink: 0, borderRadius: '20px 20px 0 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: '#fff' }}>Share a moment</div>
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '50%', width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '0.95rem' }}>×</button>
