@@ -6,14 +6,15 @@ import CoverImage from './books/CoverImage'
 const MAX_UPDATE = 280
 const MAX_QUOTE  = 500
 
-export default function MomentComposer({ user, books, onClose, onPosted }) {
-  const [step, setStep]             = useState('book')   // 'book' | 'compose'
+export default function MomentComposer({ user, books, onClose, onPosted, preselectedBook = null, prefilledType = 'update', prefilledPageRef = null }) {
+  const [step, setStep]             = useState(preselectedBook ? 'compose' : 'book')
   const [search, setSearch]         = useState('')
-  const [selectedBook, setSelectedBook] = useState(null)
-  const [momentType, setMomentType] = useState('update') // 'update' | 'quote'
+  const [selectedBook, setSelectedBook] = useState(preselectedBook)
+  const [momentType, setMomentType] = useState(prefilledType)
   const [body, setBody]             = useState('')
-  const [pageRef, setPageRef]       = useState('')
-  const [posting, setPosting]       = useState(false)
+  const [pageRef, setPageRef]       = useState(prefilledPageRef ? String(prefilledPageRef) : '')
+  const [posting, setPosting]         = useState(false)
+  const [spoilerWarning, setSpoilerWarning] = useState(false)
   const textareaRef = useRef(null)
 
   // Sort: currently reading first, then rest of library
@@ -65,6 +66,7 @@ export default function MomentComposer({ user, books, onClose, onPosted }) {
         p_moment_type: momentType,
         p_body:        body.trim(),
         p_page_ref:    pageRef ? parseInt(pageRef, 10) : null,
+        p_spoiler:     spoilerWarning,
       })
       onPosted?.()
       onClose()
@@ -78,7 +80,7 @@ export default function MomentComposer({ user, books, onClose, onPosted }) {
   if (step === 'book') {
     return (
       <ModalShell onClose={onClose} maxWidth={480}>
-        <div style={{ background: 'linear-gradient(160deg,#111C35,var(--rt-navy))', padding: '1rem 1rem 0.75rem', flexShrink: 0 }}>
+        <div style={{ background: 'linear-gradient(160deg,#111C35,var(--rt-navy))', padding: '1.5rem 1rem 0.75rem', flexShrink: 0, marginTop: '-14px' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
             <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: '#fff' }}>Share a moment</div>
             <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '50%', width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '0.95rem' }}>×</button>
@@ -140,7 +142,7 @@ export default function MomentComposer({ user, books, onClose, onPosted }) {
   return (
     <ModalShell onClose={onClose} maxWidth={480}>
       {/* Header */}
-      <div style={{ background: 'linear-gradient(160deg,#111C35,var(--rt-navy))', padding: '1rem 1rem 0.9rem', flexShrink: 0 }}>
+      <div style={{ background: 'linear-gradient(160deg,#111C35,var(--rt-navy))', padding: '1.5rem 1rem 0.9rem', flexShrink: 0, marginTop: '-14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: '#fff' }}>Share a moment</div>
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '50%', width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '0.95rem' }}>×</button>
@@ -205,23 +207,29 @@ export default function MomentComposer({ user, books, onClose, onPosted }) {
           />
         </div>
 
-        {/* Page ref */}
+        {/* % complete */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-          <span style={{ fontSize: '0.78rem', color: 'var(--rt-t3)' }}>Page</span>
+          <span style={{ fontSize: '0.78rem', color: 'var(--rt-t3)' }}>% complete</span>
           <input
             type="number"
             value={pageRef}
             onChange={e => setPageRef(e.target.value)}
-            placeholder="e.g. 142"
-            min={1}
+            placeholder="e.g. 57"
+            min={0}
+            max={100}
             style={{ width: 80, background: 'var(--rt-surface)', border: '1px solid var(--rt-border-md)', borderRadius: 6, padding: '0.3rem 0.5rem', fontSize: '0.8rem', color: 'var(--rt-navy)', outline: 'none' }}
           />
           <span style={{ fontSize: '0.7rem', color: 'var(--rt-t3)' }}>optional</span>
         </div>
 
-        {/* Char count */}
-        <div style={{ textAlign: 'right', fontSize: '0.75rem', color: overLimit ? '#dc2626' : 'var(--rt-t3)', marginBottom: '0.75rem' }}>
-          {body.length} / {maxChars}
+        {/* Spoiler + char count row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', userSelect: 'none' }}>
+            <input type="checkbox" checked={spoilerWarning} onChange={e => setSpoilerWarning(e.target.checked)}
+              style={{ width: 14, height: 14, accentColor: 'var(--rt-navy)', cursor: 'pointer' }} />
+            <span style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>Contains spoilers</span>
+          </label>
+          <span style={{ fontSize: '0.75rem', color: overLimit ? '#dc2626' : 'var(--rt-t3)' }}>{body.length} / {maxChars}</span>
         </div>
 
         {/* Post button */}

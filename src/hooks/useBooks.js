@@ -77,6 +77,9 @@ export function useBooks(user) {
         favourite:    e.favourite        || false,
         favOrder:     e.fav_order        || null,
         userId:       e.user_id,
+        currentPage:   e.current_page     || null,
+        totalPages:    e.total_pages      || null,
+        spoilerWarning: e.spoiler_warning  || false,
       }))
       setBooks(mapped)
     }
@@ -207,6 +210,9 @@ export function useBooks(user) {
       if (changes.genre        !== undefined) cloudChanges.genre              = changes.genre
       if (changes.favourite    !== undefined) cloudChanges.favourite          = changes.favourite
       if (changes.favOrder     !== undefined) cloudChanges.fav_order          = changes.favOrder
+      if (changes.currentPage  !== undefined) cloudChanges.current_page       = changes.currentPage
+      if (changes.totalPages       !== undefined) cloudChanges.total_pages        = changes.totalPages
+      if (changes.spoilerWarning   !== undefined) cloudChanges.spoiler_warning    = changes.spoilerWarning
 
       // coverId lives on books table (not reading_entries) — write separately via ol_key.
       // changes._olKey may be passed as a fallback when book.olKey is null (eg. Goodreads imports

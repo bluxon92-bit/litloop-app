@@ -354,6 +354,7 @@ export function FinishModal({ book, user, onClose, onSaved }) {
   const [reviewText, setReviewText]   = useState('')
   const [showPrivate, setShowPrivate] = useState(false)
   const [privateNotes, setPrivateNotes] = useState('')
+  const [spoilerWarning, setSpoilerWarning] = useState(false)
   const [saving, setSaving]           = useState(false)
 
   // Step 1 (share) state — declared before any early returns
@@ -374,8 +375,9 @@ export function FinishModal({ book, user, onClose, onSaved }) {
       dateRead:     date,
       rating:       status === 'read' ? (rating || null) : null,
       notes:        privateNotes.trim() || null,
-      reviewBody:   hasReview ? reviewText.trim() : null,
-      reviewPublic: hasReview,
+      reviewBody:      hasReview ? reviewText.trim() : null,
+      reviewPublic:    hasReview,
+      spoilerWarning:  spoilerWarning && hasReview,
       genre:        genre || book.genre || null,
       updatedAt:    new Date().toISOString(),
     }
@@ -456,6 +458,13 @@ export function FinishModal({ book, user, onClose, onSaved }) {
               <div style={{ marginTop: '0.35rem', fontSize: '0.68rem', color: 'var(--rt-t3)' }}>
                 This will appear in your friends' feed marked as Did Not Finish.
               </div>
+            )}
+            {reviewText.trim() && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.5rem', cursor: 'pointer', userSelect: 'none' }}>
+                <input type="checkbox" checked={spoilerWarning} onChange={e => setSpoilerWarning(e.target.checked)}
+                  style={{ width: 14, height: 14, accentColor: 'var(--rt-navy)', cursor: 'pointer' }} />
+                <span style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>Contains spoilers</span>
+              </label>
             )}
           </div>
 
@@ -663,8 +672,9 @@ export default function BookSheet({ book, onClose, onSaved, onDeleted, user, ini
   const [date, setDate]         = useState(book.dateRead || '')
   const [notes, setNotes]       = useState(book.notes || '')
   const [review, setReview]     = useState(book.reviewBody || '')
-  const [isPublic, setIsPublic] = useState(book.reviewPublic || false)
-  const [genre, setGenre]       = useState(book.genre || '')
+  const [isPublic, setIsPublic]           = useState(book.reviewPublic || false)
+  const [spoilerWarning, setSpoilerWarning] = useState(book.spoilerWarning || false)
+  const [genre, setGenre]                 = useState(book.genre || '')
 
   const isRead = book.status === 'read' || book.status === 'dnf'
   const stars  = book.rating ? '★'.repeat(book.rating) + '☆'.repeat(5 - book.rating) : ''
@@ -675,8 +685,9 @@ export default function BookSheet({ book, onClose, onSaved, onDeleted, user, ini
       rating:       status === 'read' ? (rating || null) : null,
       dateRead:     date || null,
       notes:        notes.trim() || null,
-      reviewBody:   (isPublic && review.trim()) ? review.trim() : null,
-      reviewPublic: isPublic && !!review.trim(),
+      reviewBody:      (isPublic && review.trim()) ? review.trim() : null,
+      reviewPublic:    isPublic && !!review.trim(),
+      spoilerWarning:  spoilerWarning && isPublic && !!review.trim(),
       genre:        genre || null,
       updatedAt:    new Date().toISOString(),
     }
@@ -783,6 +794,13 @@ export default function BookSheet({ book, onClose, onSaved, onDeleted, user, ini
                 {isPublic && (
                   <div style={{ marginBottom: '1rem' }}>
                     <textarea className="rt-textarea" rows={4} placeholder="Write your review…" value={review} onChange={e => setReview(e.target.value)} style={{ width: '100%', resize: 'none' }} />
+                    {review.trim() && (
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.5rem', cursor: 'pointer', userSelect: 'none' }}>
+                        <input type="checkbox" checked={spoilerWarning} onChange={e => setSpoilerWarning(e.target.checked)}
+                          style={{ width: 14, height: 14, accentColor: 'var(--rt-navy)', cursor: 'pointer' }} />
+                        <span style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>Contains spoilers</span>
+                      </label>
+                    )}
                   </div>
                 )}
               </>

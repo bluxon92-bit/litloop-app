@@ -9,6 +9,7 @@ import BookDetailPanel from '../components/books/BookDetailPanel'
 import BookSheet, { FinishModal } from '../components/books/BookSheet'
 import AddBookModal from '../components/books/AddBookModal'
 import { IcoBook } from '../components/icons'
+import MomentComposer from '../components/MomentComposer'
 
 const TABS = ['to-read', 'history', 'dnf']
 const TAB_LABELS = { 'to-read': 'To Read', history: 'History', dnf: 'DNF' }
@@ -127,6 +128,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
   const [showAll, setShowAll]                 = useState(false)
   const [addModal, setAddModal]               = useState(false)
   const [crCarouselIdx, setCrCarouselIdx]     = useState(0)
+  const [pendingMoment, setPendingMoment]     = useState(null)
 
   const tbr = books
     .filter(b => b.status === 'tbr')
@@ -215,6 +217,16 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
                   <div className="rt-reading-title">{book.title}</div>
                   {book.author && <div className="rt-reading-author">{book.author}</div>}
                   {book.dateStarted && <div className="rt-reading-meta" style={{ marginTop: '0.3rem' }}>Started {fmtDate(book.dateStarted)}</div>}
+                  {book.currentPage > 0 && (
+                    <div style={{ marginTop: '0.5rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <div style={{ flex: 1, height: 3, background: 'var(--rt-border)', borderRadius: 99, overflow: 'hidden' }}>
+                          <div style={{ height: '100%', background: 'var(--rt-amber)', borderRadius: 99, width: `${Math.min(100, book.currentPage)}%` }} />
+                        </div>
+                        <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', whiteSpace: 'nowrap' }}>{book.currentPage}%</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -361,6 +373,13 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
           onViewChat={(chatId) => onOpenChatModal?.(chatId || findExistingChat(detailBook.olKey)?.id)}
           onRecommend={() => setDetailBook(null)}
           onCoverUpdate={(id, coverId, olKey) => updateBook(id, { coverId, _olKey: olKey })}
+          onProgressLogged={({ currentPage, totalPages }) => {
+            updateBook(detailBook.id, { currentPage, totalPages })
+          }}
+          onShareMoment={({ book, page, total }) => {
+            setDetailBook(null)
+            setPendingMoment({ book, page, total })
+          }}
         />
       )}
 
@@ -391,6 +410,18 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
           onAdd={async d => { await addBook(d); setAddModal(false) }}
           onClose={() => setAddModal(false)}
           user={user}
+        />
+      )}
+
+      {pendingMoment && (
+        <MomentComposer
+          user={user}
+          books={books}
+          preselectedBook={pendingMoment.book}
+          prefilledType="update"
+          prefilledPageRef={pendingMoment.pct || pendingMoment.page || null}
+          onClose={() => setPendingMoment(null)}
+          onPosted={() => setPendingMoment(null)}
         />
       )}
     </div>

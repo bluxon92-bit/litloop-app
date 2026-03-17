@@ -113,7 +113,7 @@ export function useSocial(user) {
         } else {
           const { data: own } = await sb
             .from('feed_events')
-            .select('id, user_id, event_type, book_ol_key, book_title, book_author, cover_id, review_body, rating, created_at, moment_id, page_ref, moment_type, moment_body')
+            .select('id, user_id, event_type, book_ol_key, book_title, book_author, cover_id, review_body, rating, created_at, moment_id, page_ref, moment_type, moment_body, spoiler_warning')
             .eq('user_id', user.id)
             .order('created_at', { ascending: false })
             .limit(40)
@@ -122,7 +122,7 @@ export function useSocial(user) {
       } else {
         const { data: own } = await sb
           .from('feed_events')
-          .select('id, user_id, event_type, book_ol_key, book_title, book_author, cover_id, review_body, rating, created_at, moment_id, page_ref, moment_type, moment_body')
+          .select('id, user_id, event_type, book_ol_key, book_title, book_author, cover_id, review_body, rating, created_at, moment_id, page_ref, moment_type, moment_body, spoiler_warning')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(40)
@@ -180,7 +180,7 @@ export function useSocial(user) {
   async function loadNotifications() {
     const { data } = await sb
       .from('notifications')
-      .select('id, type, actor_id, entry_id, comment_id, read, read_at, created_at')
+      .select('id, type, actor_id, entry_id, comment_id, book_title, read, read_at, created_at')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(30)
@@ -192,11 +192,16 @@ export function useSocial(user) {
       const { data: profiles } = await sb.rpc('get_profiles_by_ids', { user_ids: actorIds })
       ;(profiles || []).forEach(p => { profileMap[p.id] = p })
     }
-    setNotifications(data.map(n => ({
-      ...n,
-      read: n.read || !!n.read_at,
-      profiles: profileMap[n.actor_id] || null,
-    })))
+    setNotifications(data.map(n => {
+      const profile = profileMap[n.actor_id] || null
+      return {
+        ...n,
+        read:      n.read || !!n.read_at,
+        profiles:  profile,
+        actorName: profile?.display_name || profile?.username || null,
+        bookTitle: n.book_title || null,
+      }
+    }))
   }
 
   async function markNotificationsRead(ids) {

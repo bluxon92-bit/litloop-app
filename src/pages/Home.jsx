@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { sb } from '../lib/supabase'
 import { useBooksContext } from '../context/BooksContext'
 import { useSocialContext } from '../context/SocialContext'
@@ -11,8 +11,36 @@ import AddBookModal from '../components/books/AddBookModal'
 import BookSheet, { FinishModal } from '../components/books/BookSheet'
 import ReviewThreadSheet from '../components/ReviewThreadSheet'
 import { IcoOpenBook } from '../components/icons'
+import MomentComposer from '../components/MomentComposer'
 
 // ── Engagement bar — likes + comments ─────────────────────────
+function SpoilerBody({ isSpoiler, isItalic, barCol = 'var(--rt-navy)', onClick, children }) {
+  const [revealed, setRevealed] = React.useState(false)
+  const showBlur = isSpoiler && !revealed
+  return (
+    <div
+      onClick={showBlur ? e => { e.stopPropagation(); setRevealed(true) } : onClick}
+      style={{ borderLeft: `3px solid ${barCol}`, paddingLeft: '0.5rem', cursor: 'pointer', position: 'relative' }}
+    >
+      <p style={{
+        fontSize: '0.82rem', color: 'var(--rt-navy)', lineHeight: 1.6, margin: 0,
+        display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+        fontStyle: isItalic ? 'italic' : 'normal', fontFamily: isItalic ? 'Georgia, serif' : 'inherit',
+        filter: showBlur ? 'blur(4px)' : 'none', userSelect: showBlur ? 'none' : 'auto', transition: 'filter 0.2s',
+      }}>
+        {children}
+      </p>
+      {showBlur && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--rt-t3)', background: 'var(--rt-white)', border: '1px solid var(--rt-border)', borderRadius: 99, padding: '0.15em 0.6em', letterSpacing: '0.04em' }}>
+            ⚠ Spoiler — tap to reveal
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function FeedEngagementBar({ entryId, user, onOpenThread }) {
   const [likes, setLikes]     = useState([])
   const [commentCount, setCommentCount] = useState(0)
@@ -85,6 +113,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
   const [crCarouselIdx, setCrCarouselIdx]   = useState(0)
   const [toast, setToast]                   = useState(null)
   const [feedLimit, setFeedLimit]           = useState(10)
+  const [pendingMoment, setPendingMoment]   = useState(null) // { book, page, total }
   const toastTimer                          = useRef(null)
 
   useEffect(() => {
@@ -232,6 +261,16 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
                     <div className="rt-reading-title">{book.title}</div>
                     {book.author && <div className="rt-reading-author">{book.author}</div>}
                     {book.dateStarted && <div className="rt-reading-meta" style={{ marginTop: '0.3rem' }}>Started {fmtDate(book.dateStarted)}</div>}
+                    {book.currentPage > 0 && (
+                      <div style={{ marginTop: '0.5rem' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <div style={{ flex: 1, height: 3, background: 'var(--rt-border)', borderRadius: 99, overflow: 'hidden' }}>
+                            <div style={{ height: '100%', background: 'var(--rt-amber)', borderRadius: 99, width: `${Math.min(100, book.currentPage)}%` }} />
+                          </div>
+                          <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', whiteSpace: 'nowrap' }}>{book.currentPage}%</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -313,20 +352,25 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
               const coverId     = ev.cover_id || null
               const olKey       = ev.book_ol_key || null
               const isDnfEvent  = ev.status === 'dnf'
-
-              // Shared inline elements
+              const isSpoiler   = !!ev.spoiler_warning
+              const dateStr     = ev.created_at ? new Date(ev.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''
+              const cardStyle = { background: 'var(--rt-white)', border: '1px solid var(--rt-border)', borderRadius: 12, padding: '0.75rem', marginBottom: '0.65rem' }
+              const coverEl = (
+                <div style={{ width: 80, height: 116, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.13)' }}>
+                  <CoverImage coverId={coverId} olKey={olKey} title={ev.book_title || ''} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                </div>
+              )
               const avatarEl = (
-                <div onClick={e => { e.stopPropagation(); onViewFriendProfile?.({ userId: ev.user_id, displayName, username, avatarUrl }) }}
-                  style={{ width: 14, height: 14, borderRadius: '50%', background: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.45rem', fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden', cursor: onViewFriendProfile ? 'pointer' : 'default' }}>
+                <div style={{ width: 18, height: 18, borderRadius: '50%', background: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.5rem', fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden' }}>
                   {avatarUrl ? <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : init}
                 </div>
               )
-              const dateStr = ev.created_at ? new Date(ev.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''
-              const cardStyle = { background: 'var(--rt-white)', border: '1px solid var(--rt-border)', borderRadius: 12, padding: '0.75rem', marginBottom: '0.65rem' }
-              const coverEl = (
-                <div style={{ width: 64, height: 92, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)' }}>
-                  <CoverImage coverId={coverId} olKey={olKey} title={ev.book_title || ''} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                </div>
+              const usernameEl = (
+                <span
+                  onClick={e => { e.stopPropagation(); onViewFriendProfile?.({ userId: ev.user_id, displayName, username, avatarUrl }) }}
+                  style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--rt-t2)', cursor: onViewFriendProfile ? 'pointer' : 'default', textDecoration: onViewFriendProfile ? 'underline' : 'none', textUnderlineOffset: 2 }}>
+                  {displayName}
+                </span>
               )
 
               // ── Moment card ──────────────────────────────
@@ -336,42 +380,32 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
                 const badgeBg  = isQuote ? 'var(--rt-amber-pale)' : '#e1f5ee'
                 const badgeCol = isQuote ? 'var(--rt-amber-text)' : '#085041'
                 const badgeTxt = isQuote ? 'Quote' : 'Reading update'
+                const openThread = () => setActiveReview({ entryId: ev.moment_id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, olKey, reviewBody: ev.moment_body, rating: null, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })
                 return (
                   <div key={ev.id} style={cardStyle}>
-                    {/* Header: cover + meta */}
-                    <div style={{ display: 'flex', gap: '0.65rem', marginBottom: '0.65rem' }}>
+                    {/* Top row: badge · avatar username · date */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
+                      <span style={{ background: badgeBg, color: badgeCol, borderRadius: 99, padding: '0.15em 0.55em', fontSize: '0.65rem', fontWeight: 700 }}>
+                        {badgeTxt}{ev.page_ref ? ` · ${ev.page_ref}%` : ''}
+                      </span>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)' }}>·</span>
+                      {avatarEl}
+                      {usernameEl}
+                      <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginLeft: 'auto' }}>{dateStr}</span>
+                    </div>
+                    {/* Book row: cover centred with meta */}
+                    <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: '0.6rem' }}>
                       {coverEl}
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.book_title || ''}</div>
-                        {ev.book_author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.3rem' }}>{ev.book_author}</div>}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
-                          <span style={{ background: badgeBg, color: badgeCol, borderRadius: 99, padding: '0.1em 0.5em', fontSize: '0.65rem', fontWeight: 700 }}>
-                            {badgeTxt}{ev.page_ref ? ` · p. ${ev.page_ref}` : ''}
-                          </span>
-                          <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)' }}>·</span>
-                          {avatarEl}
-                          <span
-                            onClick={e => { e.stopPropagation(); onViewFriendProfile?.({ userId: ev.user_id, displayName, username, avatarUrl }) }}
-                            style={{ fontSize: '0.7rem', fontWeight: 600, color: onViewFriendProfile ? 'var(--rt-amber)' : 'var(--rt-t2)', cursor: onViewFriendProfile ? 'pointer' : 'default', textDecoration: onViewFriendProfile ? 'underline' : 'none', textUnderlineOffset: 2 }}>
-                            {displayName}
-                          </span>
-                          <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)' }}>· {dateStr}</span>
-                        </div>
+                        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.15rem' }}>{ev.book_title || ''}</div>
+                        {ev.book_author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>{ev.book_author}</div>}
+                        <SpoilerBody isSpoiler={isSpoiler} isItalic={isQuote} barCol={barCol} onClick={openThread}>
+                          {ev.moment_body}
+                        </SpoilerBody>
                       </div>
                     </div>
-                    {/* Body — tap opens thread */}
-                    <div
-                      onClick={() => setActiveReview({ entryId: ev.moment_id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, olKey, reviewBody: ev.moment_body, rating: null, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })}
-                      style={{ borderLeft: `3px solid ${barCol}`, paddingLeft: '0.6rem', marginBottom: '0.6rem', cursor: 'pointer' }}>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--rt-navy)', lineHeight: 1.6, margin: 0, fontStyle: isQuote ? 'italic' : 'normal', fontFamily: isQuote ? 'Georgia, serif' : 'inherit' }}>
-                        {ev.moment_body}
-                      </p>
-                    </div>
-                    <FeedEngagementBar
-                      entryId={ev.moment_id}
-                      user={user}
-                      onOpenThread={() => setActiveReview({ entryId: ev.moment_id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, olKey, reviewBody: ev.moment_body, rating: null, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })}
-                    />
+                    <div style={{ height: '0.5px', background: 'var(--rt-border)', marginBottom: '0.5rem' }} />
+                    <FeedEngagementBar entryId={ev.moment_id} user={user} onOpenThread={openThread} />
                   </div>
                 )
               }
@@ -386,45 +420,39 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
 
               if (!reviewText && !isDnfEvent) return null
 
+              const openReview = () => setActiveReview({ entryId: ev.id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, olKey, reviewBody: reviewText, rating, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })
+
               return (
                 <div key={ev.id} style={cardStyle}>
-                  {/* Header: cover + meta */}
-                  <div style={{ display: 'flex', gap: '0.65rem', marginBottom: reviewText ? '0.65rem' : 0 }}
+                  {/* Top row: stars/dnf · avatar username · date */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
+                    {isDnfEvent
+                      ? <span style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', background: '#fee2e2', color: '#991b1b', borderRadius: 4, padding: '0.15em 0.5em' }}>Did not finish</span>
+                      : stars && <span style={{ fontSize: '0.82rem', color: 'var(--rt-amber)', letterSpacing: '0.5px' }}>{stars}</span>
+                    }
+                    <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)' }}>·</span>
+                    {avatarEl}
+                    {usernameEl}
+                    <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginLeft: 'auto' }}>{dateStr}</span>
+                  </div>
+                  {/* Book row: cover centred with meta */}
+                  <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: reviewText ? '0.6rem' : 0 }}
                     onClick={() => openDetail(feedBook, 'home-feed')}>
                     {coverEl}
                     <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
-                      <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.book_title || 'Unknown book'}</div>
-                      {ev.book_author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.3rem' }}>{ev.book_author}</div>}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
-                        {isDnfEvent
-                          ? <span style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', background: '#fee2e2', color: '#991b1b', borderRadius: 4, padding: '0.1em 0.45em' }}>Did not finish</span>
-                          : stars && <span style={{ fontSize: '0.78rem', color: 'var(--rt-amber)', letterSpacing: '0.5px' }}>{stars}</span>
-                        }
-                        <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)' }}>·</span>
-                        {avatarEl}
-                        <span
-                          onClick={e => { e.stopPropagation(); onViewFriendProfile?.({ userId: ev.user_id, displayName, username, avatarUrl }) }}
-                          style={{ fontSize: '0.7rem', fontWeight: 600, color: onViewFriendProfile ? 'var(--rt-amber)' : 'var(--rt-t2)', cursor: onViewFriendProfile ? 'pointer' : 'default', textDecoration: onViewFriendProfile ? 'underline' : 'none', textUnderlineOffset: 2 }}>
-                          {displayName}
-                        </span>
-                        <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)' }}>· {dateStr}</span>
-                      </div>
+                      <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.15rem' }}>{ev.book_title || 'Unknown book'}</div>
+                      {ev.book_author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>{ev.book_author}</div>}
+                      {reviewText && (
+                        <SpoilerBody isSpoiler={isSpoiler} barCol="var(--rt-navy)" onClick={e => { e.stopPropagation(); openReview() }}>
+                          {reviewText}
+                        </SpoilerBody>
+                      )}
                     </div>
                   </div>
-                  {/* Review body */}
                   {reviewText && (
                     <>
-                      <div onClick={() => setActiveReview({ entryId: ev.id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, olKey, reviewBody: reviewText, rating, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })}
-                        style={{ borderLeft: '3px solid var(--rt-navy)', paddingLeft: '0.6rem', marginBottom: '0.6rem', cursor: 'pointer' }}>
-                        <p style={{ fontSize: '0.85rem', color: 'var(--rt-navy)', lineHeight: 1.6, margin: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                          {reviewText}
-                        </p>
-                      </div>
-                      <FeedEngagementBar
-                        entryId={ev.id}
-                        user={user}
-                        onOpenThread={() => setActiveReview({ entryId: ev.id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, olKey, reviewBody: reviewText, rating, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })}
-                      />
+                      <div style={{ height: '0.5px', background: 'var(--rt-border)', marginBottom: '0.5rem' }} />
+                      <FeedEngagementBar entryId={ev.id} user={user} onOpenThread={openReview} />
                     </>
                   )}
                 </div>
@@ -454,6 +482,13 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
           myDisplayName={myDisplayName}
           onClose={() => setActiveReview(null)}
           onAddToTBR={() => {
+            const dup = findDuplicate(activeReview.bookTitle, activeReview.bookAuthor)
+            if (dup) {
+              const label = dup.status === 'tbr' ? 'your To Read list' : dup.status === 'reading' ? 'Currently Reading' : dup.status === 'read' ? 'your History' : 'your list'
+              setToast(`"${dup.title}" is already in ${label}`)
+              setActiveReview(null)
+              return
+            }
             addBook({ title: activeReview.bookTitle, author: activeReview.bookAuthor, status: 'tbr', olKey: activeReview.olKey, coverId: activeReview.coverId })
             setActiveReview(null)
             setToast(`Added "${activeReview.bookTitle}" to your list`)
@@ -502,6 +537,13 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
           onStartChat={() => onOpenChatModal?.(null, detailBook)}
           onViewChat={(chatId) => onOpenChatModal?.(chatId || findExistingChat(detailBook.olKey)?.id)}
           onCoverUpdate={(id, coverId, olKey) => updateBook(id, { coverId, _olKey: olKey })}
+          onProgressLogged={({ currentPage, totalPages }) => {
+            updateBook(detailBook.id, { currentPage, totalPages })
+          }}
+          onShareMoment={({ book, page, total }) => {
+            setDetailBook(null)
+            setPendingMoment({ book, page, total })
+          }}
         />
       )}
 
@@ -547,6 +589,19 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
         }}>
           {toast}
         </div>
+      )}
+
+      {/* ── Moment composer — triggered from log progress ── */}
+      {pendingMoment && (
+        <MomentComposer
+          user={user}
+          books={books}
+          preselectedBook={pendingMoment.book}
+          prefilledType="update"
+          prefilledPageRef={pendingMoment.pct || pendingMoment.page || null}
+          onClose={() => setPendingMoment(null)}
+          onPosted={() => { setPendingMoment(null); loadSocialData() }}
+        />
       )}
     </div>
   )

@@ -426,6 +426,8 @@ export default function BookDetailPanel({
   onOpenChatModal,
   friendName,
   onCoverUpdate,
+  onProgressLogged,
+  onShareMoment,
 }) {
   const { friends, sendRecommendation, recs } = useSocialContext()
   const { startOrOpenChat, chats } = useChatContext()
@@ -435,9 +437,17 @@ export default function BookDetailPanel({
   const [expanded, setExpanded]           = useState(false)
   const [showRecommend, setShowRecommend] = useState(false)
   const [showChatPicker, setShowChatPicker] = useState(false)
+  const [showProgress, setShowProgress]   = useState(false)
+  const [progressPage, setProgressPage]   = useState(book?.currentPage ? String(book.currentPage) : '')
+  const [progressTotal, setProgressTotal] = useState(book?.totalPages ? String(book.totalPages) : '')
+  const [progressPct, setProgressPct]     = useState(book?.currentPage ? String(book.currentPage) : '')
+  const [shareAsMoment, setShareAsMoment] = useState(false)
+  const [savingProgress, setSavingProgress] = useState(false)
   const [coverIdLive, setCoverIdLive]     = useState(book?.coverId || null)
+  const [olKeyLive, setOlKeyLive]         = useState(book?.olKey || null)
 
   useEffect(() => { setCoverIdLive(book?.coverId || null) }, [book?.coverId])
+  useEffect(() => { setOlKeyLive(book?.olKey || null) }, [book?.olKey])
 
   useEffect(() => {
     setLoading(true); setOlData(null); setExpanded(false)
@@ -445,6 +455,7 @@ export default function BookDetailPanel({
       if (!coverId) return
       // Update local display immediately
       setCoverIdLive(coverId)
+      if (discoveredOlKey) setOlKeyLive(discoveredOlKey)
       // Update in-memory books state so list view shows cover without refetch
       onCoverUpdate?.(book.id, coverId, discoveredOlKey)
       // Write cover back to books table using the discovered olKey
@@ -500,15 +511,38 @@ export default function BookDetailPanel({
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: '#fff', lineHeight: 1.3, marginBottom: '0.3rem' }}>{book.title}</div>
-            {book.author && <div style={{ fontSize: '0.83rem', color: 'rgba(255,255,255,0.6)', marginBottom: '0.5rem' }}>by {book.author}</div>}
+            {book.author && <div style={{ fontSize: '0.83rem', color: 'rgba(255,255,255,0.6)', marginBottom: '0.35rem' }}>by {book.author}</div>}
+
             {olData?.year && <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.4)', marginBottom: '0.4rem' }}>First published {olData.year}</div>}
             {book.status && (
               <span style={{ display: 'inline-block', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.7)', padding: '0.2em 0.6em', borderRadius: '99px' }}>
                 {statusBadges[book.status] || book.status}
               </span>
             )}
+            {isReading && (
+              <button
+                onClick={() => setShowProgress(true)}
+                style={{ display: 'block', marginTop: '0.4rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', fontWeight: 600 }}
+              >
+                {book.currentPage ? '↻ Update progress' : '+ Log progress'}
+              </button>
+            )}
           </div>
         </div>
+
+        {/* Progress bar — shown when reading and progress logged */}
+        {isReading && book.currentPage && (
+          <div style={{ marginTop: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <div style={{ flex: 1, height: 3, background: 'rgba(255,255,255,0.1)', borderRadius: 99, overflow: 'hidden' }}>
+                <div style={{ height: '100%', background: 'var(--rt-amber)', borderRadius: 99, width: `${Math.min(100, book.currentPage)}%` }} />
+              </div>
+              <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap' }}>
+                {book.currentPage}%
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Stars in hero if read */}
         {book.rating > 0 && (
@@ -574,7 +608,15 @@ export default function BookDetailPanel({
 
         {/* ABOUT THIS BOOK */}
         <div style={{ marginBottom: '1rem' }}>
-          <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.4rem' }}>About this book</div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+            <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)' }}>About this book</div>
+            {(book.olKey || olKeyLive) && (() => {
+              const key   = (book.olKey || olKeyLive || '').replace('/works/', '').toLowerCase()
+              const clean = (book.title || '').replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')
+              const slug  = key + (clean ? '-' + clean : '')
+              return <a href={`https://app.litloop.co/book/${slug}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>View book page ↗</a>
+            })()}
+          </div>
           {loading ? (
             <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', color: 'var(--rt-t3)', fontSize: '0.82rem' }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--rt-border-md)', animation: 'pulse 1.2s ease infinite' }}/>
@@ -689,6 +731,92 @@ export default function BookDetailPanel({
           onClose={() => setShowChatPicker(false)}
           existingChats={chats}
         />
+      )}
+
+      {/* ── Log Progress modal ── */}
+      {showProgress && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(10,15,30,0.55)', zIndex: 500, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <style>{`
+            @media (min-width: 640px) {
+              .rt-progress-modal { border-radius: 16px !important; max-width: 380px !important; margin-bottom: auto !important; margin-top: auto !important; }
+            }
+          `}</style>
+          <div className="rt-progress-modal" style={{ background: 'var(--rt-white)', borderRadius: '16px 16px 0 0', padding: '1.25rem 1.25rem 2rem', width: '100%', maxWidth: 480 }}>
+            <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.25rem' }}>Log progress</div>
+            <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)', marginBottom: '1.1rem' }}>{book.title}</div>
+
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.35rem' }}>% done</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={progressPct}
+                  onChange={e => setProgressPct(e.target.value)}
+                  placeholder="e.g. 57"
+                  autoFocus
+                  style={{ flex: 1, padding: '0.6rem 0.75rem', border: '1.5px solid var(--rt-border-md)', borderRadius: 8, fontSize: '1.1rem', color: 'var(--rt-navy)', outline: 'none', fontFamily: 'var(--rt-font-body)' }}
+                />
+                <span style={{ fontSize: '1.1rem', color: 'var(--rt-t3)', fontWeight: 600 }}>%</span>
+              </div>
+              {progressPct && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  <div style={{ height: 4, background: 'var(--rt-border)', borderRadius: 99, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', background: 'var(--rt-amber)', borderRadius: 99, width: `${Math.min(100, parseInt(progressPct) || 0)}%`, transition: 'width 0.2s' }} />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Share as moment toggle */}
+            <div
+              onClick={() => setShareAsMoment(v => !v)}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 0', borderTop: '1px solid var(--rt-border)', borderBottom: '1px solid var(--rt-border)', marginBottom: '1rem', cursor: 'pointer' }}
+            >
+              <div>
+                <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--rt-navy)' }}>Share as a moment</div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>Post a reading update to your friends</div>
+              </div>
+              <div style={{ width: 40, height: 24, borderRadius: 99, background: shareAsMoment ? 'var(--rt-amber)' : 'var(--rt-border-md)', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                <div style={{ position: 'absolute', top: 3, left: shareAsMoment ? 19 : 3, width: 18, height: 18, borderRadius: '50%', background: '#fff', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button
+                onClick={() => { setShowProgress(false); setShareAsMoment(false) }}
+                style={{ flex: 1, padding: '0.75rem', border: '1px solid var(--rt-border-md)', borderRadius: 99, background: 'none', fontSize: '0.88rem', color: 'var(--rt-t2)', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                disabled={!progressPct || savingProgress}
+                onClick={async () => {
+                  if (!progressPct || !user) return
+                  setSavingProgress(true)
+                  const pct = Math.min(100, parseInt(progressPct) || 0)
+                  // Write to DB — store pct in current_page field (0-100), total_pages=100
+                  await sb.from('reading_entries')
+                    .update({ current_page: pct, total_pages: 100, updated_at: new Date().toISOString() })
+                    .eq('user_id', user.id)
+                    .eq('status', 'reading')
+                    .eq('book_id', book.cloudId || book.id)
+                  setSavingProgress(false)
+                  onProgressLogged?.({ currentPage: pct, totalPages: 100 })
+                  setShowProgress(false)
+                  if (shareAsMoment) {
+                    setShareAsMoment(false)
+                    onShareMoment?.({ book, page: null, pct })
+                  }
+                }}
+                style={{ flex: 2, padding: '0.75rem', border: 'none', borderRadius: 99, background: progressPct ? 'var(--rt-navy)' : 'var(--rt-surface)', color: progressPct ? '#fff' : 'var(--rt-t3)', fontSize: '0.88rem', fontWeight: 700, cursor: progressPct ? 'pointer' : 'default', transition: 'all 0.15s' }}
+              >
+                {savingProgress ? 'Saving…' : shareAsMoment ? 'Save & share moment' : 'Save progress'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </ModalShell>
   )

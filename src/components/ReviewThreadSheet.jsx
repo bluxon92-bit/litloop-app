@@ -136,10 +136,11 @@ export default function ReviewThreadSheet({
       // Notify reviewer if not self
       if (review.reviewer?.userId && review.reviewer.userId !== user.id) {
         await sb.from('notifications').insert({
-          user_id:  review.reviewer.userId,
-          actor_id: user.id,
-          type:     'review_liked',
-          entry_id: review.entryId,
+          user_id:    review.reviewer.userId,
+          actor_id:   user.id,
+          type:       'review_liked',
+          entry_id:   review.entryId,
+          book_title: review.bookTitle || null,
         })
       }
     }
@@ -168,6 +169,7 @@ export default function ReviewThreadSheet({
           type:       'comment_liked',
           entry_id:   review.entryId,
           comment_id: comment.id,
+          book_title: review.bookTitle || null,
         })
       }
     }
@@ -195,11 +197,12 @@ export default function ReviewThreadSheet({
       // Notify reviewer if I'm not the reviewer
       if (review.reviewer?.userId && review.reviewer.userId !== user.id) {
         await sb.from('notifications').insert({
-          user_id:  review.reviewer.userId,
-          actor_id: user.id,
-          type:     'review_commented',
-          entry_id: review.entryId,
+          user_id:    review.reviewer.userId,
+          actor_id:   user.id,
+          type:       'review_commented',
+          entry_id:   review.entryId,
           comment_id: data.id,
+          book_title: review.bookTitle || null,
         })
       }
 
@@ -215,6 +218,7 @@ export default function ReviewThreadSheet({
             type:       'thread_activity',
             entry_id:   review.entryId,
             comment_id: data.id,
+            book_title: review.bookTitle || null,
           }))
         )
       }

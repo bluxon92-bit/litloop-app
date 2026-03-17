@@ -12,14 +12,20 @@ export function normaliseTitle(s) {
 }
 
 export function normTitle(s) {
-  return (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim()
+  // Strip series info in brackets before normalising
+  return (s || '').replace(/\s*\([^)]*#\d[^)]*\)/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim()
 }
 
-export function isDuplicate(books, title, author) {
+export function isDuplicate(books, title, author, olKey = null) {
   const nt = normTitle(title)
   const na = normTitle(author)
   return books.some(b => {
-    if (normTitle(b.title) !== nt) return false
+    // Match by olKey first — most reliable
+    if (olKey && b.olKey && olKey === b.olKey) return true
+    // Fallback: normalised title (handle subtitle differences with startsWith)
+    const bt = normTitle(b.title)
+    const titleMatch = bt === nt || bt.startsWith(nt) || nt.startsWith(bt)
+    if (!titleMatch) return false
     if (na && normTitle(b.author) && normTitle(b.author) !== na) return false
     return true
   })

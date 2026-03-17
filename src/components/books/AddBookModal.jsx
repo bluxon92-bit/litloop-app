@@ -51,12 +51,18 @@ export default function AddBookModal({ defaultStatus, books, onAdd, onClose, use
   const sgInputRef = useRef(null)
 
   function normTitle(s) {
-    return (s || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim()
+    // Strip series info in brackets, then normalise
+    return (s || '').replace(/\s*\([^)]*#\d[^)]*\)/g, '').toLowerCase().replace(/[^a-z0-9 ]/g, '').replace(/\s+/g, ' ').trim()
   }
   function findDup(t, a) {
     const nt = normTitle(t), na = normTitle(a)
     return books.find(b => {
-      if (normTitle(b.title) !== nt) return false
+      // Match by olKey first — most reliable
+      if (olKey && b.olKey && olKey === b.olKey) return true
+      // Fallback: normalised title match (one must start with the other to handle subtitle differences)
+      const bt = normTitle(b.title)
+      const titleMatch = bt === nt || bt.startsWith(nt) || nt.startsWith(bt)
+      if (!titleMatch) return false
       if (na && normTitle(b.author) && normTitle(b.author) !== na) return false
       return true
     }) || null

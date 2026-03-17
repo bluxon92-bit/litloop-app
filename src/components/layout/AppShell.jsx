@@ -154,7 +154,7 @@ function FabRecommendModal({ books, friends, user, recs, sendRecommendation, onC
   const [step, setStep]         = useState('book') // 'book' | 'friends'
   const [search, setSearch]     = useState('')
   const [selectedBook, setSelectedBook] = useState(null)
-  const [selectedFriends, setSelectedFriends] = useState(() => preselectedFriendId ? new Set([preselectedFriendId]) : new Set())
+  const [selectedFriends, setSelectedFriends] = useState(new Set())
   const [note, setNote]         = useState('')
   const [sending, setSending]   = useState(false)
   const [sent, setSent]         = useState(false)
@@ -809,7 +809,8 @@ export default function AppShell() {
   const { pending, outgoingPending, feed, recs, friends, sendRecommendation, generateInviteLink, sendFriendRequest,
           acceptFriendRequest, declineFriendRequest,
           myUsername, saveProfile, setPreferredMoods, profileLoaded,
-          notifications: socialNotifs, markNotificationsRead, loadSocialData } = useSocialContext()
+          notifications: socialNotifs, markNotificationsRead, loadSocialData,
+          myDisplayName, myAvatarUrl } = useSocialContext()
   const { books, addBook } = useBooksContext()
   const [activeTab, setActiveTab]         = useState('home')
   const [onboardingDone, setOnboardingDone] = useState(false)
@@ -872,10 +873,9 @@ export default function AppShell() {
   const avatarBg     = avatarColour(user?.id || 'x')
   const avatarLetter = avatarInitial(displayName)
 
-  // Close notif popup on outside click + mark social notifs read on open
+  // Close notif popup on outside click
   useEffect(() => {
     if (!notifOpen) return
-    if (unreadSocialNotifs?.length > 0) markNotificationsRead?.()
     function handler(e) {
       if (bellRef.current && !bellRef.current.contains(e.target)) setNotifOpen(false)
     }
@@ -917,19 +917,49 @@ export default function AppShell() {
       time: ev.created_at,
       action: () => { setActiveTab('home'); setNotifOpen(false) }
     })),
-    ...(socialNotifs || []).map(n => ({
-      id: 'social-' + n.id,
-      icon: n.type === 'review_like' ? '❤️' : n.type === 'review_comment' ? '💬' : '🔔',
-      text: n.type === 'review_like'
-        ? `${n.actorName || 'Someone'} liked your review of "${n.bookTitle || 'a book'}"`
-        : n.type === 'review_comment'
-        ? `${n.actorName || 'Someone'} commented on your review of "${n.bookTitle || 'a book'}"`
-        : n.body || 'New notification',
-      time: n.created_at,
-      unread: !n.read,
-      action: () => { setActiveTab('home'); setNotifOpen(false) }
-    })),
-  ].slice(0, 10)
+    ...(socialNotifs || []).filter(n => !n.read).map(n => {
+      const actor = n.actorName || 'Someone'
+      const book  = n.bookTitle ? `"${n.bookTitle}"` : 'a book'
+      let text, icon
+      switch (n.type) {
+        case 'review_liked':
+        case 'review_like':
+          text = `${actor} liked your review of ${book}`; icon = '❤️'; break
+        case 'review_commented':
+        case 'review_comment':
+          text = `${actor} commented on your review of ${book}`; icon = '💬'; break
+        case 'comment_liked':
+          text = `${actor} liked your comment`; icon = '❤️'; break
+        case 'thread_activity':
+          text = `${actor} replied in a thread you're in`; icon = '💬'; break
+        case 'friend_request':
+          text = `${actor} sent you a friend request`; icon = '👋'; break
+        case 'friend_accepted':
+          text = `${actor} accepted your friend request`; icon = '✓'; break
+        case 'book_recommendation':
+          text = `${actor} recommended ${book}`; icon = '📖'; break
+        case 'co_reading_started':
+          text = `${actor} just started reading ${book} — same as you!`; icon = '📖'; break
+        case 'co_reading_joined':
+          text = `${actor} is also reading ${book}`; icon = '📖'; break
+        case 'co_reading_started':
+          text = `${actor} just started reading ${book} — you're reading it too!`; icon = '📖'; break
+        case 'friend_already_reading':
+          text = `${actor} is already reading ${book}`; icon = '📖'; break
+        default:
+          if (!n.bookTitle) return null  // hide old untyped notifications with no context
+          text = `New activity from ${actor}`; icon = '🔔'
+      }
+      return {
+        id: 'social-' + n.id,
+        icon,
+        text,
+        time: n.created_at,
+        unread: true,
+        action: () => { setActiveTab('home'); setNotifOpen(false) }
+      }
+    }).filter(Boolean),
+  ].slice(0, 15)
 
   function renderPage() {
     switch (activeTab) {
@@ -946,6 +976,11 @@ export default function AppShell() {
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--rt-cream)', fontFamily: 'var(--rt-font-body)' }}>
+
+      {/* ── Onboarding — shown when user has no username yet ── */}
+      {showOnboarding && (
+        <OnboardingFlow user={user} onComplete={() => setOnboardingDone(true)} />
+      )}
 
       {/* ── Desktop sidebar ─────────────────────────────── */}
       <nav className="rt-sidebar-desktop" style={{
@@ -999,8 +1034,13 @@ export default function AppShell() {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               border: activeTab === 'account' ? '2px solid var(--rt-amber)' : '2px solid transparent',
               fontFamily: 'var(--rt-font-display)', fontWeight: 700, color: '#fff', fontSize: '0.7rem',
-              transition: 'border-color 0.15s',
-            }}>{avatarLetter}</div>
+              transition: 'border-color 0.15s', overflow: 'hidden', padding: 0,
+            }}>
+              {myAvatarUrl
+                ? <img src={myAvatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : avatarLetter
+              }
+            </div>
             <p style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{user?.email}</p>
           </button>
           <button onClick={signOut} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.7rem 0.75rem', borderRadius: 'var(--rt-r3)', border: 'none', background: 'none', color: 'var(--rt-t3)', fontFamily: 'var(--rt-font-body)', fontSize: '0.88rem', cursor: 'pointer', width: '100%' }}>
@@ -1032,9 +1072,15 @@ export default function AppShell() {
               borderRadius: '50%', width: 32, height: 32,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer', fontFamily: 'var(--rt-font-display)',
-              fontWeight: 700, color: '#fff', fontSize: '0.75rem', transition: 'border-color 0.15s'
+              fontWeight: 700, color: '#fff', fontSize: '0.75rem', transition: 'border-color 0.15s',
+              overflow: 'hidden', padding: 0,
             }}
-          >{avatarLetter}</button>
+          >
+            {myAvatarUrl
+              ? <img src={myAvatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : avatarLetter
+            }
+          </button>
         </div>
 
         {/* Centre: LitLoop wordmark */}
@@ -1064,8 +1110,16 @@ export default function AppShell() {
                 border: '1px solid var(--rt-border)', boxShadow: '0 8px 32px rgba(26,39,68,0.15)',
                 zIndex: 200, overflow: 'hidden'
               }}>
-                <div style={{ padding: '0.85rem 1rem 0.6rem', borderBottom: '1px solid var(--rt-border)', fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)' }}>
-                  Notifications
+                <div style={{ padding: '0.85rem 1rem 0.6rem', borderBottom: '1px solid var(--rt-border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <span style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)' }}>Notifications</span>
+                  {unreadSocialNotifs?.length > 0 && (
+                    <button
+                      onClick={() => markNotificationsRead?.(unreadSocialNotifs.map(n => n.id))}
+                      style={{ background: 'none', border: 'none', fontSize: '0.7rem', color: 'var(--rt-amber)', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+                    >
+                      Mark all read
+                    </button>
+                  )}
                 </div>
                 {notifications.length === 0 ? (
                   <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--rt-t3)', fontSize: '0.82rem' }}>
