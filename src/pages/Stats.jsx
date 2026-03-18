@@ -5,20 +5,23 @@ import { IcoBook, IcoPen } from '../components/icons'
 
 export default function Stats() {
   const { books } = useBooksContext()
-  const [goal, setGoal]           = useState(loadGoal)
-  const [scope, setScope]         = useState('year') // 'year' | 'alltime'
+  const [goal, setGoal]   = useState(loadGoal)
+  const [scope, setScope] = useState('year') // 'year' | 'alltime'
 
-  const year      = new Date().getFullYear()
-  const read      = books.filter(b => b.status === 'read')
-  const thisYear  = read.filter(b => b.dateRead && b.dateRead.startsWith(String(year)))
-  const rated     = read.filter(b => b.rating)
+  const year     = new Date().getFullYear()
+  const read     = books.filter(b => b.status === 'read')
+  const thisYear = read.filter(b => b.dateRead && b.dateRead.startsWith(String(year)))
+
+  // Scope-reactive dataset
+  const scopeBooks = scope === 'year' ? thisYear : read
+
+  // KPI values — all scope-reactive
+  const rated     = scopeBooks.filter(b => b.rating)
   const avgRating = rated.length
     ? (rated.reduce((s, b) => s + b.rating, 0) / rated.length).toFixed(1)
     : '—'
+  const fiveStars = scopeBooks.filter(b => b.rating === 5).length
   const goalPct   = Math.min(100, Math.round((thisYear.length / Math.max(goal, 1)) * 100))
-
-  // Scope-filtered dataset (genres + authors toggle between year / all time)
-  const scopeBooks = scope === 'year' ? thisYear : read
 
   // Genre pie
   const genreMap = {}
@@ -33,7 +36,7 @@ export default function Stats() {
   const authMax = authors[0]?.[1] || 1
 
   function buildPieSlices() {
-    const SIZE = 120, R = 46, CX = 60, CY = 60
+    const R = 46, CX = 60, CY = 60
     let angle = -Math.PI / 2
     return genres.map(([, count], i) => {
       const slice = (count / genreTotal) * 2 * Math.PI
@@ -52,31 +55,15 @@ export default function Stats() {
     setGoal(v); saveGoal(v)
   }
 
+  const scopeLabel = scope === 'year' ? `in ${year}` : 'all time'
+
   return (
     <div className="rt-page" style={{ maxWidth: 720, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-        <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: 0 }}>Stats</h2>
-        <div style={{ display: 'flex', background: 'var(--rt-bg-alt, #f0f0f5)', borderRadius: 99, padding: '0.2rem', gap: '0.15rem' }}>
-          {[['year', `${year}`], ['alltime', 'All time']].map(([val, label]) => (
-            <button key={val} onClick={() => setScope(val)} style={{
-              background: scope === val ? 'white' : 'transparent',
-              border: 'none', borderRadius: 99,
-              padding: '0.25rem 0.75rem',
-              fontSize: '0.72rem', fontWeight: 700,
-              color: scope === val ? 'var(--rt-navy)' : 'var(--rt-t3)',
-              cursor: 'pointer',
-              boxShadow: scope === val ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
-              transition: 'all 0.15s'
-            }}>{label}</button>
-          ))}
-        </div>
-      </div>
+
+      <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 1.25rem' }}>Stats</h2>
 
       {/* Reading goal card */}
-      <div className="rt-card" style={{
-        background: 'linear-gradient(135deg, var(--rt-navy) 0%, var(--rt-navy-mid) 100%)',
-        marginBottom: '1rem', padding: '1.5rem'
-      }}>
+      <div className="rt-card" style={{ background: 'linear-gradient(135deg, #111C35 0%, var(--rt-navy) 100%)', marginBottom: '0.6rem', padding: '1.5rem' }}>
         <div style={{ fontSize: '0.6rem', letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)', marginBottom: '0.5rem' }}>
           Reading goal {year}
         </div>
@@ -86,39 +73,53 @@ export default function Stats() {
           <input
             type="number" value={goal} min="1" max="365"
             onChange={handleGoalChange}
-            style={{
-              fontFamily: 'var(--rt-font-display)', fontSize: '1.5rem', fontWeight: 700,
-              color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none',
-              outline: 'none', width: 48, padding: 0
-            }}
+            style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.5rem', fontWeight: 700, color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', outline: 'none', width: 48, padding: 0 }}
           />
           <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)' }}>books</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           <div style={{ flex: 1, height: 4, background: 'rgba(255,255,255,0.12)', borderRadius: 99, overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: goalPct + '%', background: 'var(--rt-amber-lt)', borderRadius: 99, transition: 'width 0.5s' }}></div>
+            <div style={{ height: '100%', width: goalPct + '%', background: 'var(--rt-amber-lt)', borderRadius: 99, transition: 'width 0.5s' }} />
           </div>
           <span style={{ fontSize: '0.65rem', color: 'rgba(255,255,255,0.4)', minWidth: '2.5rem', textAlign: 'right' }}>{goalPct}%</span>
         </div>
       </div>
 
-      {/* KPI cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: '0.75rem', marginBottom: '1rem' }}>
+      {/* Toggle — beneath goal card, right-aligned */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.85rem' }}>
+        <div style={{ display: 'flex', background: 'rgba(26,39,68,0.08)', borderRadius: 99, padding: '0.2rem', gap: '0.15rem' }}>
+          {[['year', `${year}`], ['alltime', 'All time']].map(([val, label]) => (
+            <button key={val} onClick={() => setScope(val)} style={{
+              background: scope === val ? '#fff' : 'transparent',
+              border: 'none', borderRadius: 99,
+              padding: '0.3rem 0.85rem',
+              fontSize: '0.72rem', fontWeight: 700,
+              color: scope === val ? 'var(--rt-navy)' : 'var(--rt-t3)',
+              cursor: 'pointer',
+              boxShadow: scope === val ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
+              transition: 'all 0.15s',
+            }}>{label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* KPI cards — all scope-reactive */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: '0.6rem', marginBottom: '0.85rem' }}>
         {[
-          { label: `Books in ${year}`, value: thisYear.length },
-          { label: 'All time',         value: read.length     },
-          { label: 'Avg rating',       value: avgRating       },
-          { label: '5★ favourites',    value: read.filter(b => b.rating === 5).length },
-        ].map(({ label, value }) => (
-          <div key={label} className="rt-stat-card">
-            <div className="rt-stat-label">{label}</div>
-            <div className="rt-stat-number">{value}</div>
+          { label: 'Books read', value: scopeBooks.length, sub: scopeLabel },
+          { label: 'Avg rating', value: avgRating,         sub: '★ per book' },
+          { label: '5★ picks',   value: fiveStars,         sub: 'favourites' },
+        ].map(({ label, value, sub }) => (
+          <div key={label} style={{ background: 'var(--rt-white)', border: '0.5px solid var(--rt-border)', borderRadius: 12, padding: '0.9rem 1rem' }}>
+            <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.25rem' }}>{label}</div>
+            <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.75rem', fontWeight: 700, color: 'var(--rt-navy)', lineHeight: 1 }}>{value}</div>
+            <div style={{ fontSize: '0.7rem', color: 'var(--rt-t3)', marginTop: '0.25rem' }}>{sub}</div>
           </div>
         ))}
       </div>
 
-      {/* Genre pie chart */}
-      <div className="rt-card" style={{ marginBottom: '1rem' }}>
+      {/* Genre pie */}
+      <div className="rt-card" style={{ marginBottom: '0.85rem' }}>
         <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '1rem' }}>Genres</div>
         {genres.length === 0 ? (
           <div className="rt-stats-empty">
@@ -130,13 +131,13 @@ export default function Stats() {
             <svg width="120" height="120" viewBox="0 0 120 120" style={{ flexShrink: 0 }} aria-hidden="true">
               {buildPieSlices()}
               <circle cx="60" cy="60" r="22" fill="white" />
-              <text x="60" y="61" textAnchor="middle" dominantBaseline="middle" fontSize="9" fontWeight="700" fill="#1a2744">{genreTotal}</text>
-              <text x="60" y="70" textAnchor="middle" dominantBaseline="middle" fontSize="6" fill="#7a84a0">books</text>
+              <text x="60" y="58" textAnchor="middle" dominantBaseline="middle" fontSize="10" fontWeight="700" fill="#1a2744">{genreTotal}</text>
+              <text x="60" y="68" textAnchor="middle" dominantBaseline="middle" fontSize="6" fill="#9ca3af">books</text>
             </svg>
             <div className="rt-stats-pie-legend">
               {genres.map(([genre, count], i) => (
                 <div key={genre} className="rt-stats-pie-legend-item">
-                  <div className="rt-stats-pie-legend-dot" style={{ background: GENRE_COLOURS[i % GENRE_COLOURS.length] }}></div>
+                  <div className="rt-stats-pie-legend-dot" style={{ background: GENRE_COLOURS[i % GENRE_COLOURS.length] }} />
                   <span className="rt-stats-pie-legend-name" title={genre}>{genre}</span>
                   <span className="rt-stats-pie-legend-pct">{Math.round((count / genreTotal) * 100)}%</span>
                 </div>
@@ -160,7 +161,7 @@ export default function Stats() {
               <div key={author} className="rt-stats-bar-row">
                 <div className="rt-stats-bar-label" title={author}>{author}</div>
                 <div className="rt-stats-bar-track">
-                  <div className="rt-stats-bar-fill" style={{ width: Math.round((count / authMax) * 100) + '%', background: GENRE_COLOURS[i] }}></div>
+                  <div className="rt-stats-bar-fill" style={{ width: Math.round((count / authMax) * 100) + '%', background: GENRE_COLOURS[i % GENRE_COLOURS.length] }} />
                 </div>
                 <div className="rt-stats-bar-count">{count}</div>
               </div>
@@ -168,6 +169,7 @@ export default function Stats() {
           </div>
         )}
       </div>
+
     </div>
   )
 }

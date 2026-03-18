@@ -268,6 +268,7 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
       {editBook && !editBook._finishMode && (
         <BookSheet
           book={editBook}
+          initialMode="edit"
           onClose={() => setEditBook(null)}
           onSaved={changes => { updateBook(editBook.id, changes); setEditBook(null) }}
           onDeleted={() => { setEditBook(null) }}

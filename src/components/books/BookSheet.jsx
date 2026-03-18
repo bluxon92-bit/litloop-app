@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { fmtDate, GENRES, avatarColour, avatarInitial } from '../../lib/utils'
 import { useSocialContext } from '../../context/SocialContext'
+import { useChatContext } from '../../context/ChatContext'
 import CoverImage from './CoverImage'
 import { IcoOpenBook, IcoBook, IcoLock } from '../../components/icons'
 
@@ -244,6 +245,34 @@ function FriendRow({ friend, selected, onToggle }) {
   )
 }
 
+// FriendChatItem — for friends who've already read the book (opens chat)
+function FriendChatItem({ friend, dateRead, onChat, existingChat }) {
+  const colour = avatarColour(friend.userId)
+  return (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: '0.75rem',
+      padding: '0.65rem 0.85rem',
+      border: '1.5px solid var(--rt-border-md)',
+      borderRadius: 'var(--rt-r3)', marginBottom: '0.4rem',
+      background: 'var(--rt-white)',
+    }}>
+      <div style={{
+        width: 34, height: 34, borderRadius: '50%', background: colour,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        fontSize: '0.85rem', fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden',
+      }}>{friend.avatarUrl ? <img src={friend.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : avatarInitial(friend.displayName)}</div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--rt-navy)' }}>{friend.displayName}</div>
+        <div style={{ fontSize: '0.7rem', color: 'var(--rt-t3)' }}>{dateRead ? `✓ Finished ${fmtDate(dateRead)}` : ''}</div>
+      </div>
+      <button
+        onClick={() => onChat(friend)}
+        style={{ flexShrink: 0, background: existingChat ? 'var(--rt-navy)' : 'var(--rt-amber)', color: '#fff', border: 'none', borderRadius: 8, padding: '0.3rem 0.75rem', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+      >{existingChat ? 'View chat' : 'Start chat'}</button>
+    </div>
+  )
+}
+
 // Standard footer buttons
 function SheetFooter({ left, right }) {
   return (
@@ -343,8 +372,9 @@ function FriendItem({ friend, dateRead, selected, onToggle }) {
   )
 }
 
-export function FinishModal({ book, user, onClose, onSaved }) {
+export function FinishModal({ book, user, onClose, onSaved, onOpenChatModal }) {
   const { friends, sendRecommendation, feed } = useSocialContext()
+  const { startOrOpenChat, chats } = useChatContext()
 
   const [step, setStep]               = useState(0)
   const [rating, setRating]           = useState(0)
@@ -523,11 +553,11 @@ export function FinishModal({ book, user, onClose, onSaved }) {
     ? friends.filter(f =>
         feed.some(ev =>
           ev.user_id === f.userId &&
-          ev.event_type === 'finished' &&
+          (ev.event_type === 'finished' || ev.event_type === 'posted_review') &&
           ev.book_ol_key === book.olKey
         )
       ).map(f => {
-        const ev = feed.find(e => e.user_id === f.userId && e.book_ol_key === book.olKey)
+        const ev = feed.find(e => e.user_id === f.userId && e.book_ol_key === book.olKey && (e.event_type === 'finished' || e.event_type === 'posted_review'))
         return { ...f, dateRead: ev?.created_at || null }
       })
     : []
@@ -589,9 +619,21 @@ export function FinishModal({ book, user, onClose, onSaved }) {
                 <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-teal)', marginBottom: '0.5rem' }}>
                   Also read this
                 </div>
-                {friendsWhoRead.filter(matchesSearch).map(f =>
-                  <FriendItem key={f.userId} friend={f} dateRead={f.dateRead} selected={selectedIds.includes(f.userId)} onToggle={toggleFriend} />
-                )}
+                {friendsWhoRead.filter(matchesSearch).map(f => {
+                  const existingChat = book.olKey ? chats?.find(c => c.bookOlKey === book.olKey && c.participants?.some(p => p.user_id === f.userId)) : null
+                  return (
+                    <FriendChatItem
+                      key={f.userId}
+                      friend={f}
+                      dateRead={f.dateRead}
+                      existingChat={existingChat}
+                      onChat={async (friend) => {
+                        const chatId = await startOrOpenChat(book.olKey, book.title, book.author, book.coverId, [friend.userId], null, null)
+                        if (chatId) { onOpenChatModal?.({ id: chatId, bookOlKey: book.olKey, bookTitle: book.title }, book); onClose() }
+                      }}
+                    />
+                  )
+                })}
                 {friendsNotRead.filter(matchesSearch).length > 0 && (
                   <div style={{ height: 1, background: 'var(--rt-border)', margin: '0.85rem 0' }} />
                 )}
@@ -675,6 +717,7 @@ export default function BookSheet({ book, onClose, onSaved, onDeleted, user, ini
   const [isPublic, setIsPublic]           = useState(book.reviewPublic || false)
   const [spoilerWarning, setSpoilerWarning] = useState(book.spoilerWarning || false)
   const [genre, setGenre]                 = useState(book.genre || '')
+  const [showPrivateNotes, setShowPrivateNotes] = useState(!!(book.notes))
 
   const isRead = book.status === 'read' || book.status === 'dnf'
   const stars  = book.rating ? '★'.repeat(book.rating) + '☆'.repeat(5 - book.rating) : ''
@@ -787,26 +830,35 @@ export default function BookSheet({ book, onClose, onSaved, onDeleted, user, ini
             {(status === 'read' || status === 'reading') && (
               <>
                 <div style={{ marginBottom: '1rem' }}>
-                  <label className="rt-field-label">Private notes</label>
-                  <textarea className="rt-textarea" rows={3} value={notes} onChange={e => setNotes(e.target.value)} style={{ width: '100%', resize: 'none' }} />
+                  <label className="rt-field-label">Your review <span style={{ fontWeight: 400, color: 'var(--rt-t3)', fontSize: '0.7rem' }}>— shared with friends</span></label>
+                  <textarea className="rt-textarea" rows={4} placeholder="What did you think? Your friends would love to know…" value={review} onChange={e => { setReview(e.target.value); setIsPublic(!!e.target.value.trim()) }} style={{ width: '100%', resize: 'none' }} />
+                  {review.trim() && (
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.5rem', cursor: 'pointer', userSelect: 'none' }}>
+                      <input type="checkbox" checked={spoilerWarning} onChange={e => setSpoilerWarning(e.target.checked)}
+                        style={{ width: 14, height: 14, accentColor: 'var(--rt-navy)', cursor: 'pointer' }} />
+                      <span style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>Contains spoilers</span>
+                    </label>
+                  )}
                 </div>
-                <ToggleSwitch checked={isPublic} onChange={setIsPublic} label="Share public review" sub="Friends can see this" />
-                {isPublic && (
-                  <div style={{ marginBottom: '1rem' }}>
-                    <textarea className="rt-textarea" rows={4} placeholder="Write your review…" value={review} onChange={e => setReview(e.target.value)} style={{ width: '100%', resize: 'none' }} />
-                    {review.trim() && (
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.5rem', cursor: 'pointer', userSelect: 'none' }}>
-                        <input type="checkbox" checked={spoilerWarning} onChange={e => setSpoilerWarning(e.target.checked)}
-                          style={{ width: 14, height: 14, accentColor: 'var(--rt-navy)', cursor: 'pointer' }} />
-                        <span style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>Contains spoilers</span>
-                      </label>
-                    )}
-                  </div>
-                )}
+                <div style={{ marginBottom: '1rem' }}>
+                  <button
+                    onClick={() => setShowPrivateNotes(p => !p)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                  >
+                    <IcoLock size={12} color="var(--rt-t3)" />
+                    <span style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--rt-t3)', letterSpacing: '0.05em' }}>
+                      {showPrivateNotes ? '▾' : '▸'} Private notes
+                    </span>
+                    <span style={{ fontSize: '0.68rem', color: 'var(--rt-t3)', fontWeight: 400 }}>— only you can see this</span>
+                  </button>
+                  {showPrivateNotes && (
+                    <textarea className="rt-textarea" rows={3} value={notes} onChange={e => setNotes(e.target.value)} style={{ width: '100%', resize: 'none', marginTop: '0.4rem' }} />
+                  )}
+                </div>
               </>
             )}
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <GhostBtn onClick={() => setMode('view')}>← Back</GhostBtn>
+              {initialMode !== 'edit' && <GhostBtn onClick={() => setMode('view')}>← Back</GhostBtn>}
               <PrimaryBtn onClick={handleSave}>Save changes</PrimaryBtn>
             </div>
           </div>

@@ -139,8 +139,17 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
     .sort((a, b) => new Date(b.dateStarted || b.added || 0) - new Date(a.dateStarted || a.added || 0))
 
   const history = books.filter(b => b.status === 'read').sort((a, b) => {
-    if (sortHistory === 'date-desc') return new Date(b.dateRead || b.added || 0) - new Date(a.dateRead || a.added || 0)
-    if (sortHistory === 'date-asc')  return new Date(a.dateRead || a.added || 0) - new Date(b.dateRead || b.added || 0)
+    if (sortHistory === 'date-desc') {
+      // No dateRead = treated as oldest (sinks to bottom)
+      const da = a.dateRead ? new Date(a.dateRead) : new Date(0)
+      const db = b.dateRead ? new Date(b.dateRead) : new Date(0)
+      return db - da
+    }
+    if (sortHistory === 'date-asc') {
+      const da = a.dateRead ? new Date(a.dateRead) : new Date(0)
+      const db = b.dateRead ? new Date(b.dateRead) : new Date(0)
+      return da - db
+    }
     if (sortHistory === 'rating')    return (b.rating || 0) - (a.rating || 0)
     if (sortHistory === 'title')     return (a.title || '').localeCompare(b.title || '')
     return 0
@@ -389,6 +398,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
           user={user}
           onClose={() => setEditBook(null)}
           onSaved={changes => { updateBook(editBook.id, changes) }}
+          onOpenChatModal={onOpenChatModal}
         />
       )}
 

@@ -11,5 +11,5 @@ export function ChatProvider({ children }) {
 }
 
 export function useChatContext() {
-  return useContext(ChatContext)
+  return useContext(ChatContext) || {}
 }

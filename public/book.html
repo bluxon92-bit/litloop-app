@@ -149,6 +149,29 @@
       padding-top: 18px;
       margin-bottom: 22px;
     }
+    .hero-desc-text {
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+      transition: all 0.2s;
+    }
+    .hero-desc-text.expanded {
+      display: block;
+      -webkit-line-clamp: unset;
+      overflow: visible;
+    }
+    .hero-desc-toggle {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.45);
+      font-size: 12px;
+      cursor: pointer;
+      padding: 4px 0 0;
+      display: block;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
 
     .hero-stats {
       display: flex;
@@ -638,7 +661,16 @@ function renderHero(book, stats) {
         </div>
       </div>
     </div>
-    ${book.description ? `<div class="hero-desc">${book.description}</div>` : ''}
+    ${book.description ? `
+    <div class="hero-desc">
+      <div class="hero-desc-text" id="desc-text">${book.description}</div>
+      <button class="hero-desc-toggle" id="desc-toggle" onclick="
+        const t = document.getElementById('desc-text');
+        const b = document.getElementById('desc-toggle');
+        const expanded = t.classList.toggle('expanded');
+        b.textContent = expanded ? 'Read less ↑' : 'Read more ↓';
+      ">Read more ↓</button>
+    </div>` : ''}
     <div class="hero-stats">
       <div class="stat">
         <div class="stat-val">${avgRating}</div>
@@ -738,14 +770,14 @@ function wireCardActions(container) {
 
 // ── Load public reviews ──────────────────────────────────────
 async function loadReviews(append = false) {
+  if (!bookData?.id) return
   const { data, error } = await sb
     .from('reading_entries')
     .select(`
       id, user_id, rating, review_body, status, reviewed_at, updated_at,
-      books!inner(ol_key),
       profiles(display_name, username, avatar_url)
     `)
-    .eq('books.ol_key', olKey)
+    .eq('book_id', bookData.id)
     .eq('review_is_public', true)
     .not('review_body', 'is', null)
     .order('reviewed_at', { ascending: false, nullsFirst: false })
@@ -755,6 +787,7 @@ async function loadReviews(append = false) {
   const btn  = document.getElementById('reviews-load-more')
 
   if (error || !data?.length) {
+    if (error) console.error('[loadReviews] error:', error, 'olKey:', olKey)
     if (!append) list.innerHTML = `<div class="empty-state">No public reviews yet — be the first!</div>`
     btn.style.display = 'none'
     return
@@ -834,7 +867,7 @@ async function init() {
   // Fetch book + stats in parallel
   const [bookRes, statsRes] = await Promise.all([
     sb.from('books')
-      .select('ol_key, title, author, cover_id, description')
+      .select('id, ol_key, title, author, cover_id, description')
       .eq('ol_key', olKey)
       .single(),
     sb.rpc('get_book_stats', { p_ol_key: olKey }),

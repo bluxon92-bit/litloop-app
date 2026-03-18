@@ -38,15 +38,8 @@ function BookCard({ title, author, coverId, olKey, onClick, moodLabel, onDismiss
   return (
     <div style={{ flexShrink: 0, width: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
       <div onClick={onClick} style={{ cursor: 'pointer', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <div style={{ width: 76, height: 110, borderRadius: 8, overflow: 'hidden', background: 'var(--rt-surface)', flexShrink: 0, boxShadow: '0 3px 10px rgba(26,39,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          {coverId ? (
-            <img src={`https://covers.openlibrary.org/b/id/${coverId}-M.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt={title} />
-          ) : olKey ? (
-            <img src={`https://covers.openlibrary.org/b/olid/${olKey.replace('/works/', '')}-M.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" onError={e => e.target.style.display='none'} />
-          ) : (
-            <IcoBook size={32} color="var(--rt-t3)" style={{ opacity: 0.35 }} />
-          )}
-        </div>
+        <CoverImage coverId={coverId} olKey={olKey} title={title} size="L"
+          style={{ width: 76, height: 110, borderRadius: 8, boxShadow: '0 3px 10px rgba(26,39,68,0.15)' }} />
         <div style={{ marginTop: '0.4rem', width: '100%', textAlign: 'center' }}>
           <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</div>
           {author && <div style={{ fontSize: '0.6rem', color: 'var(--rt-t3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{author}</div>}
@@ -213,14 +206,8 @@ function BookModal({ book, added, dupMsg, onReread, onClose, onAddToTBR, onRecom
       <style>{`@media (min-width: 768px) { .rt-modal-backdrop { align-items: center !important; } .rt-modal-sheet { border-radius: 16px !important; max-height: 80vh !important; } }`}</style>
       <div className="rt-modal-sheet" style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
         <div style={{ background: 'linear-gradient(160deg, #111C35 0%, var(--rt-navy) 100%)', padding: '1.25rem', display: 'flex', gap: '1rem', alignItems: 'flex-start', flexShrink: 0 }}>
-          <div style={{ width: 72, height: 104, borderRadius: 8, overflow: 'hidden', background: 'rgba(255,255,255,0.08)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 12px rgba(0,0,0,0.3)' }}>
-            {book.coverId
-              ? <img src={`https://covers.openlibrary.org/b/id/${book.coverId}-M.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
-              : book.olKey
-              ? <img src={`https://covers.openlibrary.org/b/olid/${book.olKey.replace('/works/', '')}-M.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" onError={e => e.target.style.display='none'} />
-              : <IcoBook size={36} color="rgba(255,255,255,0.4)" />
-            }
-          </div>
+          <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="L"
+            style={{ width: 72, height: 104, borderRadius: 8, boxShadow: '0 3px 12px rgba(0,0,0,0.3)', flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: '#fff', lineHeight: 1.25, marginBottom: '0.25rem' }}>{book.title}</div>
             {book.author && <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.55)' }}>by {book.author}</div>}
@@ -512,10 +499,17 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend }) {
     }, {})
   )
 
-  // Friends currently reading — deduplicate against recs, one entry per book per friend
+  // Friends currently reading — only show if no subsequent finished/review event
   const friendIds = new Set((friends || []).map(f => f.userId))
   const recOlKeys = new Set(pendingRecs.map(r => r.book_ol_key).filter(Boolean))
   const recTitles = new Set(pendingRecs.map(r => r.book_title).filter(Boolean))
+
+  // Build a set of olKeys that a friend has since finished (to filter stale currently-reading)
+  const friendFinishedKeys = new Set(
+    (feed || [])
+      .filter(ev => friendIds.has(ev.user_id) && (ev.event_type === 'finished' || ev.event_type === 'posted_review') && ev.book_ol_key)
+      .map(ev => `${ev.user_id}__${ev.book_ol_key}`)
+  )
 
   const friendsReading = (() => {
     const seen = new Set()
@@ -523,6 +517,8 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend }) {
       .filter(ev =>
         ev.event_type === 'started_reading' &&
         friendIds.has(ev.user_id) &&
+        // Not already finished
+        !(ev.book_ol_key && friendFinishedKeys.has(`${ev.user_id}__${ev.book_ol_key}`)) &&
         // Deduplicate against pending recs
         !(ev.book_ol_key && recOlKeys.has(ev.book_ol_key)) &&
         !(ev.book_title && recTitles.has(ev.book_title))
@@ -546,7 +542,38 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend }) {
       }))
   })()
 
-  const allFriendCards = [...groupedRecs, ...friendsReading]
+  // Friends recent reads — books friends have finished, not already in recs or currently reading
+  const readingOlKeys = new Set(friendsReading.map(b => b.olKey).filter(Boolean))
+  const friendsRecentReads = (() => {
+    const seen = new Set()
+    return (feed || [])
+      .filter(ev =>
+        (ev.event_type === 'finished' || ev.event_type === 'posted_review') &&
+        friendIds.has(ev.user_id) &&
+        !(ev.book_ol_key && recOlKeys.has(ev.book_ol_key)) &&
+        !(ev.book_ol_key && readingOlKeys.has(ev.book_ol_key))
+      )
+      .filter(ev => {
+        const dedupeKey = ev.book_ol_key || ev.book_title
+        if (!dedupeKey || seen.has(dedupeKey)) return false
+        seen.add(dedupeKey)
+        return true
+      })
+      .slice(0, 4)
+      .map(ev => ({
+        title: ev.book_title || 'Unknown',
+        author: ev.book_author || '',
+        coverId: ev.cover_id || null,
+        olKey: ev.book_ol_key || null,
+        friendName: ev.profiles?.display_name || ev.profiles?.username || 'A friend',
+        userId: ev.user_id,
+        _key: `fr-recent-${ev.book_ol_key || ev.book_title}`,
+        _friendRecent: true,
+      }))
+  })()
+
+  // Order: (1) friend recs, (2) friends currently reading, (3) friends recent reads
+  const allFriendCards = [...groupedRecs, ...friendsReading, ...friendsRecentReads]
 
   function addToTBR(book, key) {
     // No duplicate blocking for AI picks — allow adding books already in history
@@ -628,14 +655,16 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend }) {
           <div style={{ display: 'flex', gap: '0.75rem', overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none', paddingBottom: '0.25rem' }}>
             {allFriendCards.map((g, idx) => {
               const isReading = !!g._friendReading
+              const isRecent  = !!g._friendRecent
+              const isFriendBook = isReading || isRecent
               const totalCards = allFriendCards.length
               return (
                 <div
                   key={g._key}
                   onClick={() => {
                     setShowRecommend(false); setShowChatPicker(false)
-                    if (isReading) {
-                      setSelectedBook({ title: g.title, author: g.author, coverId: g.coverId, olKey: g.olKey, friendReading: g.friendName, _key: g._key })
+                    if (isFriendBook) {
+                      setSelectedBook({ title: g.title, author: g.author, coverId: g.coverId, olKey: g.olKey, friendReading: isReading ? g.friendName : null, _key: g._key })
                     } else {
                       setSelectedBook({ title: g.book_title, author: g.book_author, coverId: g.cover_id, olKey: g.book_ol_key, fromFriend: g.recommenders[0]?.name, message: g.recommenders[0]?.message, recommenders: g.recommenders, _key: g._key, _recs: g._recs, _rec: g._recs[0] })
                     }
@@ -651,32 +680,34 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend }) {
                   }}
                 >
                   <CoverImage
-                    coverId={isReading ? g.coverId : g.cover_id}
-                    olKey={isReading ? g.olKey : g.book_ol_key}
-                    title={isReading ? g.title : g.book_title}
+                    coverId={isFriendBook ? g.coverId : g.cover_id}
+                    olKey={isFriendBook ? g.olKey : g.book_ol_key}
+                    title={isFriendBook ? g.title : g.book_title}
                     size="M"
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--rt-teal)', marginBottom: '0.25rem' }}>
                       {isReading
                         ? `${g.friendName} is reading this`
-                        : g.recommenders.length === 1
-                          ? `${g.recommenders[0].name} recommends`
-                          : `${g.recommenders.length} friends recommend`}
+                        : isRecent
+                          ? `${g.friendName} recently read`
+                          : g.recommenders.length === 1
+                            ? `${g.recommenders[0].name} recommends`
+                            : `${g.recommenders.length} friends recommend`}
                     </div>
                     <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.92rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {isReading ? g.title : (g.book_title || 'Unknown')}
+                      {isFriendBook ? g.title : (g.book_title || 'Unknown')}
                     </div>
-                    {(isReading ? g.author : g.book_author) && (
+                    {(isFriendBook ? g.author : g.book_author) && (
                       <div style={{ fontSize: '0.75rem', color: 'var(--rt-t3)', marginTop: '0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {isReading ? g.author : g.book_author}
+                        {isFriendBook ? g.author : g.book_author}
                       </div>
                     )}
-                    {!isReading && g.recommenders[0]?.message && (
+                    {!isFriendBook && g.recommenders[0]?.message && (
                       <div style={{ fontSize: '0.72rem', color: 'var(--rt-t2)', marginTop: '0.3rem', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>"{g.recommenders[0].message}"</div>
                     )}
                   </div>
-                  {!isReading && g.recommenders.length > 1 && (
+                  {!isFriendBook && g.recommenders.length > 1 && (
                     <div style={{ position: 'absolute', top: 8, right: 10, background: 'var(--rt-amber)', color: '#fff', borderRadius: 99, fontSize: '0.6rem', fontWeight: 700, padding: '0.15em 0.45em', minWidth: 18, textAlign: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }}>
                       {g.recommenders.length}
                     </div>

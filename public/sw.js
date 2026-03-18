@@ -1,57 +1,77 @@
-// litloop cover image service worker
-// Cache-first strategy for Supabase Storage cover images
+// LitLoop Service Worker — Cache-First for book covers
+// Caches cover images from both Supabase Storage and Open Library
 
 const CACHE_NAME = 'litloop-covers-v1'
+const MAX_AGE_MS  = 30 * 24 * 60 * 60 * 1000 // 30 days
 
-// Only cache requests to our Supabase Storage bucket
-const COVER_ORIGIN = 'https://danknyhumorgkvidrdve.supabase.co'
+const COVER_ORIGINS = [
+  'https://danknyhumorgkvidrdve.supabase.co/storage/v1/object/public/book-covers',
+  'https://danknyhumorgkvidrdve.supabase.co/storage/v1/object/public/profile-images',
+  'https://covers.openlibrary.org/b/',
+]
 
-self.addEventListener('install', event => {
-  self.skipWaiting()
-})
+function isCoverRequest(url) {
+  return COVER_ORIGINS.some(origin => url.startsWith(origin))
+}
 
-self.addEventListener('activate', event => {
-  event.waitUntil(self.clients.claim())
-})
+// ── Install — skip waiting so new SW activates immediately
+self.addEventListener('install', () => self.skipWaiting())
 
-self.addEventListener('fetch', event => {
-  const url = new URL(event.request.url)
+// ── Activate — claim all clients
+self.addEventListener('activate', e => e.waitUntil(self.clients.claim()))
 
-  // Only intercept GET requests to our Supabase Storage bucket
-  if (
-    event.request.method !== 'GET' ||
-    url.origin !== COVER_ORIGIN ||
-    !url.pathname.startsWith('/storage/v1/object/public/book-covers/')
-  ) {
-    return
-  }
+// ── Fetch — Cache-First for covers, Network-only for everything else
+self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET') return
+  if (!isCoverRequest(e.request.url)) return
 
-  event.respondWith(
+  e.respondWith(
     caches.open(CACHE_NAME).then(async cache => {
-      // Cache-first: return cached version if available
-      const cached = await cache.match(event.request)
-      if (cached) return cached
+      // 1. Check cache first
+      const cached = await cache.match(e.request)
+      if (cached) {
+        // Refresh in background if older than 30 days
+        const dateHeader = cached.headers.get('date')
+        if (dateHeader) {
+          const age = Date.now() - new Date(dateHeader).getTime()
+          if (age > MAX_AGE_MS) {
+            fetch(e.request).then(res => {
+              if (res.ok) cache.put(e.request, res.clone())
+            }).catch(() => {})
+          }
+        }
+        return cached
+      }
 
-      // Otherwise fetch from network and cache it
+      // 2. Fetch from network and cache
       try {
-        const response = await fetch(event.request)
+        const response = await fetch(e.request)
         if (response.ok) {
-          cache.put(event.request, response.clone())
+          cache.put(e.request, response.clone())
         }
         return response
       } catch {
-        // Offline and not cached — return nothing (CoverImage handles fallback)
-        return new Response('', { status: 503 })
+        // Network failed and no cache — return transparent 1x1 pixel
+        return new Response(
+          new Uint8Array([
+            0x47,0x49,0x46,0x38,0x39,0x61,0x01,0x00,0x01,0x00,
+            0x80,0x00,0x00,0xff,0xff,0xff,0x00,0x00,0x00,0x21,
+            0xf9,0x04,0x00,0x00,0x00,0x00,0x00,0x2c,0x00,0x00,
+            0x00,0x00,0x01,0x00,0x01,0x00,0x00,0x02,0x02,0x44,
+            0x01,0x00,0x3b
+          ]).buffer,
+          { headers: { 'Content-Type': 'image/gif' } }
+        )
       }
     })
   )
 })
 
-// Listen for a message from the app to clear the cache
-self.addEventListener('message', event => {
-  if (event.data?.type === 'CLEAR_COVER_CACHE') {
+// ── Message — clear cache on demand
+self.addEventListener('message', e => {
+  if (e.data === 'CLEAR_COVERS') {
     caches.delete(CACHE_NAME).then(() => {
-      event.ports[0]?.postMessage({ success: true })
+      e.ports[0]?.postMessage('cleared')
     })
   }
 })

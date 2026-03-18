@@ -50,7 +50,7 @@ export function coverUrl(coverId, olKey, size = 'M') {
   return null
 }
 
-export const GENRE_COLOURS = ['#1a2744','#c8891a','#2A6E69','#5c6bc0','#b43a3a','#7b3fa0','#2e7d52','#7a5c2e']
+export const GENRE_COLOURS = ['#1a2744','#2d4a8a','#4a7fc1','#2A6E69','#5ca8a2','#7aafd4','#8B9DC0','#1e3a5f']
 
 export const GENRES = [
   'Fantasy','Science Fiction','Horror','Romance','Dystopian',

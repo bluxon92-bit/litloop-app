@@ -153,15 +153,29 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
       })
       setEntries(enrichedEntries)
 
-      // top_book_ids stores reading_entries IDs — match against already-loaded entries
-      if (topIds.length > 0 && enrichedEntries.length > 0) {
-        const byEntryId = Object.fromEntries(enrichedEntries.map(e => [e.id, e]))
-        setFavBooks(
-          topIds
-            .map(id => byEntryId[id])
-            .filter(Boolean)
-            .map(e => ({ id: e.id, title: e.title, author: e.author, coverId: e.coverId, olKey: e.olKey }))
-        )
+      // top_book_ids stores reading_entries IDs — fetch directly to avoid RPC filtering them out
+      if (topIds.length > 0) {
+        const { data: favEntries } = await sb
+          .from('reading_entries')
+          .select('id, status, books(title, author, cover_id, ol_key)')
+          .in('id', topIds)
+          .eq('user_id', friend.userId)
+        if (favEntries?.length) {
+          // Preserve the order from top_book_ids
+          const byId = Object.fromEntries(favEntries.map(e => [e.id, e]))
+          setFavBooks(
+            topIds
+              .map(id => byId[id])
+              .filter(Boolean)
+              .map(e => ({
+                id:      e.id,
+                title:   e.books?.title  || '',
+                author:  e.books?.author || '',
+                coverId: e.books?.cover_id || null,
+                olKey:   e.books?.ol_key   || null,
+              }))
+          )
+        }
       }
     } catch(e) {
       console.error('[FriendProfilePage] load error:', e)
@@ -277,6 +291,16 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
           <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.65)', marginBottom: '0.75rem', lineHeight: 1.45 }}>{profile.bio}</div>
         )}
 
+        {/* Add friend button — shown when not already friends */}
+        {onAddFriend && !friend.friendshipId && (
+          <button
+            onClick={() => onAddFriend(friend)}
+            style={{ marginTop: '0.5rem', background: 'var(--rt-amber)', border: 'none', borderRadius: 99, padding: '0.4rem 1rem', fontSize: '0.78rem', fontWeight: 700, color: '#fff', cursor: 'pointer' }}
+          >
+            + Add friend
+          </button>
+        )}
+
         {/* Stats */}
         {!loading && entries && (
           <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.9rem' }}>
@@ -349,26 +373,29 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
                 })
                 return (
                   <div key={i} style={{ background: 'var(--rt-white)', border: '1px solid var(--rt-border)', borderRadius: 12, padding: '0.75rem', marginBottom: '0.65rem' }}>
-                    {/* Header: cover + meta */}
-                    <div style={{ display: 'flex', gap: '0.65rem', marginBottom: '0.65rem' }}>
-                      <div style={{ width: 52, height: 76, borderRadius: 4, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)' }}>
+                    {/* Top row: stars · date */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem' }}>
+                      {stars && <span style={{ fontSize: '0.82rem', color: 'var(--rt-amber)', letterSpacing: '0.5px' }}>{stars}</span>}
+                      {dateStr && <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginLeft: 'auto' }}>{dateStr}</span>}
+                    </div>
+                    {/* Book row: cover centred with meta */}
+                    <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: '0.6rem' }}>
+                      <div style={{ width: 80, height: 116, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.13)' }}>
                         <CoverImage coverId={b.coverId} olKey={b.olKey} title={b.title} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.title}</div>
-                        {b.author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.3rem' }}>{b.author}</div>}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexWrap: 'wrap' }}>
-                          {stars && <span style={{ fontSize: '0.78rem', color: 'var(--rt-amber)', letterSpacing: '0.5px' }}>{stars}</span>}
-                          {dateStr && <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)' }}>{stars ? '· ' : ''}{dateStr}</span>}
-                        </div>
+                        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.15rem' }}>{b.title}</div>
+                        {b.author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>{b.author}</div>}
+                        {b.reviewBody && (
+                          <div onClick={openThread} style={{ borderLeft: '3px solid var(--rt-navy)', paddingLeft: '0.5rem', cursor: 'pointer' }}>
+                            <p style={{ fontSize: '0.82rem', color: 'var(--rt-navy)', lineHeight: 1.6, margin: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                              {b.reviewBody}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
-                    {/* Review body — tap opens thread */}
-                    <div onClick={openThread} style={{ borderLeft: '3px solid var(--rt-navy)', paddingLeft: '0.6rem', marginBottom: '0.6rem', cursor: 'pointer' }}>
-                      <p style={{ fontSize: '0.85rem', color: 'var(--rt-navy)', lineHeight: 1.6, margin: 0, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
-                        {b.reviewBody}
-                      </p>
-                    </div>
+                    <div style={{ height: '0.5px', background: 'var(--rt-border)', marginBottom: '0.5rem' }} />
                     <FeedEngagementBar entryId={b.entryId} user={user} onOpenThread={openThread} />
                   </div>
                 )

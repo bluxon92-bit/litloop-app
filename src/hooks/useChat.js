@@ -79,7 +79,8 @@ export function useChat(user) {
           lastMessageAt:      p.chat.last_message_at,
           lastUserId:         p.chat.last_message_user_id,
           unread:             unreadMap[p.chat.id] || 0,
-          participantIds:     (p.chat.participants || []).map(pp => pp.user_id)
+          participantIds:     (p.chat.participants || []).map(pp => pp.user_id),
+          participants:       [], // will be enriched below
         }))
         .sort((a, b) => {
           if (!a.lastMessageAt && !b.lastMessageAt) return 0
@@ -87,6 +88,24 @@ export function useChat(user) {
           if (!b.lastMessageAt) return -1
           return new Date(b.lastMessageAt) - new Date(a.lastMessageAt)
         })
+
+      // Enrich all participant IDs with profile data in one query
+      const allParticipantIds = [...new Set(mapped.flatMap(c => c.participantIds))]
+      if (allParticipantIds.length) {
+        const { data: profileData } = await sb.rpc('get_profiles_by_ids', { user_ids: allParticipantIds })
+        const profileMap = {}
+        ;(profileData || []).forEach(p => {
+          profileMap[p.id] = {
+            userId:      p.id,
+            displayName: p.display_name || p.username || 'Unknown',
+            username:    p.username || null,
+            avatarUrl:   p.avatar_url || null,
+          }
+        })
+        mapped.forEach(c => {
+          c.participants = c.participantIds.map(id => profileMap[id]).filter(Boolean)
+        })
+      }
 
       setChats(mapped)
       setLoaded(true)
@@ -241,6 +260,15 @@ export function useChat(user) {
   async function startOrOpenChat(olKey, title, author, coverId, friendIds, firstMessage = null, chatName = null) {
     if (!user) return null
     try {
+      // Check for existing chat with same book and same participants
+      if (olKey && friendIds.length > 0) {
+        const existing = chats.find(c => {
+          if (c.bookOlKey !== olKey) return false
+          const participantIds = (c.participants || []).map(p => p.user_id)
+          return friendIds.every(id => participantIds.includes(id)) && participantIds.includes(user.id)
+        })
+        if (existing) return existing.id
+      }
       const { data: nc, error } = await sb
         .from('book_chats')
         .insert({ book_ol_key: olKey, book_title: title, book_author: author, cover_id: coverId, chat_name: chatName || null })

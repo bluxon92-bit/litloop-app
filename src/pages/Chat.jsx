@@ -8,6 +8,7 @@ import CoverImage from '../components/books/CoverImage'
 import BookDetailPanel from '../components/books/BookDetailPanel'
 import FriendProfileSheet from '../components/books/FriendProfileSheet'
 import FriendProfilePage from '../pages/FriendProfilePage'
+import Clubs from '../pages/Clubs'
 import AddBookModal from '../components/books/AddBookModal'
 import { IcoOpenBook, IcoChat, IcoDoorExit, IcoUsers } from '../components/icons'
 
@@ -17,7 +18,7 @@ const THEIR_BUBBLE = { bg: '#F5F0E8', color: '#1a2744' }   // pale cream
 
 
 // ── Participant avatars row ───────────────────────────────────
-function ParticipantsRow({ participants, currentUserId }) {
+function ParticipantsRow({ participants, currentUserId, onViewProfile }) {
   const [expanded, setExpanded] = useState(false)
   const others = participants.filter(p => p.userId !== currentUserId)
 
@@ -49,16 +50,19 @@ function ParticipantsRow({ participants, currentUserId }) {
         </span>
       </div>
 
-      {/* Expanded names */}
+      {/* Expanded names — clickable pills */}
       {expanded && (
         <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
           {others.map(p => (
-            <div key={p.userId} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: 'rgba(255,255,255,0.1)', borderRadius: 99, padding: '0.2rem 0.55rem' }}>
+            <div
+              key={p.userId}
+              onClick={e => { e.stopPropagation(); onViewProfile?.(p) }}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: 'rgba(255,255,255,0.1)', borderRadius: 99, padding: '0.2rem 0.55rem', cursor: onViewProfile ? 'pointer' : 'default' }}
+            >
               <div style={{ width: 16, height: 16, borderRadius: '50%', background: avatarColour(p.userId), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.42rem', fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden' }}>
                 {p.avatarUrl ? <img src={p.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : avatarInitial(p.displayName)}
               </div>
               <span style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.8)', fontWeight: 500 }}>{p.displayName}</span>
-              {p.username && <span style={{ fontSize: '0.6rem', color: 'rgba(255,255,255,0.4)' }}>@{p.username}</span>}
             </div>
           ))}
         </div>
@@ -317,6 +321,7 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
             <ParticipantsRow
               participants={participants}
               currentUserId={user?.id}
+              onViewProfile={p => onViewProfile?.({ userId: p.userId, displayName: p.displayName, username: p.username, avatarUrl: p.avatarUrl })}
             />
           </div>
         </div>
@@ -345,7 +350,9 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
               <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', marginBottom: '0.1rem' }}>
                 {showName && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.2rem', paddingLeft: '0.25rem' }}>
-                    <div style={{ width: 18, height: 18, borderRadius: '50%', background: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.45rem', fontWeight: 700, color: '#fff', flexShrink: 0 }}>{avatarInitial(name)}</div>
+                    <div style={{ width: 18, height: 18, borderRadius: '50%', background: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.45rem', fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden' }}>
+                      {sender?.avatarUrl ? <img src={sender.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : avatarInitial(name)}
+                    </div>
                     <div style={{ fontSize: '0.65rem', fontWeight: 600, color: 'var(--rt-t3)' }}>{name}</div>
                   </div>
                 )}
@@ -379,16 +386,21 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
         </div>
 
         {/* Input */}
-        <div className="rt-chat-input-row" style={{ background: 'var(--rt-white)', borderTop: '1px solid var(--rt-border)', padding: '0.75rem 1rem', display: 'flex', gap: '0.6rem', flexShrink: 0 }}>
-          <input
+        <div className="rt-chat-input-row" style={{ background: 'var(--rt-white)', borderTop: '1px solid var(--rt-border)', padding: '0.75rem 1rem', display: 'flex', gap: '0.6rem', alignItems: 'flex-end', flexShrink: 0 }}>
+          <textarea
             className="rt-input"
-            style={{ flex: 1 }}
+            rows={1}
+            style={{ flex: 1, resize: 'none', maxHeight: 120, overflowY: 'auto', lineHeight: 1.4, padding: '0.5rem 0.75rem', fontFamily: 'var(--rt-font-body)', fontSize: '0.9rem' }}
             placeholder="Message…"
             value={msgInput}
-            onChange={e => setMsgInput(e.target.value)}
+            onChange={e => {
+              setMsgInput(e.target.value)
+              e.target.style.height = 'auto'
+              e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
+            }}
             onKeyDown={handleKeyDown}
           />
-          <button className="rt-submit-btn" onClick={handleSend} disabled={!msgInput.trim()}>Send</button>
+          <button className="rt-submit-btn" onClick={handleSend} disabled={!msgInput.trim()} style={{ flexShrink: 0, marginBottom: 1 }}>Send</button>
         </div>
 
         {/* Book detail panel */}
@@ -421,7 +433,7 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
 }
 
 // ── Main Chat page ────────────────────────────────────────────
-export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend }) {
+export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend, initialFriendProfile = null, onClearFriendProfile }) {
   const { user }                                 = useAuthContext()
   const { books, addBook, findDuplicate }        = useBooksContext()
   const {
@@ -443,7 +455,7 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend }) 
   const [addFriendLoading, setAddFriendLoading] = useState(false)
   const [dismissedAccepted, setDismissedAccepted] = useState(new Set())
   const [friendSheet, setFriendSheet]         = useState(null)
-  const [friendProfileFriend, setFriendProfileFriend] = useState(null) // friend to view full profile
+  const [friendProfileFriend, setFriendProfileFriend] = useState(initialFriendProfile) // friend to view full profile
   const [addModal, setAddModal]               = useState(false)
   const [activeChatModal, setActiveChatModal] = useState(null)
 
@@ -487,10 +499,18 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend }) 
         chats={chats}
         user={user}
         books={books}
-        onBack={() => setFriendProfileFriend(null)}
+        onBack={() => { setFriendProfileFriend(null); onClearFriendProfile?.() }}
         onStartChat={b => startOrOpenChat(b.olKey, b.title, b.author, b.coverId, [friendProfileFriend.userId])}
-        onViewChat={chatId => { const c = chats.find(x => x.id === chatId); if (c) openChatModal(c) }}
+        onViewChat={chatId => { 
+          const c = chats.find(x => x.id === chatId)
+          if (c) { 
+            setFriendProfileFriend(null)
+            onClearFriendProfile?.()
+            openChatModal(c) 
+          } 
+        }}
         onAddToTBR={({ title, author, olKey, coverId }) => addBook({ title, author, status: 'tbr', olKey, coverId })}
+        onAddFriend={f => sendFriendRequest(f.username || f.userId)}
       />
     )
   }
@@ -538,13 +558,18 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend }) 
             <span style={{ flex: 1, color: 'var(--rt-t3)', fontStyle: 'italic' }}>
               <strong style={{ color: 'var(--rt-navy)', fontStyle: 'normal' }}>{op.addresseeName}</strong> hasn't accepted yet
             </span>
+            <button
+              onClick={() => setDismissedAccepted(s => new Set([...s, op.friendshipId]))}
+              style={{ background: 'none', border: 'none', color: 'var(--rt-t3)', fontSize: '1rem', cursor: 'pointer', padding: '0 0.1rem', lineHeight: 1, flexShrink: 0 }}
+              aria-label="Dismiss"
+            >×</button>
           </div>
         )
       })}
 
       {/* Sub-tabs */}
       <div style={{ display: 'flex', borderBottom: '2px solid var(--rt-border)', marginBottom: '1.25rem' }}>
-        {[['chats', 'Chat', totalUnread], ['friends', 'Friends', friends.length]].map(([id, label, count]) => (
+        {[['chats', 'Chat', totalUnread], ['clubs', 'Clubs', 0], ['friends', 'Friends', friends.length]].map(([id, label, count]) => (
           <button
             key={id}
             onClick={() => setChatTab(id)}
@@ -578,9 +603,7 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend }) 
               </div>
             ) : (
               chats.map(chat => {
-                // Build participant display from friends list
-                const otherIds = (chat.participantIds || []).filter(id => id !== user?.id)
-                const chatFriends = otherIds.map(id => friends.find(f => f.userId === id)).filter(Boolean)
+                const otherParticipants = (chat.participants || []).filter(p => p.userId !== user?.id)
                 return (
                   <div
                     key={chat.id}
@@ -602,15 +625,15 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend }) 
                           {chat.chatName && <div style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--rt-amber)', marginBottom: '0.1rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.chatName}</div>}
                           <div className="rt-chat-list-title">{chat.bookTitle}</div>
                         </div>
-                        {/* Participant avatars — top right */}
-                        {chatFriends.length > 0 && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.1rem', flexShrink: 0, marginTop: '0.1rem' }}>
-                            {chatFriends.slice(0, 4).map(f => (
-                              <div key={f.userId} title={f.displayName} style={{ width: 18, height: 18, borderRadius: '50%', background: avatarColour(f.userId), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.42rem', fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden', border: '1.5px solid var(--rt-white)' }}>
-                                {f.avatarUrl ? <img src={f.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : avatarInitial(f.displayName)}
+                        {/* Participant avatars — overlapping */}
+                        {otherParticipants.length > 0 && (
+                          <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, marginTop: '0.1rem' }}>
+                            {otherParticipants.slice(0, 4).map((p, idx) => (
+                              <div key={p.userId} title={p.displayName} style={{ width: 22, height: 22, borderRadius: '50%', background: avatarColour(p.userId), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.5rem', fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden', border: '2px solid var(--rt-white)', marginLeft: idx === 0 ? 0 : -6, zIndex: otherParticipants.length - idx, position: 'relative' }}>
+                                {p.avatarUrl ? <img src={p.avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : avatarInitial(p.displayName)}
                               </div>
                             ))}
-                            {otherIds.length > 4 && <span style={{ fontSize: '0.6rem', color: 'var(--rt-t3)', marginLeft: '0.15rem' }}>+{otherIds.length - 4}</span>}
+                            {otherParticipants.length > 4 && <span style={{ fontSize: '0.6rem', color: 'var(--rt-t3)', marginLeft: '0.25rem' }}>+{otherParticipants.length - 4}</span>}
                           </div>
                         )}
                       </div>
@@ -631,6 +654,12 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend }) 
       )}
 
       {/* ── FRIENDS TAB ── */}
+      {chatTab === 'clubs' && (
+        <div style={{ flex: 1 }}>
+          <Clubs onOpenChatModal={openChatModal} />
+        </div>
+      )}
+
       {chatTab === 'friends' && (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           <div style={{ flex: 1 }}>

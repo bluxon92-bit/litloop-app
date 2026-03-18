@@ -10,6 +10,10 @@ const gradients = [
   'linear-gradient(135deg, #b43a3a 0%, #7a5c2e 100%)',
 ]
 
+// Session-level cache: coverId → resolved Supabase URL
+// Prevents re-uploading/re-fetching the same cover across components
+const resolvedUrlCache = {}
+
 export default function CoverImage({ coverId, olKey, coverUrl, title, size = 'M', style = {}, onCoverUrlResolved }) {
   const sizes = { S: [38, 54], M: [56, 82], L: [80, 116] }
   const [w, h] = sizes[size] || sizes.M
@@ -48,9 +52,17 @@ export default function CoverImage({ coverId, olKey, coverUrl, title, size = 'M'
     // Then silently upgrade to Supabase Storage in the background
     // Once uploaded the service worker caches it for future instant loads
     if (coverId && olKey && !upgrading.current) {
+      // Check session cache first
+      const cacheKey = `${coverId}__${olKey}`
+      if (resolvedUrlCache[cacheKey]) {
+        setResolvedUrl(resolvedUrlCache[cacheKey])
+        onCoverUrlResolved?.(resolvedUrlCache[cacheKey])
+        return
+      }
       upgrading.current = true
       uploadCoverToSupabase(coverId, olKey).then(url => {
         if (url) {
+          resolvedUrlCache[cacheKey] = url
           setResolvedUrl(url)
           onCoverUrlResolved?.(url)
         }

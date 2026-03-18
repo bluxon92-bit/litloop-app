@@ -419,10 +419,14 @@ export default function ReviewThreadSheet({
             ref={textareaRef}
             rows={1}
             value={commentInput}
-            onChange={e => setCommentInput(e.target.value)}
+            onChange={e => {
+              setCommentInput(e.target.value)
+              e.target.style.height = 'auto'
+              e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px'
+            }}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendComment() } }}
             placeholder="Add a comment…"
-            style={{ flex: 1, background: 'none', border: 'none', outline: 'none', resize: 'none', fontFamily: 'var(--rt-font-body)', fontSize: '0.85rem', color: 'var(--rt-navy)', lineHeight: 1.4 }}
+            style={{ flex: 1, background: 'none', border: 'none', outline: 'none', resize: 'none', fontFamily: 'var(--rt-font-body)', fontSize: '0.85rem', color: 'var(--rt-navy)', lineHeight: 1.4, maxHeight: 120, overflowY: 'auto' }}
           />
         </div>
         <button

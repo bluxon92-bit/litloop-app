@@ -112,8 +112,9 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
   const [addModal, setAddModal]             = useState(false)
   const [crCarouselIdx, setCrCarouselIdx]   = useState(0)
   const [toast, setToast]                   = useState(null)
-  const [feedLimit, setFeedLimit]           = useState(10)
-  const [pendingMoment, setPendingMoment]   = useState(null) // { book, page, total }
+  const [feedLimit, setFeedLimit]           = useState(20)
+  const [pendingMoment, setPendingMoment]   = useState(null)
+  const feedSentinelRef                     = useRef(null)
   const toastTimer                          = useRef(null)
 
   useEffect(() => {
@@ -122,6 +123,16 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
     toastTimer.current = setTimeout(() => setToast(null), 2500)
     return () => clearTimeout(toastTimer.current)
   }, [toast])
+
+  // Infinite scroll — load more when sentinel comes into view
+  useEffect(() => {
+    if (!feedSentinelRef.current) return
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) setFeedLimit(n => n + 10)
+    }, { threshold: 0.1 })
+    observer.observe(feedSentinelRef.current)
+    return () => observer.disconnect()
+  }, [feedSentinelRef.current])
 
   const year     = new Date().getFullYear()
   const read     = books.filter(b => b.status === 'read')
@@ -459,12 +470,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
               )
             })}
             {reviewEvents.length > feedLimit && (
-              <button
-                onClick={() => setFeedLimit(n => n + 10)}
-                style={{ display: 'block', width: '100%', background: 'none', border: '1px solid var(--rt-border-md)', borderRadius: 99, padding: '0.55rem', fontSize: '0.82rem', color: 'var(--rt-t2)', cursor: 'pointer', marginTop: '0.25rem' }}
-              >
-                Load more
-              </button>
+              <div ref={feedSentinelRef} style={{ height: 40 }} />
             )}
             </>
           )}
@@ -552,7 +558,8 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
           book={finishBook}
           user={user}
           onClose={() => setFinishBook(null)}
-          onSaved={changes => { const id = finishBook?.id; if (id) updateBook(id, changes); setFinishBook(null) }}
+          onSaved={changes => { const id = finishBook?.id; if (id) updateBook(id, changes) }}
+          onOpenChatModal={onOpenChatModal}
         />
       )}
 

@@ -610,7 +610,7 @@ export default function BookDetailPanel({
         <div style={{ marginBottom: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
             <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)' }}>About this book</div>
-            {(book.olKey || olKeyLive) && (() => {
+            {(book.olKey || olKeyLive) && book.reviewPublic && (() => {
               const key   = (book.olKey || olKeyLive || '').replace('/works/', '').toLowerCase()
               const clean = (book.title || '').replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+$/, '')
               const slug  = key + (clean ? '-' + clean : '')

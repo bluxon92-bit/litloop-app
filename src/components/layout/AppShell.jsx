@@ -821,6 +821,7 @@ export default function AppShell() {
   const [fabAction, setFabAction]         = useState(null) // 'addbook'|'recommend'|'chat'|'friend'|'moment'
   const [fabChatPreselect, setFabChatPreselect] = useState(null) // userId to pre-select in FabChatModal
   const [dismissedRequests, setDismissedRequests] = useState(new Set()) // friendshipIds hidden by ×
+  const [activeFriendProfile, setActiveFriendProfile] = useState(null) // friend to view from home feed
   const bellRef = useRef(null)
 
   function onNavigate(tab) { setActiveTab(tab) }
@@ -963,11 +964,11 @@ export default function AppShell() {
 
   function renderPage() {
     switch (activeTab) {
-      case 'home':     return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} />
+      case 'home':     return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} onViewFriendProfile={f => { setActiveTab('chat'); setActiveFriendProfile(f) }} />
       case 'mylist':   return <MyList          onNavigate={onNavigate} onOpenChatModal={openChatModal} />
       case 'stats':    return <Stats           onNavigate={onNavigate} />
       case 'discover': return <Discover        onNavigate={onNavigate} onOpenChatModal={openChatModal} onRecommend={() => setFabAction('recommend')} />
-      case 'chat':     return <Chat            onNavigate={onNavigate} onOpenChatModal={openChatModal} onAddFriend={() => setFabAction('friend')} onOpenChatWithFriend={openChatWithFriend} />
+      case 'chat':     return <Chat            onNavigate={onNavigate} onOpenChatModal={openChatModal} onAddFriend={() => setFabAction('friend')} onOpenChatWithFriend={openChatWithFriend} initialFriendProfile={activeFriendProfile} onClearFriendProfile={() => setActiveFriendProfile(null)} />
       case 'profile':  return <Profile         onNavigate={onNavigate} onOpenChatModal={openChatModal} />
       case 'account':  return <AccountSettings onNavigate={onNavigate} />
       default:         return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} />
