@@ -5,6 +5,7 @@ import CoverImage from '../components/books/CoverImage'
 import BookDetailPanel from '../components/books/BookDetailPanel'
 import ReviewThreadSheet from '../components/ReviewThreadSheet'
 import { IcoOpenBook } from '../components/icons'
+import { useSocialContext } from '../context/SocialContext'
 
 // ── Small cover + title for favourites carousel ───────────────
 function FavCover({ book }) {
@@ -86,6 +87,7 @@ function FeedEngagementBar({ entryId, user, onOpenThread }) {
 }
 
 export default function FriendProfilePage({ friend, onBack, onOpenChatModal, chats, user, books: myBooks, onStartChat, onViewChat, onAddToTBR, onViewProfile, onAddFriend, myAvatarUrl, myDisplayName }) {
+  const { friends } = useSocialContext()
   const [entries, setEntries]       = useState(null)
   const [profile, setProfile]       = useState(null)
   const [favBooks, setFavBooks]     = useState([])
@@ -292,7 +294,7 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
         )}
 
         {/* Add friend button — shown when not already friends */}
-        {onAddFriend && !friend.friendshipId && (
+        {onAddFriend && !friends.some(f => f.userId === friend.userId) && (
           <button
             onClick={() => onAddFriend(friend)}
             style={{ marginTop: '0.5rem', background: 'var(--rt-amber)', border: 'none', borderRadius: 99, padding: '0.4rem 1rem', fontSize: '0.78rem', fontWeight: 700, color: '#fff', cursor: 'pointer' }}
