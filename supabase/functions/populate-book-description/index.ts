@@ -30,7 +30,7 @@ Deno.serve(async (req) => {
     }
 
     const sb = createClient(SUPABASE_URL, SUPABASE_KEY, {
-      db: { schema: 'staging' }
+      db: { schema: 'public' }
     })
 
     // Look up the book's ol_key and current description

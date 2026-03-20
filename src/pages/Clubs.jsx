@@ -7,7 +7,7 @@ import CoverImage from '../components/books/CoverImage'
 import { avatarColour, avatarInitial } from '../lib/utils'
 import { sb } from '../lib/supabase'
 
-// ── Shared palette ────────────────────────────────────────────
+// ── Shared palette  ────────────────────────────────────────────
 const GRADIENTS = [
   'linear-gradient(135deg,#1a2744,#2A6E69)',
   'linear-gradient(135deg,#2d4a8a,#4a7fc1)',
