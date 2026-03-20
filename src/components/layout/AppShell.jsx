@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuthContext } from '../../context/AuthContext'
 import { useChatContext } from '../../context/ChatContext'
 import { useSocialContext } from '../../context/SocialContext'
+import { processGoodreadsCSV, processStorygraphCSV } from '../../lib/importBooks'
 import { useBooksContext } from '../../context/BooksContext'
 import Home from '../../pages/Home'
 import MyList from '../../pages/MyList'
@@ -86,20 +87,35 @@ function FabModal({ onClose, children, maxWidth = 480 }) {
 
 // ── FAB: Add Friend modal ─────────────────────────────────────
 function FabFriendModal({ onClose, sendFriendRequest, generateInviteLink }) {
-  const [input, setInput]       = useState('')
-  const [msg, setMsg]           = useState(null)
-  const [loading, setLoading]   = useState(false)
-  const [copied, setCopied]     = useState(false)
+  const { user } = useAuthContext()
+  const { friends } = useSocialContext()
+  const [input, setInput]               = useState('')
+  const [searchResults, setSearchResults] = useState([])
+  const [searching, setSearching]       = useState(false)
+  const [sentRequests, setSentRequests] = useState(new Set())
+  const [msg, setMsg]                   = useState(null)
+  const [copied, setCopied]             = useState(false)
+  const searchTimer                     = useRef(null)
 
-  async function handleAdd(e) {
-    e.preventDefault()
-    const username = input.trim().replace(/^@/, '')
-    if (!username) return
-    setLoading(true); setMsg(null)
+  function handleInput(val) {
+    setInput(val)
+    setMsg(null)
+    clearTimeout(searchTimer.current)
+    if (val.trim().length < 2) { setSearchResults([]); return }
+    setSearching(true)
+    searchTimer.current = setTimeout(async () => {
+      try {
+        const { data } = await sb.rpc('search_users', { p_query: val.trim().replace(/^@/, ''), p_current_user_id: user?.id, p_limit: 8 })
+        setSearchResults(data || [])
+      } catch { setSearchResults([]) }
+      setSearching(false)
+    }, 350)
+  }
+
+  async function sendTo(username, userId) {
     const { error } = await sendFriendRequest(username)
     if (error) setMsg({ type: 'error', text: error })
-    else { setMsg({ type: 'success', text: `✓ Request sent to @${username}!` }); setInput('') }
-    setLoading(false)
+    else setSentRequests(prev => new Set([...prev, userId]))
   }
 
   async function handleCopy() {
@@ -118,24 +134,50 @@ function FabFriendModal({ onClose, sendFriendRequest, generateInviteLink }) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--rt-t3)' }}>×</button>
         </div>
 
-        {/* Search by username */}
-        <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>Find by username</div>
-        <form onSubmit={handleAdd} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+        {/* Fuzzy search */}
+        <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>Search by name or handle</div>
+        <div style={{ position: 'relative', marginBottom: '0.5rem' }}>
           <input
-            className="rt-input" style={{ flex: 1 }}
-            placeholder="@username"
-            value={input} onChange={e => setInput(e.target.value)}
-            autoFocus
+            className="rt-input" style={{ width: '100%', boxSizing: 'border-box' }}
+            placeholder="Search by name or @handle…"
+            value={input} onChange={e => handleInput(e.target.value)}
+            autoFocus autoComplete="off"
           />
-          <button type="submit" disabled={loading || !input.trim()}
-            style={{ background: 'var(--rt-navy)', color: '#fff', border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.7rem 1.1rem', fontWeight: 700, fontSize: '0.88rem', cursor: 'pointer', opacity: !input.trim() ? 0.5 : 1 }}>
-            {loading ? '…' : 'Send'}
-          </button>
-        </form>
-        {msg && <div style={{ marginTop: '0.6rem', fontSize: '0.82rem', color: msg.type === 'error' ? '#dc2626' : 'var(--rt-teal)', fontWeight: 600, marginBottom: '1rem' }}>{msg.text}</div>}
+          {searching && <div style={{ position: 'absolute', right: '0.9rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.75rem', color: 'var(--rt-t3)' }}>Searching…</div>}
+        </div>
+
+        {searchResults.length > 0 && (
+          <div style={{ border: '0.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)', overflow: 'hidden', marginBottom: '1rem' }}>
+            {searchResults.map((f, i) => {
+              const alreadyFriend = friends.some(fr => fr.userId === f.id)
+              const sent = sentRequests.has(f.id)
+              return (
+                <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', padding: '0.6rem 0.85rem', borderBottom: i < searchResults.length - 1 ? '0.5px solid var(--rt-border)' : 'none', background: 'var(--rt-white)' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: avatarColour(f.id), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden' }}>
+                    {f.avatar_url ? <img src={f.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : avatarInitial(f.display_name || f.username)}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.display_name || f.username}</div>
+                    <div style={{ fontSize: '0.7rem', color: 'var(--rt-t3)' }}>@{f.username}{f.mutual_friends > 0 ? ` · ${f.mutual_friends} mutual` : ''}</div>
+                  </div>
+                  {alreadyFriend ? (
+                    <span style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', fontWeight: 600 }}>Friends</span>
+                  ) : (
+                    <button onClick={() => sendTo(f.username, f.id)} disabled={sent}
+                      style={{ flexShrink: 0, background: sent ? 'var(--rt-surface)' : 'var(--rt-amber)', color: sent ? 'var(--rt-t3)' : '#fff', border: 'none', borderRadius: 99, padding: '0.25rem 0.75rem', fontSize: '0.72rem', fontWeight: 700, cursor: sent ? 'default' : 'pointer' }}>
+                      {sent ? 'Sent ✓' : 'Add'}
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        {msg && <div style={{ fontSize: '0.82rem', color: msg.type === 'error' ? '#dc2626' : 'var(--rt-teal)', fontWeight: 600, marginBottom: '0.75rem' }}>{msg.text}</div>}
 
         {/* Invite block */}
-        <div style={{ background: 'var(--rt-navy)', borderRadius: 'var(--rt-r3)', padding: '1rem 1.25rem', marginTop: msg ? '0' : '1.25rem' }}>
+        <div style={{ background: 'var(--rt-navy)', borderRadius: 'var(--rt-r3)', padding: '1rem 1.25rem', marginTop: '0.5rem' }}>
           <div style={{ fontSize: '1rem', fontWeight: 700, color: '#fff', marginBottom: '0.35rem' }}>Invite your friends to LitLoop</div>
           <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5, marginBottom: '0.85rem' }}>
             Recommend and chat about your favourite stories. Because books are better shared.
@@ -393,22 +435,53 @@ const ONBOARDING_MOODS = [
 ]
 
 function OnboardingFlow({ user, onComplete }) {
-  const { saveProfile, setPreferredMoods } = useSocialContext()
+  const { saveProfile, completeOnboarding, setPreferredMoods, sendFriendRequest } = useSocialContext()
   const { addBook } = useBooksContext()
-  const [step, setStep]             = useState(1)  // 1 | 2 | 3
-  const [username, setUsername]     = useState('')
-  const [displayName, setDisplayName] = useState('')
-  const [moods, setMoods]           = useState([])
-  const [saving, setSaving]         = useState(false)
-  const [error, setError]           = useState(null)
 
-  // Step 3 — book search
-  const [query, setQuery]           = useState('')
-  const [results, setResults]       = useState([])
-  const [searching, setSearching]   = useState(false)
+  const [step, setStep]               = useState(1)  // 1 | 2 | 3 | 4
+  const [saving, setSaving]           = useState(false)
+  const [error, setError]             = useState(null)
+
+  // Step 1 — identity
+  const [firstName, setFirstName]     = useState('')
+  const [lastName, setLastName]       = useState('')
+  const [handle, setHandle]           = useState('')
+  const [handleEdited, setHandleEdited] = useState(false)
+
+  // Step 2 — moods
+  const [moods, setMoods]             = useState([])
+
+  // Step 3 — current book + import
+  const [query, setQuery]             = useState('')
+  const [results, setResults]         = useState([])
+  const [searching, setSearching]     = useState(false)
   const [currentBook, setCurrentBook] = useState(null)
-  const searchTimer                 = useRef(null)
+  const searchTimer                   = useRef(null)
 
+  // Step 4 — add a friend
+  const [friendQuery, setFriendQuery]     = useState('')
+  const [friendResults, setFriendResults] = useState([])
+  const [friendSearching, setFriendSearching] = useState(false)
+  const [addedFriends, setAddedFriends]   = useState(new Set())
+  const friendTimer                       = useRef(null)
+
+  // Step 3 — CSV import state
+  const grInputRef                        = useRef(null)
+  const sgInputRef                        = useRef(null)
+  const [importStatus, setImportStatus]   = useState(null)
+  const [importMsg, setImportMsg]         = useState('')
+
+  const TOTAL_STEPS = 4
+
+  // Auto-generate handle from first + last name
+  useEffect(() => {
+    if (!handleEdited && (firstName || lastName)) {
+      const combined = `${firstName}${lastName}`.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '').slice(0, 20)
+      setHandle(combined)
+    }
+  }, [firstName, lastName, handleEdited])
+
+  // Book search
   useEffect(() => {
     clearTimeout(searchTimer.current)
     if (!query.trim()) { setResults([]); return }
@@ -424,31 +497,42 @@ function OnboardingFlow({ user, onComplete }) {
     }, 400)
   }, [query])
 
+  // Friend search — uses search_users RPC
+  useEffect(() => {
+    clearTimeout(friendTimer.current)
+    if (friendQuery.trim().length < 2) { setFriendResults([]); return }
+    setFriendSearching(true)
+    friendTimer.current = setTimeout(async () => {
+      try {
+        const { data } = await sb.rpc('search_users', { p_query: friendQuery.trim(), p_current_user_id: user.id, p_limit: 8 })
+        setFriendResults(data || [])
+      } catch {}
+      setFriendSearching(false)
+    }, 350)
+  }, [friendQuery])
+
   async function handleStep1() {
     setError(null)
-    if (!username.trim()) { setError('Username is required'); return }
-    if (username.trim().length < 3) { setError('Username must be at least 3 characters'); return }
+    if (!firstName.trim()) { setError('Please enter your first name'); return }
+    if (!handle.trim() || handle.trim().length < 3) { setError('Handle must be at least 3 characters'); return }
     setSaving(true)
-    // saveProfile(username, bio) — then separately save display_name
-    const { error } = await saveProfile(username, '')
-    if (!error && displayName.trim()) {
-      try {
-        await sb.from('profiles')
-          .update({ display_name: displayName.trim() })
-          .eq('id', user.id)
-      } catch {}
-    }
+    const { error } = await saveProfile(firstName, lastName, handle)
     setSaving(false)
-    if (error) { setError(error.message || 'Something went wrong'); return }
+    if (error) {
+      const msg = error.message || ''
+      if (msg.includes('unique') || msg.includes('duplicate')) {
+        setError('That handle is already taken — try adding a number or initial, e.g. @jamesj2')
+      } else {
+        setError(msg || 'Something went wrong, please try again')
+      }
+      return
+    }
     setStep(2)
   }
 
   async function handleStep2() {
-    // Save moods to DB
     setPreferredMoods(moods)
-    try {
-      await sb.from('profiles').update({ preferred_moods: moods }).eq('id', user.id)
-    } catch {}
+    try { await sb.from('profiles').update({ preferred_moods: moods }).eq('id', user.id) } catch {}
     setStep(3)
   }
 
@@ -463,10 +547,54 @@ function OnboardingFlow({ user, onComplete }) {
         dateStarted: new Date().toISOString().split('T')[0],
       })
     }
+    setStep(4)
+  }
+
+  async function handleFinish() {
+    await completeOnboarding()
     onComplete()
   }
 
-  const progress = ((step - 1) / 3) * 100
+  async function handleImport(file, type) {
+    if (!file) return
+    setImportStatus('loading')
+    setImportMsg('Reading CSV…')
+    try {
+      const text = await file.text()
+      const onProgress = (done, total) => setImportMsg(`Matching ${done}/${total} books…`)
+      const processFn = type === 'goodreads' ? processGoodreadsCSV : processStorygraphCSV
+      const { books: imported, skipped } = await processFn(text, [], onProgress)
+      for (const book of imported) { await addBook({ ...book, silent: true }) }
+      setImportStatus('done')
+      setImportMsg(`✓ Imported ${imported.length} book${imported.length !== 1 ? 's' : ''}${skipped ? ` · ${skipped} skipped` : ''}`)
+    } catch {
+      setImportStatus('done')
+      setImportMsg('Could not read file — check it\'s a valid CSV export')
+    }
+    if (grInputRef.current) grInputRef.current.value = ''
+    if (sgInputRef.current) sgInputRef.current.value = ''
+  }
+
+  const progress = ((step - 1) / TOTAL_STEPS) * 100
+
+  // Shared input style
+  const inputStyle = {
+    width: '100%', boxSizing: 'border-box',
+    padding: '0.85rem 1rem',
+    border: '1.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)',
+    fontSize: '0.95rem', color: 'var(--rt-navy)', background: 'var(--rt-white)',
+    outline: 'none', fontFamily: 'var(--rt-font-body)',
+  }
+
+  const primaryBtn = (disabled) => ({
+    width: '100%',
+    background: disabled ? 'var(--rt-surface)' : 'var(--rt-navy)',
+    color: disabled ? 'var(--rt-t3)' : '#fff',
+    border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.95rem',
+    fontSize: '0.95rem', fontWeight: 700,
+    cursor: disabled ? 'default' : 'pointer',
+    fontFamily: 'var(--rt-font-body)', transition: 'all 0.15s',
+  })
 
   return (
     <div style={{
@@ -478,93 +606,88 @@ function OnboardingFlow({ user, onComplete }) {
     }}>
       {/* Progress bar */}
       <div style={{ height: 3, background: 'var(--rt-border)', flexShrink: 0 }}>
-        <div style={{
-          height: '100%', background: 'var(--rt-amber)',
-          width: `${progress}%`,
-          transition: 'width 0.4s ease',
-        }} />
+        <div style={{ height: '100%', background: 'var(--rt-amber)', width: `${progress}%`, transition: 'width 0.4s ease' }} />
       </div>
 
       {/* Header */}
-      <div style={{
-        background: 'linear-gradient(160deg, #111C35 0%, var(--rt-navy) 100%)',
-        padding: '1.75rem 1.5rem 1.5rem',
-        flexShrink: 0,
-      }}>
+      <div style={{ background: 'linear-gradient(160deg, #111C35 0%, var(--rt-navy) 100%)', padding: '1.75rem 1.5rem 1.5rem', flexShrink: 0 }}>
         <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.5rem', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>LitLoop</div>
-        <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.78rem', marginTop: '0.2rem' }}>Step {step} of 3</div>
+        <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.78rem', marginTop: '0.2rem' }}>Step {step} of {TOTAL_STEPS}</div>
       </div>
 
       {/* Body */}
       <div style={{ flex: 1, maxWidth: 540, width: '100%', margin: '0 auto', padding: '2rem 1.5rem 3rem' }}>
 
-        {/* ── Step 1: Username ── */}
+        {/* ── Step 1: Name + handle ── */}
         {step === 1 && (
           <div>
             <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 0.5rem', lineHeight: 1.2 }}>
-              First, what should we call you?
+              Let's set up your profile
             </h2>
             <p style={{ color: 'var(--rt-t3)', fontSize: '0.88rem', margin: '0 0 2rem', lineHeight: 1.5 }}>
-              Choose a username — this is how friends will find you on LitLoop.
+              Your name is shown to friends inside the app. Your handle appears on any public reviews.
             </p>
 
-            <div style={{ marginBottom: '1.25rem' }}>
-              <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.4rem' }}>Username</label>
-              <div style={{ position: 'relative' }}>
-                <span style={{ position: 'absolute', left: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--rt-t3)', fontSize: '0.95rem', pointerEvents: 'none' }}>@</span>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.4rem' }}>First name</label>
                 <input
-                  value={username}
-                  onChange={e => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                  placeholder="yourname"
-                  maxLength={20}
-                  style={{
-                    width: '100%', boxSizing: 'border-box',
-                    padding: '0.85rem 1rem 0.85rem 2rem',
-                    border: '1.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)',
-                    fontSize: '0.95rem', color: 'var(--rt-navy)', background: 'var(--rt-white)',
-                    outline: 'none', fontFamily: 'var(--rt-font-body)',
-                  }}
+                  value={firstName}
+                  onChange={e => setFirstName(e.target.value)}
+                  placeholder="James"
+                  maxLength={30}
+                  style={inputStyle}
                   onFocus={e => e.target.style.borderColor = 'var(--rt-navy)'}
                   onBlur={e => e.target.style.borderColor = 'var(--rt-border-md)'}
                   autoFocus
-                  autoComplete="off"
-                  autoCapitalize="none"
+                  autoComplete="given-name"
                 />
               </div>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.4rem' }}>Last name</label>
+                <input
+                  value={lastName}
+                  onChange={e => setLastName(e.target.value)}
+                  placeholder="Johnson"
+                  maxLength={30}
+                  style={inputStyle}
+                  onFocus={e => e.target.style.borderColor = 'var(--rt-navy)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--rt-border-md)'}
+                  autoComplete="family-name"
+                />
+              </div>
+            </div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '1.25rem', marginTop: '-0.75rem' }}>
+              Shown as <strong style={{ color: 'var(--rt-navy)' }}>{firstName && lastName ? `${firstName}${lastName.charAt(0)}` : firstName || 'FirstnameL'}</strong> on your friends' feed
             </div>
 
             <div style={{ marginBottom: '1.75rem' }}>
               <label style={{ display: 'block', fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.4rem' }}>
-                Display name <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— optional</span>
+                Unique handle <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0 }}>— shown on public reviews</span>
               </label>
-              <input
-                value={displayName}
-                onChange={e => setDisplayName(e.target.value)}
-                placeholder="How your name appears to friends"
-                maxLength={40}
-                style={{
-                  width: '100%', boxSizing: 'border-box',
-                  padding: '0.85rem 1rem',
-                  border: '1.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)',
-                  fontSize: '0.95rem', color: 'var(--rt-navy)', background: 'var(--rt-white)',
-                  outline: 'none', fontFamily: 'var(--rt-font-body)',
-                }}
-                onFocus={e => e.target.style.borderColor = 'var(--rt-navy)'}
-                onBlur={e => e.target.style.borderColor = 'var(--rt-border-md)'}
-                autoComplete="off"
-              />
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--rt-t3)', fontSize: '0.95rem', pointerEvents: 'none' }}>@</span>
+                <input
+                  value={handle}
+                  onChange={e => { setHandle(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '')); setHandleEdited(true) }}
+                  placeholder="yourhandle"
+                  maxLength={20}
+                  style={{ ...inputStyle, paddingLeft: '2rem' }}
+                  onFocus={e => e.target.style.borderColor = 'var(--rt-navy)'}
+                  onBlur={e => e.target.style.borderColor = 'var(--rt-border-md)'}
+                  autoComplete="off"
+                  autoCapitalize="none"
+                />
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginTop: '0.4rem' }}>
+                You can change this once later in settings.
+              </div>
             </div>
 
             {error && <p style={{ color: '#991b1b', background: '#fef2f2', fontSize: '0.83rem', padding: '0.6rem 0.9rem', borderRadius: 'var(--rt-r4)', margin: '0 0 1rem' }}>{error}</p>}
 
-            <button onClick={handleStep1} disabled={saving || !username.trim()}
-              style={{
-                width: '100%', background: username.trim() ? 'var(--rt-navy)' : 'var(--rt-surface)',
-                color: username.trim() ? '#fff' : 'var(--rt-t3)',
-                border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.95rem',
-                fontSize: '0.95rem', fontWeight: 700, cursor: username.trim() ? 'pointer' : 'default',
-                fontFamily: 'var(--rt-font-body)', transition: 'all 0.15s',
-              }}>
+            <button onClick={handleStep1} disabled={saving || !firstName.trim() || !handle.trim()}
+              style={primaryBtn(saving || !firstName.trim() || !handle.trim())}>
               {saving ? 'Saving…' : 'Continue →'}
             </button>
           </div>
@@ -577,7 +700,7 @@ function OnboardingFlow({ user, onComplete }) {
               What kind of reader are you?
             </h2>
             <p style={{ color: 'var(--rt-t3)', fontSize: '0.88rem', margin: '0 0 1.75rem', lineHeight: 1.5 }}>
-              Pick the reading moods that feel like you. We'll use these to personalise your LitLoop Picks. You can always change this later.
+              Pick the reading moods that feel like you. We'll use these to personalise your LitLoop Picks.
             </p>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '2rem' }}>
@@ -585,16 +708,13 @@ function OnboardingFlow({ user, onComplete }) {
                 const selected = moods.includes(mood.id)
                 return (
                   <button key={mood.id}
-                    onClick={() => setMoods(prev =>
-                      prev.includes(mood.id) ? prev.filter(m => m !== mood.id) : [...prev, mood.id]
-                    )}
+                    onClick={() => setMoods(prev => prev.includes(mood.id) ? prev.filter(m => m !== mood.id) : [...prev, mood.id])}
                     style={{
                       display: 'flex', alignItems: 'center', gap: '0.85rem',
                       padding: '0.85rem 1rem',
                       background: selected ? 'var(--rt-navy)' : 'var(--rt-white)',
                       border: `1.5px solid ${selected ? 'var(--rt-navy)' : 'var(--rt-border-md)'}`,
-                      borderRadius: 'var(--rt-r3)', cursor: 'pointer',
-                      textAlign: 'left', width: '100%',
+                      borderRadius: 'var(--rt-r3)', cursor: 'pointer', textAlign: 'left', width: '100%',
                       transition: 'all 0.15s',
                     }}>
                     <span style={{ fontSize: '1.25rem', flexShrink: 0, width: 28, textAlign: 'center' }}>{mood.emoji}</span>
@@ -602,13 +722,7 @@ function OnboardingFlow({ user, onComplete }) {
                       <div style={{ fontSize: '0.9rem', fontWeight: 700, color: selected ? '#fff' : 'var(--rt-navy)', fontFamily: 'var(--rt-font-body)' }}>{mood.label}</div>
                       <div style={{ fontSize: '0.73rem', color: selected ? 'rgba(255,255,255,0.6)' : 'var(--rt-t3)', marginTop: '0.1rem' }}>{mood.desc}</div>
                     </div>
-                    <div style={{
-                      width: 20, height: 20, borderRadius: '50%', flexShrink: 0,
-                      background: selected ? 'var(--rt-amber)' : 'transparent',
-                      border: `2px solid ${selected ? 'var(--rt-amber)' : 'var(--rt-border-md)'}`,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      transition: 'all 0.15s',
-                    }}>
+                    <div style={{ width: 20, height: 20, borderRadius: '50%', flexShrink: 0, background: selected ? 'var(--rt-amber)' : 'transparent', border: `2px solid ${selected ? 'var(--rt-amber)' : 'var(--rt-border-md)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.15s' }}>
                       {selected && <span style={{ color: '#fff', fontSize: '0.65rem', fontWeight: 900 }}>✓</span>}
                     </div>
                   </button>
@@ -616,39 +730,26 @@ function OnboardingFlow({ user, onComplete }) {
               })}
             </div>
 
-            <button onClick={handleStep2}
-              style={{
-                width: '100%', background: 'var(--rt-navy)', color: '#fff',
-                border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.95rem',
-                fontSize: '0.95rem', fontWeight: 700, cursor: 'pointer',
-                fontFamily: 'var(--rt-font-body)',
-              }}>
+            <button onClick={handleStep2} style={primaryBtn(false)}>
               {moods.length === 0 ? 'Skip for now →' : `Continue with ${moods.length} mood${moods.length > 1 ? 's' : ''} →`}
             </button>
           </div>
         )}
 
-        {/* ── Step 3: Currently reading ── */}
+        {/* ── Step 3: Currently reading + import ── */}
         {step === 3 && (
           <div>
             <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 0.5rem', lineHeight: 1.2 }}>
               What are you reading right now?
             </h2>
             <p style={{ color: 'var(--rt-t3)', fontSize: '0.88rem', margin: '0 0 1.75rem', lineHeight: 1.5 }}>
-              Add the book you're currently reading and we'll track your progress. You can skip this and add it later.
+              Add your current read so it shows up straight away. You can also import your full history from Goodreads or StoryGraph.
             </p>
 
-            {/* Selected book */}
             {currentBook ? (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: '0.85rem',
-                background: 'var(--rt-white)', border: '1.5px solid var(--rt-navy)',
-                borderRadius: 'var(--rt-r3)', padding: '0.85rem 1rem',
-                marginBottom: '1.5rem',
-              }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', background: 'var(--rt-white)', border: '1.5px solid var(--rt-navy)', borderRadius: 'var(--rt-r3)', padding: '0.85rem 1rem', marginBottom: '1.5rem' }}>
                 {currentBook.cover_i ? (
-                  <img src={`https://covers.openlibrary.org/b/id/${currentBook.cover_i}-S.jpg`}
-                    style={{ width: 44, height: 62, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} alt="" />
+                  <img src={`https://covers.openlibrary.org/b/id/${currentBook.cover_i}-S.jpg`} style={{ width: 44, height: 62, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} alt="" />
                 ) : (
                   <div style={{ width: 44, height: 62, borderRadius: 4, background: 'var(--rt-surface)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IcoBook size={22} color="var(--rt-t3)" /></div>
                 )}
@@ -656,8 +757,7 @@ function OnboardingFlow({ user, onComplete }) {
                   <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentBook.title}</div>
                   <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)', marginTop: '0.15rem' }}>{(currentBook.author_name || []).slice(0, 2).join(', ')}</div>
                 </div>
-                <button onClick={() => setCurrentBook(null)}
-                  style={{ background: 'none', border: 'none', color: 'var(--rt-t3)', cursor: 'pointer', fontSize: '1.1rem', padding: '0.25rem', flexShrink: 0 }}>×</button>
+                <button onClick={() => setCurrentBook(null)} style={{ background: 'none', border: 'none', color: 'var(--rt-t3)', cursor: 'pointer', fontSize: '1.1rem', padding: '0.25rem', flexShrink: 0 }}>×</button>
               </div>
             ) : (
               <div style={{ position: 'relative', marginBottom: '0.75rem' }}>
@@ -665,43 +765,27 @@ function OnboardingFlow({ user, onComplete }) {
                   value={query}
                   onChange={e => setQuery(e.target.value)}
                   placeholder="Search for a book title…"
-                  style={{
-                    width: '100%', boxSizing: 'border-box',
-                    padding: '0.85rem 1rem',
-                    border: '1.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)',
-                    fontSize: '0.95rem', color: 'var(--rt-navy)', background: 'var(--rt-white)',
-                    outline: 'none', fontFamily: 'var(--rt-font-body)',
-                  }}
+                  style={inputStyle}
                   onFocus={e => e.target.style.borderColor = 'var(--rt-navy)'}
                   onBlur={e => e.target.style.borderColor = 'var(--rt-border-md)'}
                   autoFocus
                   autoComplete="off"
                 />
-                {searching && (
-                  <div style={{ position: 'absolute', right: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--rt-t3)', fontSize: '0.78rem' }}>Searching…</div>
-                )}
+                {searching && <div style={{ position: 'absolute', right: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--rt-t3)', fontSize: '0.78rem' }}>Searching…</div>}
               </div>
             )}
 
-            {/* Search results */}
             {!currentBook && results.length > 0 && (
               <div style={{ background: 'var(--rt-white)', border: '1px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)', overflow: 'hidden', marginBottom: '1.5rem', boxShadow: 'var(--rt-s2)' }}>
                 {results.map((r, i) => (
                   <button key={r.key}
                     onClick={() => { setCurrentBook(r); setQuery(''); setResults([]) }}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '0.75rem',
-                      width: '100%', padding: '0.75rem 1rem',
-                      background: 'none', border: 'none',
-                      borderBottom: i < results.length - 1 ? '1px solid var(--rt-border)' : 'none',
-                      cursor: 'pointer', textAlign: 'left',
-                    }}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', width: '100%', padding: '0.75rem 1rem', background: 'none', border: 'none', borderBottom: i < results.length - 1 ? '1px solid var(--rt-border)' : 'none', cursor: 'pointer', textAlign: 'left' }}
                     onMouseEnter={e => e.currentTarget.style.background = 'var(--rt-surface)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'none'}
                   >
                     {r.cover_i ? (
-                      <img src={`https://covers.openlibrary.org/b/id/${r.cover_i}-S.jpg`}
-                        style={{ width: 32, height: 46, borderRadius: 3, objectFit: 'cover', flexShrink: 0 }} alt="" />
+                      <img src={`https://covers.openlibrary.org/b/id/${r.cover_i}-S.jpg`} style={{ width: 32, height: 46, borderRadius: 3, objectFit: 'cover', flexShrink: 0 }} alt="" />
                     ) : (
                       <div style={{ width: 32, height: 46, borderRadius: 3, background: 'var(--rt-surface)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IcoBook size={18} color="var(--rt-t3)" /></div>
                     )}
@@ -714,28 +798,102 @@ function OnboardingFlow({ user, onComplete }) {
               </div>
             )}
 
-            <button onClick={handleStep3}
-              style={{
-                width: '100%', background: 'var(--rt-navy)', color: '#fff',
-                border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.95rem',
-                fontSize: '0.95rem', fontWeight: 700, cursor: 'pointer',
-                fontFamily: 'var(--rt-font-body)', marginBottom: '0.85rem',
-              }}>
-              {currentBook ? 'Start reading →' : 'Skip for now →'}
-            </button>
+            {/* Continue button — shows when book selected or import done */}
+            {(currentBook || importStatus === 'done') && (
+              <button onClick={handleStep3} style={{ ...primaryBtn(false), marginBottom: '1.25rem' }}>
+                {currentBook && importStatus === 'done' ? 'Continue →' :
+                 currentBook ? 'Add to my list →' : 'Continue →'}
+              </button>
+            )}
 
-            {/* Import shortcut */}
-            <div style={{
-              background: 'var(--rt-white)', border: '1px solid var(--rt-border)',
-              borderRadius: 'var(--rt-r3)', padding: '1rem 1.1rem',
-              display: 'flex', alignItems: 'center', gap: '0.75rem',
-            }}>
-              <div style={{ fontSize: '1.4rem', flexShrink: 0 }}>📥</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--rt-navy)' }}>Already track your reading?</div>
-                <div style={{ fontSize: '0.73rem', color: 'var(--rt-t3)', marginTop: '0.1rem' }}>Import your full history from Goodreads or Storygraph after you're set up — it only takes a minute.</div>
+            {/* CSV import */}
+            <div style={{ background: 'var(--rt-white)', border: '1px solid var(--rt-border)', borderRadius: 'var(--rt-r3)', padding: '1rem 1.1rem', marginBottom: '1.25rem' }}>
+              <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.25rem' }}>Already track your reading?</div>
+              <div style={{ fontSize: '0.73rem', color: 'var(--rt-t3)', marginBottom: '0.85rem', lineHeight: 1.5 }}>
+                Import your full history from Goodreads or StoryGraph — it runs in the background so you can keep going.
               </div>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', borderRadius: 'var(--rt-r3)', background: 'var(--rt-white)', border: '1.5px solid var(--rt-amber)', color: 'var(--rt-amber)', fontSize: '0.8rem', fontWeight: 700, cursor: importStatus === 'loading' ? 'not-allowed' : 'pointer' }}>
+                  📚 Goodreads CSV
+                  <input ref={grInputRef} type="file" accept=".csv" style={{ display: 'none' }} disabled={importStatus === 'loading'} onChange={e => handleImport(e.target.files[0], 'goodreads')} />
+                </label>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', borderRadius: 'var(--rt-r3)', background: 'var(--rt-white)', border: '1.5px solid var(--rt-amber)', color: 'var(--rt-amber)', fontSize: '0.8rem', fontWeight: 700, cursor: importStatus === 'loading' ? 'not-allowed' : 'pointer' }}>
+                  📖 StoryGraph CSV
+                  <input ref={sgInputRef} type="file" accept=".csv" style={{ display: 'none' }} disabled={importStatus === 'loading'} onChange={e => handleImport(e.target.files[0], 'storygraph')} />
+                </label>
+              </div>
+              {importStatus && (
+                <div style={{ marginTop: '0.65rem', fontSize: '0.78rem', padding: '0.45rem 0.7rem', borderRadius: 8, background: importStatus === 'done' ? '#f0fdf4' : 'var(--rt-surface)', color: importStatus === 'done' ? '#166534' : 'var(--rt-t2)', border: `1px solid ${importStatus === 'done' ? '#bbf7d0' : 'var(--rt-border)'}`, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  {importStatus === 'loading' && <span style={{ width: 10, height: 10, border: '2px solid var(--rt-border-md)', borderTopColor: 'var(--rt-navy)', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
+                  {importMsg}
+                </div>
+              )}
             </div>
+
+            {/* Skip — small text link */}
+            <div style={{ textAlign: 'center' }}>
+              <button onClick={handleStep3} style={{ background: 'none', border: 'none', color: 'var(--rt-t3)', fontSize: '0.82rem', cursor: 'pointer', padding: '0.25rem', textDecoration: 'underline', textUnderlineOffset: 2 }}>
+                Skip for now →
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Step 4: Add a friend ── */}
+        {step === 4 && (
+          <div>
+            <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 0.5rem', lineHeight: 1.2 }}>
+              Reading is better together
+            </h2>
+            <p style={{ color: 'var(--rt-t3)', fontSize: '0.88rem', margin: '0 0 1.75rem', lineHeight: 1.5 }}>
+              Search for friends by name or handle to add them. You can always do this later.
+            </p>
+
+            <div style={{ position: 'relative', marginBottom: '0.75rem' }}>
+              <input
+                value={friendQuery}
+                onChange={e => setFriendQuery(e.target.value)}
+                placeholder="Search by name or @handle…"
+                style={inputStyle}
+                onFocus={e => e.target.style.borderColor = 'var(--rt-navy)'}
+                onBlur={e => e.target.style.borderColor = 'var(--rt-border-md)'}
+                autoFocus
+                autoComplete="off"
+              />
+              {friendSearching && <div style={{ position: 'absolute', right: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--rt-t3)', fontSize: '0.78rem' }}>Searching…</div>}
+            </div>
+
+            {friendResults.length > 0 && (
+              <div style={{ background: 'var(--rt-white)', border: '1px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)', overflow: 'hidden', marginBottom: '1.5rem', boxShadow: 'var(--rt-s2)' }}>
+                {friendResults.map((f, i) => {
+                  const added = addedFriends.has(f.id)
+                  return (
+                    <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem 1rem', borderBottom: i < friendResults.length - 1 ? '1px solid var(--rt-border)' : 'none' }}>
+                      <div style={{ width: 36, height: 36, borderRadius: '50%', background: avatarColour(f.id), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden' }}>
+                        {f.avatar_url ? <img src={f.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : avatarInitial(f.display_name || f.username)}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.display_name || f.username}</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>@{f.username}{f.mutual_friends > 0 ? ` · ${f.mutual_friends} mutual` : ''}</div>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (added) return
+                          await sendFriendRequest(f.username)
+                          setAddedFriends(prev => new Set([...prev, f.id]))
+                        }}
+                        style={{ flexShrink: 0, background: added ? 'var(--rt-surface)' : 'var(--rt-amber)', color: added ? 'var(--rt-t3)' : '#fff', border: 'none', borderRadius: 99, padding: '0.3rem 0.85rem', fontSize: '0.75rem', fontWeight: 700, cursor: added ? 'default' : 'pointer' }}>
+                        {added ? 'Sent ✓' : 'Add'}
+                      </button>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
+            <button onClick={handleFinish} style={{ ...primaryBtn(false), marginBottom: '0.75rem' }}>
+              {addedFriends.size > 0 ? `Continue with ${addedFriends.size} friend${addedFriends.size > 1 ? 's' : ''} added →` : 'Skip for now →'}
+            </button>
           </div>
         )}
 
@@ -808,19 +966,34 @@ export default function AppShell() {
           leaveChat } = useChatContext()
   const { pending, outgoingPending, feed, recs, friends, sendRecommendation, generateInviteLink, sendFriendRequest,
           acceptFriendRequest, declineFriendRequest,
-          myUsername, saveProfile, setPreferredMoods, profileLoaded,
+          myUsername, saveProfile, completeOnboarding, onboardingComplete, setPreferredMoods, profileLoaded,
           notifications: socialNotifs, markNotificationsRead, loadSocialData,
           myDisplayName, myAvatarUrl } = useSocialContext()
   const { books, addBook } = useBooksContext()
   const [activeTab, setActiveTab]         = useState('home')
-  const [onboardingDone, setOnboardingDone] = useState(false)
-  const showOnboarding = profileLoaded && !onboardingDone && !myUsername
+  const showOnboarding = profileLoaded && onboardingComplete === false
   const [notifOpen, setNotifOpen]         = useState(false)
   const [activeChatModal, setActiveChatModal] = useState(null)
   const [fabOpen, setFabOpen]             = useState(false)
   const [fabAction, setFabAction]         = useState(null) // 'addbook'|'recommend'|'chat'|'friend'|'moment'
   const [fabChatPreselect, setFabChatPreselect] = useState(null) // userId to pre-select in FabChatModal
   const [dismissedRequests, setDismissedRequests] = useState(new Set()) // friendshipIds hidden by ×
+  const [importBanner, setImportBanner]           = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('litloop_import') || 'null') } catch { return null }
+  })
+
+  // Poll sessionStorage for import progress updates
+  useEffect(() => {
+    if (!importBanner || importBanner.status === 'done' || importBanner.status === 'error') return
+    const timer = setInterval(() => {
+      try {
+        const data = JSON.parse(sessionStorage.getItem('litloop_import') || 'null')
+        if (data) setImportBanner(data)
+        if (data?.status === 'done' || data?.status === 'error') clearInterval(timer)
+      } catch {}
+    }, 800)
+    return () => clearInterval(timer)
+  }, [importBanner?.status])
   const [activeFriendProfile, setActiveFriendProfile] = useState(null) // friend to view from home feed
   const bellRef = useRef(null)
 
@@ -980,7 +1153,7 @@ export default function AppShell() {
 
       {/* ── Onboarding — shown when user has no username yet ── */}
       {showOnboarding && (
-        <OnboardingFlow user={user} onComplete={() => setOnboardingDone(true)} />
+        <OnboardingFlow user={user} onComplete={() => {}} />
       )}
 
       {/* ── Desktop sidebar ─────────────────────────────── */}
@@ -1312,6 +1485,19 @@ export default function AppShell() {
           preselectedFriendId={fabChatPreselect}
           onClose={() => { setFabAction(null); setFabChatPreselect(null) }}
         />
+      )}
+      {/* Import progress banner */}
+      {importBanner && importBanner.status !== 'done' && importBanner.status !== 'error' && (
+        <div style={{ position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', zIndex: 1100, width: 'min(96vw, 420px)', background: 'var(--rt-navy)', color: '#fff', borderRadius: 12, padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.65rem', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
+          <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+          <span style={{ fontSize: '0.82rem', fontWeight: 500, flex: 1 }}>{importBanner.msg}</span>
+        </div>
+      )}
+      {importBanner && (importBanner.status === 'done' || importBanner.status === 'error') && (
+        <div style={{ position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', zIndex: 1100, width: 'min(96vw, 420px)', background: importBanner.status === 'done' ? '#166534' : '#991b1b', color: '#fff', borderRadius: 12, padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.65rem', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
+          <span style={{ fontSize: '0.82rem', fontWeight: 500, flex: 1 }}>{importBanner.msg}</span>
+          <button onClick={() => { setImportBanner(null); sessionStorage.removeItem('litloop_import') }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: '1rem', cursor: 'pointer', padding: 0, lineHeight: 1, flexShrink: 0 }}>×</button>
+        </div>
       )}
       <GlobalFriendBanner
         pending={pending}

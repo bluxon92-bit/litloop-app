@@ -11,11 +11,14 @@ export function useSocial(user) {
   const [loaded, setLoaded]                 = useState(false)
   const [myUsername, setMyUsername]         = useState('')
   const [myDisplayName, setMyDisplayName]   = useState('')
+  const [myFirstName, setMyFirstName]       = useState('')
+  const [myLastName, setMyLastName]         = useState('')
   const [myBio, setMyBio]                   = useState('')
   const [topBookIds, setTopBookIds]         = useState([])
   const [preferredMoods, setPreferredMoods] = useState([])
   const [profileLoaded, setProfileLoaded]   = useState(false)
   const [myAvatarUrl, setMyAvatarUrl]       = useState(null)
+  const [onboardingComplete, setOnboardingComplete] = useState(null) // null until profile loads
   const channelRef                          = useRef(null)
   const recsChannelRef                      = useRef(null)
   const notifChannelRef                     = useRef(null)
@@ -43,16 +46,25 @@ export function useSocial(user) {
   async function loadProfile() {
     const { data } = await sb
       .from('profiles')
-      .select('username, display_name, bio, top_book_ids, preferred_moods, avatar_url')
+      .select('username, display_name, first_name, last_name, bio, top_book_ids, preferred_moods, avatar_url, onboarding_complete')
       .eq('id', user.id)
       .single()
     if (data) {
       setMyUsername(data.username || '')
-      setMyDisplayName(data.display_name || data.username || '')
+      setMyFirstName(data.first_name || '')
+      setMyLastName(data.last_name || '')
+      // Display name: "FirstnameL" format (e.g. JamesJ) for feed, full name for profile
+      const firstName = data.first_name || ''
+      const lastName = data.last_name || ''
+      const autoDisplay = firstName && lastName
+        ? `${firstName}${lastName.charAt(0)}`
+        : firstName || data.display_name || data.username || ''
+      setMyDisplayName(autoDisplay)
       setMyBio(data.bio || '')
       setTopBookIds(data.top_book_ids || [])
       setPreferredMoods(data.preferred_moods || [])
       setMyAvatarUrl(data.avatar_url || null)
+      setOnboardingComplete(data.onboarding_complete === true ? true : false)
     }
     setProfileLoaded(true)
   }
@@ -347,21 +359,33 @@ export function useSocial(user) {
     }
   }
 
-  async function saveProfile(username, bio) {
-    const clean = username.trim().toLowerCase().replace(/[^a-z0-9_]/g, '')
-    const { error } = await sb.from('profiles').upsert(
-      { id: user.id, username: clean, display_name: username.trim(), bio: bio.trim() },
-      { onConflict: 'id' }
-    )
-    if (!error) { setMyUsername(clean); setMyDisplayName(username.trim()); setMyBio(bio.trim()) }
+  async function saveProfile(firstName, lastName, handle, bio = '') {
+    const cleanHandle = handle.trim().toLowerCase().replace(/[^a-z0-9_]/g, '')
+    const autoDisplay = firstName.trim() && lastName.trim()
+      ? `${firstName.trim()}${lastName.trim().charAt(0)}`
+      : firstName.trim() || cleanHandle
+    const { error } = await sb.from('profiles').update(
+      { username: cleanHandle, first_name: firstName.trim(), last_name: lastName.trim(), display_name: autoDisplay, bio: bio.trim() }
+    ).eq('id', user.id)
+    if (!error) {
+      setMyUsername(cleanHandle)
+      setMyFirstName(firstName.trim())
+      setMyLastName(lastName.trim())
+      setMyDisplayName(autoDisplay)
+      setMyBio(bio.trim())
+    }
     return { error }
   }
 
+  async function completeOnboarding() {
+    await sb.from('profiles').update({ onboarding_complete: true }).eq('id', user.id)
+    setOnboardingComplete(true)
+  }
+
   async function saveFavBooks(favIds) {
-    const { error } = await sb.from('profiles').upsert(
-      { id: user.id, top_book_ids: favIds },
-      { onConflict: 'id' }
-    )
+    const { error } = await sb.from('profiles').update(
+      { top_book_ids: favIds }
+    ).eq('id', user.id)
     if (!error) setTopBookIds(favIds)
     return { error }
   }
@@ -432,11 +456,11 @@ export function useSocial(user) {
 
   return {
     friends, pending, outgoingPending, feed, recs, notifications, loaded,
-    myUsername, myDisplayName, myBio, myAvatarUrl, topBookIds, preferredMoods, setPreferredMoods, profileLoaded,
+    myUsername, myDisplayName, myFirstName, myLastName, myBio, myAvatarUrl, topBookIds, preferredMoods, setPreferredMoods, profileLoaded,
     loadSocialData, sendFriendRequest, sendRecommendation,
     acceptFriendRequest, declineFriendRequest, removeFriend,
     dismissRec, acceptRecToTBR, sendRec,
-    saveProfile, saveFavBooks, uploadAvatar, generateInviteLink,
+    saveProfile, completeOnboarding, onboardingComplete, saveFavBooks, uploadAvatar, generateInviteLink,
     loadNotifications, markNotificationsRead,
   }
 }

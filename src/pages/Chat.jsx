@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useSocialContext } from '../context/SocialContext'
+import { sb } from '../lib/supabase'
 import { useChatContext } from '../context/ChatContext'
 import { useBooksContext } from '../context/BooksContext'
 import { useAuthContext } from '../context/AuthContext'
@@ -433,6 +434,65 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
 }
 
 // ── Main Chat page ────────────────────────────────────────────
+function PendingInvitesBanner({ pending, onDismissAll, onDismissOne }) {
+  const [expanded, setExpanded] = useState(false)
+  if (!pending.length) return null
+  const label = pending.length === 1
+    ? `${pending[0].addresseeName} hasn't accepted yet`
+    : `${pending.length} friend requests pending`
+  return (
+    <div style={{ background: 'var(--rt-surface)', border: '0.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)', marginBottom: '0.75rem', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 0.85rem', cursor: 'pointer' }} onClick={() => setExpanded(v => !v)}>
+        <span style={{ flex: 1, fontSize: '0.82rem', color: 'var(--rt-t3)', fontStyle: 'italic' }}>{label}</span>
+        {pending.length > 1 && <span style={{ fontSize: '0.7rem', color: 'var(--rt-t3)' }}>{expanded ? '▲' : '▼'}</span>}
+        <button onClick={e => { e.stopPropagation(); onDismissAll() }}
+          style={{ background: 'none', border: 'none', color: 'var(--rt-t3)', fontSize: '1rem', cursor: 'pointer', padding: '0 0.1rem', lineHeight: 1, flexShrink: 0 }}>×</button>
+      </div>
+      {expanded && pending.length > 1 && (
+        <div style={{ borderTop: '0.5px solid var(--rt-border)', padding: '0.25rem 0' }}>
+          {pending.map(p => (
+            <div key={p.friendshipId} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.45rem 0.85rem' }}>
+              <span style={{ flex: 1, fontSize: '0.8rem', color: 'var(--rt-t2)' }}>{p.addresseeName}</span>
+              <button onClick={() => onDismissOne(p.friendshipId)}
+                style={{ background: 'none', border: 'none', color: 'var(--rt-t3)', fontSize: '0.9rem', cursor: 'pointer', padding: '0 0.1rem', lineHeight: 1 }}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PendingInvitesBanner({ pending, onDismissAll, onDismissOne }) {
+  const [expanded, setExpanded] = useState(false)
+  if (!pending.length) return null
+  const label = pending.length === 1
+    ? `${pending[0].addresseeName} hasn't accepted yet`
+    : `${pending.length} friend requests pending`
+  return (
+    <div style={{ background: 'var(--rt-surface)', border: '0.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)', marginBottom: '0.75rem', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 0.85rem', cursor: pending.length > 1 ? 'pointer' : 'default' }}
+        onClick={() => pending.length > 1 && setExpanded(v => !v)}>
+        <span style={{ flex: 1, fontSize: '0.82rem', color: 'var(--rt-t3)', fontStyle: 'italic' }}>{label}</span>
+        {pending.length > 1 && <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)' }}>{expanded ? '▲' : '▼'}</span>}
+        <button onClick={e => { e.stopPropagation(); onDismissAll() }}
+          style={{ background: 'none', border: 'none', color: 'var(--rt-t3)', fontSize: '1rem', cursor: 'pointer', padding: '0 0.1rem', lineHeight: 1, flexShrink: 0 }}>×</button>
+      </div>
+      {expanded && (
+        <div style={{ borderTop: '0.5px solid var(--rt-border)', padding: '0.25rem 0' }}>
+          {pending.map(p => (
+            <div key={p.friendshipId} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.4rem 0.85rem' }}>
+              <span style={{ flex: 1, fontSize: '0.8rem', color: 'var(--rt-t2)' }}>{p.addresseeName}</span>
+              <button onClick={() => onDismissOne(p.friendshipId)}
+                style={{ background: 'none', border: 'none', color: 'var(--rt-t3)', fontSize: '0.9rem', cursor: 'pointer', padding: '0 0.1rem', lineHeight: 1 }}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend, initialFriendProfile = null, onClearFriendProfile }) {
   const { user }                                 = useAuthContext()
   const { books, addBook, findDuplicate }        = useBooksContext()
@@ -453,6 +513,10 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend, in
   const [addFriendInput, setAddFriendInput]   = useState('')
   const [addFriendMsg, setAddFriendMsg]       = useState(null)
   const [addFriendLoading, setAddFriendLoading] = useState(false)
+  const [friendSearchResults, setFriendSearchResults] = useState([])
+  const [friendSearching, setFriendSearching] = useState(false)
+  const [sentRequests, setSentRequests]       = useState(new Set())
+  const friendSearchTimer                     = useRef(null)
   const [dismissedAccepted, setDismissedAccepted] = useState(new Set())
   const [friendSheet, setFriendSheet]         = useState(null)
   const [friendProfileFriend, setFriendProfileFriend] = useState(initialFriendProfile) // friend to view full profile
@@ -483,6 +547,27 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend, in
     if (error) setAddFriendMsg({ type: 'error', text: error })
     else { setAddFriendMsg({ type: 'success', text: `Request sent to @${username}!` }); setAddFriendInput('') }
     setAddFriendLoading(false)
+  }
+
+  function handleFriendSearchInput(val) {
+    setAddFriendInput(val)
+    setAddFriendMsg(null)
+    clearTimeout(friendSearchTimer.current)
+    if (val.trim().length < 2) { setFriendSearchResults([]); return }
+    setFriendSearching(true)
+    friendSearchTimer.current = setTimeout(async () => {
+      try {
+        const { data } = await sb.rpc('search_users', { p_query: val.trim().replace(/^@/, ''), p_current_user_id: user?.id, p_limit: 8 })
+        setFriendSearchResults(data || [])
+      } catch { setFriendSearchResults([]) }
+      setFriendSearching(false)
+    }, 350)
+  }
+
+  async function sendRequestToUser(username, userId) {
+    const { error } = await sendFriendRequest(username)
+    if (!error) setSentRequests(prev => new Set([...prev, userId]))
+    else setAddFriendMsg({ type: 'error', text: error })
   }
 
 
@@ -525,47 +610,38 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend, in
       </div>
 
 
-      {/* ── Side A: Outgoing friend request banners ── */}
-      {(outgoingPending || []).map(op => {
-        const justAccepted = friends.find(f => f.userId === op.addresseeId)
-        const dismissed    = dismissedAccepted.has(op.friendshipId)
-        if (justAccepted && dismissed) return null
+      {/* ── Side A: Outgoing friend requests — collapsed into one banner ── */}
+      {(() => {
+        const accepted = (outgoingPending || []).filter(op => friends.find(f => f.userId === op.addresseeId) && !dismissedAccepted.has(op.friendshipId))
+        const stillPending = (outgoingPending || []).filter(op => !friends.find(f => f.userId === op.addresseeId) && !dismissedAccepted.has(op.friendshipId))
 
-        if (justAccepted) {
-          // Show "accepted" banner — dismissed per session
-          return (
-            <div key={op.friendshipId} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: 'var(--rt-green-pale, #eafaf1)', border: '1.5px solid var(--rt-green, #27ae60)', borderRadius: 'var(--rt-r3)', padding: '0.6rem 0.85rem', marginBottom: '0.75rem', fontSize: '0.82rem' }}>
-              <span style={{ color: 'var(--rt-green, #27ae60)', fontSize: '1rem', flexShrink: 0 }}>✓</span>
-              <span style={{ flex: 1, color: 'var(--rt-navy)', fontWeight: 500 }}>
-                <strong>{op.addresseeName}</strong> accepted your request — send them a message
-              </span>
-              <button
-                onClick={() => { onOpenChatWithFriend?.(op.addresseeId); setDismissedAccepted(s => new Set([...s, op.friendshipId])) }}
-                style={{ background: 'var(--rt-navy)', color: '#fff', border: 'none', borderRadius: 99, padding: '0.25rem 0.65rem', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
-              >Message →</button>
-              <button
-                onClick={() => setDismissedAccepted(s => new Set([...s, op.friendshipId]))}
-                style={{ background: 'none', border: 'none', color: 'var(--rt-t3)', fontSize: '1rem', cursor: 'pointer', padding: '0 0.1rem', lineHeight: 1, flexShrink: 0 }}
-                aria-label="Dismiss"
-              >×</button>
-            </div>
-          )
-        }
-
-        // Still pending
         return (
-          <div key={op.friendshipId} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: 'var(--rt-surface)', border: '1.5px solid var(--rt-border)', borderRadius: 'var(--rt-r3)', padding: '0.6rem 0.85rem', marginBottom: '0.75rem', fontSize: '0.82rem' }}>
-            <span style={{ flex: 1, color: 'var(--rt-t3)', fontStyle: 'italic' }}>
-              <strong style={{ color: 'var(--rt-navy)', fontStyle: 'normal' }}>{op.addresseeName}</strong> hasn't accepted yet
-            </span>
-            <button
-              onClick={() => setDismissedAccepted(s => new Set([...s, op.friendshipId]))}
-              style={{ background: 'none', border: 'none', color: 'var(--rt-t3)', fontSize: '1rem', cursor: 'pointer', padding: '0 0.1rem', lineHeight: 1, flexShrink: 0 }}
-              aria-label="Dismiss"
-            >×</button>
-          </div>
+          <>
+            {/* Accepted notifications — one per person */}
+            {accepted.map(op => (
+              <div key={op.friendshipId} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', background: 'var(--rt-green-pale, #eafaf1)', border: '1.5px solid var(--rt-green, #27ae60)', borderRadius: 'var(--rt-r3)', padding: '0.6rem 0.85rem', marginBottom: '0.5rem', fontSize: '0.82rem' }}>
+                <span style={{ color: 'var(--rt-green, #27ae60)', flexShrink: 0 }}>✓</span>
+                <span style={{ flex: 1, color: 'var(--rt-navy)', fontWeight: 500 }}>
+                  <strong>{op.addresseeName}</strong> accepted your request
+                </span>
+                <button onClick={() => { onOpenChatWithFriend?.(op.addresseeId); setDismissedAccepted(s => new Set([...s, op.friendshipId])) }}
+                  style={{ background: 'var(--rt-navy)', color: '#fff', border: 'none', borderRadius: 99, padding: '0.25rem 0.65rem', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>Message →</button>
+                <button onClick={() => setDismissedAccepted(s => new Set([...s, op.friendshipId]))}
+                  style={{ background: 'none', border: 'none', color: 'var(--rt-t3)', fontSize: '1rem', cursor: 'pointer', padding: '0 0.1rem', lineHeight: 1 }}>×</button>
+              </div>
+            ))}
+
+            {/* Pending invites — collapsed into one row */}
+            {stillPending.length > 0 && (
+              <PendingInvitesBanner
+                pending={stillPending}
+                onDismissAll={() => setDismissedAccepted(s => new Set([...s, ...stillPending.map(p => p.friendshipId)]))}
+                onDismissOne={id => setDismissedAccepted(s => new Set([...s, id]))}
+              />
+            )}
+          </>
         )
-      })}
+      })()}
 
       {/* Sub-tabs */}
       <div style={{ display: 'flex', borderBottom: '2px solid var(--rt-border)', marginBottom: '1.25rem' }}>
@@ -684,12 +760,46 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend, in
 
             <div className="rt-card" style={{ marginBottom: '1rem' }}>
               <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.65rem' }}>Add a friend</div>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <input className="rt-input" style={{ flex: 1, minWidth: 0 }} placeholder="@username" value={addFriendInput} onChange={e => setAddFriendInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') handleAddFriend(e) }} />
-                <button onClick={handleAddFriend} disabled={addFriendLoading} style={{ flexShrink: 0, background: 'var(--rt-navy)', color: '#fff', border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.7rem 1.25rem', fontFamily: 'var(--rt-font-body)', fontSize: '0.88rem', fontWeight: 700, cursor: addFriendLoading ? 'default' : 'pointer', opacity: addFriendLoading ? 0.6 : 1 }}>
-                  {addFriendLoading ? '…' : 'Add'}
-                </button>
+              <div style={{ position: 'relative' }}>
+                <input
+                  className="rt-input"
+                  style={{ width: '100%', boxSizing: 'border-box' }}
+                  placeholder="Search by name or @handle…"
+                  value={addFriendInput}
+                  onChange={e => handleFriendSearchInput(e.target.value)}
+                  autoComplete="off"
+                />
+                {friendSearching && <div style={{ position: 'absolute', right: '0.9rem', top: '50%', transform: 'translateY(-50%)', fontSize: '0.75rem', color: 'var(--rt-t3)' }}>Searching…</div>}
               </div>
+              {friendSearchResults.length > 0 && (
+                <div style={{ border: '0.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)', overflow: 'hidden', marginTop: '0.5rem' }}>
+                  {friendSearchResults.map((f, i) => {
+                    const alreadyFriend = friends.some(fr => fr.userId === f.id)
+                    const sent = sentRequests.has(f.id)
+                    return (
+                      <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', padding: '0.6rem 0.85rem', borderBottom: i < friendSearchResults.length - 1 ? '0.5px solid var(--rt-border)' : 'none', background: 'var(--rt-white)' }}>
+                        <div style={{ width: 32, height: 32, borderRadius: '50%', background: avatarColour(f.id), display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.72rem', fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden' }}>
+                          {f.avatar_url ? <img src={f.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : avatarInitial(f.display_name || f.username)}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.display_name || f.username}</div>
+                          <div style={{ fontSize: '0.7rem', color: 'var(--rt-t3)' }}>@{f.username}{f.mutual_friends > 0 ? ` · ${f.mutual_friends} mutual` : ''}</div>
+                        </div>
+                        {alreadyFriend ? (
+                          <span style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', fontWeight: 600 }}>Friends</span>
+                        ) : (
+                          <button
+                            onClick={() => sendRequestToUser(f.username, f.id)}
+                            disabled={sent}
+                            style={{ flexShrink: 0, background: sent ? 'var(--rt-surface)' : 'var(--rt-amber)', color: sent ? 'var(--rt-t3)' : '#fff', border: 'none', borderRadius: 99, padding: '0.25rem 0.75rem', fontSize: '0.72rem', fontWeight: 700, cursor: sent ? 'default' : 'pointer' }}>
+                            {sent ? 'Sent ✓' : 'Add'}
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
               {addFriendMsg && <p style={{ fontSize: '0.8rem', marginTop: '0.4rem', color: addFriendMsg.type === 'error' ? '#991b1b' : '#166534' }}>{addFriendMsg.text}</p>}
             </div>
 
