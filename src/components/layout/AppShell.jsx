@@ -1112,8 +1112,6 @@ export default function AppShell() {
           text = `${actor} accepted your friend request`; icon = '✓'; break
         case 'book_recommendation':
           text = `${actor} recommended ${book}`; icon = '📖'; break
-        case 'co_reading_started':
-          text = `${actor} just started reading ${book} — same as you!`; icon = '📖'; break
         case 'co_reading_joined':
           text = `${actor} is also reading ${book}`; icon = '📖'; break
         case 'co_reading_started':
