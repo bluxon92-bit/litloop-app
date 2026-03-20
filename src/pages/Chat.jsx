@@ -433,35 +433,6 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
   )
 }
 
-// ── Main Chat page ────────────────────────────────────────────
-function PendingInvitesBanner({ pending, onDismissAll, onDismissOne }) {
-  const [expanded, setExpanded] = useState(false)
-  if (!pending.length) return null
-  const label = pending.length === 1
-    ? `${pending[0].addresseeName} hasn't accepted yet`
-    : `${pending.length} friend requests pending`
-  return (
-    <div style={{ background: 'var(--rt-surface)', border: '0.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)', marginBottom: '0.75rem', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 0.85rem', cursor: 'pointer' }} onClick={() => setExpanded(v => !v)}>
-        <span style={{ flex: 1, fontSize: '0.82rem', color: 'var(--rt-t3)', fontStyle: 'italic' }}>{label}</span>
-        {pending.length > 1 && <span style={{ fontSize: '0.7rem', color: 'var(--rt-t3)' }}>{expanded ? '▲' : '▼'}</span>}
-        <button onClick={e => { e.stopPropagation(); onDismissAll() }}
-          style={{ background: 'none', border: 'none', color: 'var(--rt-t3)', fontSize: '1rem', cursor: 'pointer', padding: '0 0.1rem', lineHeight: 1, flexShrink: 0 }}>×</button>
-      </div>
-      {expanded && pending.length > 1 && (
-        <div style={{ borderTop: '0.5px solid var(--rt-border)', padding: '0.25rem 0' }}>
-          {pending.map(p => (
-            <div key={p.friendshipId} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.45rem 0.85rem' }}>
-              <span style={{ flex: 1, fontSize: '0.8rem', color: 'var(--rt-t2)' }}>{p.addresseeName}</span>
-              <button onClick={() => onDismissOne(p.friendshipId)}
-                style={{ background: 'none', border: 'none', color: 'var(--rt-t3)', fontSize: '0.9rem', cursor: 'pointer', padding: '0 0.1rem', lineHeight: 1 }}>×</button>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 function PendingInvitesBanner({ pending, onDismissAll, onDismissOne }) {
   const [expanded, setExpanded] = useState(false)

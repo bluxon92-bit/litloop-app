@@ -1,3 +1,12 @@
+[context.production]
+  command = "vite build --mode production"
+
+[context.branch-deploy]
+  command = "vite build --mode staging"
+
+[context.deploy-preview]
+  command = "vite build --mode staging"
+
 [[redirects]]
   from = "/book/*"
   to   = "/book.html"
