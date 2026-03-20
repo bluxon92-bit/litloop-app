@@ -1,7 +1,7 @@
 import { sb } from './supabase'
 
 const BUCKET = 'book-covers'
-const SUPABASE_URL = 'https://danknyhumorgkvidrdve.supabase.co'
+const SUPABASE_URL = import.meta.env.SUPABASE_URL
 
 /**
  * Given a coverId (Open Library numeric ID), fetch the image from OL,
