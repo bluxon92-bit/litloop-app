@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuthContext } from '../../context/AuthContext'
 import { useChatContext } from '../../context/ChatContext'
 import { useSocialContext } from '../../context/SocialContext'
-import { processGoodreadsCSV, processStorygraphCSV } from '../../lib/importBooks'
+import { startBackgroundImport } from '../../lib/importManager'
 import { useBooksContext } from '../../context/BooksContext'
 import Home from '../../pages/Home'
 import MyList from '../../pages/MyList'
@@ -580,20 +580,11 @@ function OnboardingFlow({ user, onComplete }) {
 
   async function handleImport(file, type) {
     if (!file) return
+    const text = await file.text()
+    // Kick off in the background — safe to navigate away immediately
+    startBackgroundImport({ csvText: text, type, addBook, existingBooks: [] })
     setImportStatus('loading')
-    setImportMsg('Reading CSV…')
-    try {
-      const text = await file.text()
-      const onProgress = (done, total) => setImportMsg(`Matching ${done}/${total} books…`)
-      const processFn = type === 'goodreads' ? processGoodreadsCSV : processStorygraphCSV
-      const { books: imported, skipped } = await processFn(text, [], onProgress)
-      for (const book of imported) { await addBook({ ...book, silent: true }) }
-      setImportStatus('done')
-      setImportMsg(`✓ Imported ${imported.length} book${imported.length !== 1 ? 's' : ''}${skipped ? ` · ${skipped} skipped` : ''}`)
-    } catch {
-      setImportStatus('done')
-      setImportMsg('Could not read file — check it\'s a valid CSV export')
-    }
+    setImportMsg('Import started — you can continue and it will run in the background')
     if (grInputRef.current) grInputRef.current.value = ''
     if (sgInputRef.current) sgInputRef.current.value = ''
   }
@@ -822,11 +813,10 @@ function OnboardingFlow({ user, onComplete }) {
               </div>
             )}
 
-            {/* Continue button — shows when book selected or import done */}
-            {(currentBook || importStatus === 'done') && (
+            {/* Continue button — shows when book selected or import has started */}
+            {(currentBook || importStatus) && (
               <button onClick={handleStep3} style={{ ...primaryBtn(false), marginBottom: '1.25rem' }}>
-                {currentBook && importStatus === 'done' ? 'Continue →' :
-                 currentBook ? 'Add to my list →' : 'Continue →'}
+                {currentBook ? 'Add to my list & continue →' : 'Continue →'}
               </button>
             )}
 
@@ -847,8 +837,8 @@ function OnboardingFlow({ user, onComplete }) {
                 </label>
               </div>
               {importStatus && (
-                <div style={{ marginTop: '0.65rem', fontSize: '0.78rem', padding: '0.45rem 0.7rem', borderRadius: 8, background: importStatus === 'done' ? '#f0fdf4' : 'var(--rt-surface)', color: importStatus === 'done' ? '#166534' : 'var(--rt-t2)', border: `1px solid ${importStatus === 'done' ? '#bbf7d0' : 'var(--rt-border)'}`, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  {importStatus === 'loading' && <span style={{ width: 10, height: 10, border: '2px solid var(--rt-border-md)', borderTopColor: 'var(--rt-navy)', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
+                <div style={{ marginTop: '0.65rem', fontSize: '0.78rem', padding: '0.45rem 0.7rem', borderRadius: 8, background: 'var(--rt-surface)', color: 'var(--rt-t2)', border: '1px solid var(--rt-border)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span style={{ width: 10, height: 10, border: '2px solid var(--rt-border-md)', borderTopColor: 'var(--rt-navy)', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
                   {importMsg}
                 </div>
               )}
@@ -1013,17 +1003,21 @@ export default function AppShell() {
   })
 
   // Poll sessionStorage for import progress updates
+  // Always poll — catches imports that started in onboarding and continue into the main app
   useEffect(() => {
-    if (!importBanner || importBanner.status === 'done' || importBanner.status === 'error') return
     const timer = setInterval(() => {
       try {
         const data = JSON.parse(sessionStorage.getItem('litloop_import') || 'null')
-        if (data) setImportBanner(data)
-        if (data?.status === 'done' || data?.status === 'error') clearInterval(timer)
+        if (!data) return
+        setImportBanner(data)
+        // Stop polling once the import reaches a terminal state and user has seen it
+        if ((data.status === 'done' || data.status === 'error') && importBanner?.status === data.status) {
+          clearInterval(timer)
+        }
       } catch {}
     }, 800)
     return () => clearInterval(timer)
-  }, [importBanner?.status])
+  }, []) // mount-only — runs for the lifetime of AppShell
   const [activeFriendProfile, setActiveFriendProfile] = useState(null) // friend to view from home feed
   const bellRef = useRef(null)
 
@@ -1557,16 +1551,45 @@ export default function AppShell() {
         />
       )}
       {/* Import progress banner */}
-      {importBanner && importBanner.status !== 'done' && importBanner.status !== 'error' && (
-        <div style={{ position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', zIndex: 1100, width: 'min(96vw, 420px)', background: 'var(--rt-navy)', color: '#fff', borderRadius: 12, padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.65rem', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
-          <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
-          <span style={{ fontSize: '0.82rem', fontWeight: 500, flex: 1 }}>{importBanner.msg}</span>
+      {/* ── Import progress banner ── */}
+      {importBanner && importBanner.status === 'loading' && (
+        <div style={{
+          position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 1100, width: 'min(96vw, 420px)',
+          background: 'var(--rt-navy)', color: '#fff',
+          borderRadius: 12, padding: '0.75rem 1rem',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+          overflow: 'hidden',
+        }}>
+          {/* Progress bar strip along top */}
+          {importBanner.pct > 0 && (
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'rgba(255,255,255,0.15)' }}>
+              <div style={{ height: '100%', background: 'var(--rt-amber)', width: `${importBanner.pct}%`, transition: 'width 0.4s ease', borderRadius: '12px 0 0 0' }} />
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+            <span style={{ fontSize: '0.82rem', fontWeight: 500, flex: 1 }}>{importBanner.msg}</span>
+            {importBanner.pct > 0 && (
+              <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.55)', flexShrink: 0 }}>{importBanner.pct}%</span>
+            )}
+          </div>
         </div>
       )}
       {importBanner && (importBanner.status === 'done' || importBanner.status === 'error') && (
-        <div style={{ position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', zIndex: 1100, width: 'min(96vw, 420px)', background: importBanner.status === 'done' ? '#166534' : '#991b1b', color: '#fff', borderRadius: 12, padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.65rem', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
+        <div style={{
+          position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 1100, width: 'min(96vw, 420px)',
+          background: importBanner.status === 'done' ? '#166534' : '#991b1b',
+          color: '#fff', borderRadius: 12, padding: '0.75rem 1rem',
+          display: 'flex', alignItems: 'center', gap: '0.65rem',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+        }}>
           <span style={{ fontSize: '0.82rem', fontWeight: 500, flex: 1 }}>{importBanner.msg}</span>
-          <button onClick={() => { setImportBanner(null); sessionStorage.removeItem('litloop_import') }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: '1rem', cursor: 'pointer', padding: 0, lineHeight: 1, flexShrink: 0 }}>×</button>
+          <button
+            onClick={() => { setImportBanner(null); sessionStorage.removeItem('litloop_import') }}
+            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: '1rem', cursor: 'pointer', padding: 0, lineHeight: 1, flexShrink: 0 }}
+          >×</button>
         </div>
       )}
       <GlobalFriendBanner
