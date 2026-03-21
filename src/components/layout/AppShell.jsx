@@ -1023,6 +1023,31 @@ export default function AppShell() {
 
   function onNavigate(tab) { setActiveTab(tab) }
 
+  // Listen for notification clicks from the service worker
+  // When the user taps a push notification, the SW posts NOTIFICATION_CLICK
+  // which we handle here the same way as in-app notification taps
+  useEffect(() => {
+    if (!navigator.serviceWorker) return
+    function handleSWMessage(e) {
+      if (e.data?.type !== 'NOTIFICATION_CLICK') return
+      const { data } = e.data
+      if (!data) return
+      // Route to the right place based on notification data
+      if (data.entryId) {
+        pendingReviewOpen.current = { entryId: data.entryId, bookTitle: data.bookTitle || '' }
+        setActiveTab('home')
+      } else if (data.url === '/discover') {
+        setActiveTab('discover')
+      } else if (data.url === '/chat' || data.url?.includes('chat')) {
+        setActiveTab('chat')
+      } else {
+        setActiveTab('home')
+      }
+    }
+    navigator.serviceWorker.addEventListener('message', handleSWMessage)
+    return () => navigator.serviceWorker.removeEventListener('message', handleSWMessage)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   async function openChatModal(chatIdOrObj, book) {
     // If a full chat object is passed, use it directly
     let chat = typeof chatIdOrObj === 'object' && chatIdOrObj?.id ? chatIdOrObj : null

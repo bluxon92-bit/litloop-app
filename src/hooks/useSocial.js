@@ -18,7 +18,10 @@ export function useSocial(user) {
   const [preferredMoods, setPreferredMoods] = useState([])
   const [profileLoaded, setProfileLoaded]   = useState(false)
   const [myAvatarUrl, setMyAvatarUrl]       = useState(null)
-  const [onboardingComplete, setOnboardingComplete] = useState(null) // null until profile loads
+  const [onboardingComplete, setOnboardingComplete] = useState(null)
+  const [notificationPrefs, setNotificationPrefs]   = useState({
+    messages: true, friend_requests: true, recommendations: true, review_comments: true
+  })
   const channelRef                          = useRef(null)
   const recsChannelRef                      = useRef(null)
   const notifChannelRef                     = useRef(null)
@@ -46,14 +49,13 @@ export function useSocial(user) {
   async function loadProfile() {
     const { data } = await sb
       .from('profiles')
-      .select('username, display_name, first_name, last_name, bio, top_book_ids, preferred_moods, avatar_url, onboarding_complete')
+      .select('username, display_name, first_name, last_name, bio, top_book_ids, preferred_moods, avatar_url, onboarding_complete, notification_prefs')
       .eq('id', user.id)
       .single()
     if (data) {
       setMyUsername(data.username || '')
       setMyFirstName(data.first_name || '')
       setMyLastName(data.last_name || '')
-      // Display name: "FirstnameL" format (e.g. JamesJ) for feed, full name for profile
       const firstName = data.first_name || ''
       const lastName = data.last_name || ''
       const autoDisplay = firstName && lastName
@@ -65,6 +67,7 @@ export function useSocial(user) {
       setPreferredMoods(data.preferred_moods || [])
       setMyAvatarUrl(data.avatar_url || null)
       setOnboardingComplete(data.onboarding_complete === true ? true : false)
+      setNotificationPrefs(data.notification_prefs || { messages: true, friend_requests: true, recommendations: true, review_comments: true })
     }
     setProfileLoaded(true)
   }
@@ -457,6 +460,7 @@ export function useSocial(user) {
   return {
     friends, pending, outgoingPending, feed, recs, notifications, loaded,
     myUsername, myDisplayName, myFirstName, myLastName, myBio, myAvatarUrl, topBookIds, preferredMoods, setPreferredMoods, profileLoaded,
+    notificationPrefs, setNotificationPrefs,
     loadSocialData, sendFriendRequest, sendRecommendation,
     acceptFriendRequest, declineFriendRequest, removeFriend,
     dismissRec, acceptRecToTBR, sendRec,
