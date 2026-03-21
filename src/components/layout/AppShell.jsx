@@ -458,7 +458,7 @@ function OnboardingInviteBlock({ generateInviteLink }) {
 }
 
 function OnboardingFlow({ user, onComplete }) {
-  const { saveProfile, completeOnboarding, setPreferredMoods, sendFriendRequest } = useSocialContext()
+  const { saveProfile, completeOnboarding, setPreferredMoods, sendFriendRequest, generateInviteLink } = useSocialContext()
   const { addBook } = useBooksContext()
 
   const [step, setStep]               = useState(1)  // 1 | 2 | 3 | 4
