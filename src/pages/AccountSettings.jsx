@@ -1,12 +1,215 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSocialContext } from '../context/SocialContext'
 import { useAuthContext } from '../context/AuthContext'
 import { clearCoverCache } from '../lib/coverCache'
 import { sb } from '../lib/supabase'
+import {
+  isPushSupported, isPwa, getPermissionState,
+  subscribeToPush, unsubscribeFromPush, isSubscribed,
+  saveNotificationPrefs,
+} from '../lib/pushManager'
+
+// ── Notification Settings Card ────────────────────────────────
+function NotificationSettings({ user, notificationPrefs, setNotificationPrefs }) {
+  const [pushSupported, setPushSupported]   = useState(false)
+  const [pwaInstalled, setPwaInstalled]     = useState(false)
+  const [subscribed, setSubscribed]         = useState(false)
+  const [permState, setPermState]           = useState('default')
+  const [toggling, setToggling]             = useState(false)
+  const [savingPrefs, setSavingPrefs]       = useState(false)
+  const [statusMsg, setStatusMsg]           = useState(null)
+  const isIos = /iphone|ipad|ipod/i.test(navigator.userAgent)
+
+  useEffect(() => {
+    setPushSupported(isPushSupported())
+    setPwaInstalled(isPwa())
+    setPermState(getPermissionState())
+    isSubscribed().then(setSubscribed)
+  }, [])
+
+  async function handleTogglePush() {
+    setToggling(true)
+    setStatusMsg(null)
+    if (subscribed) {
+      const { ok, reason } = await unsubscribeFromPush(user.id)
+      if (ok) {
+        setSubscribed(false)
+        setStatusMsg({ type: 'ok', text: 'Push notifications disabled.' })
+      } else {
+        setStatusMsg({ type: 'err', text: `Couldn't disable: ${reason}` })
+      }
+    } else {
+      const { ok, reason } = await subscribeToPush(user.id)
+      if (ok) {
+        setSubscribed(true)
+        setPermState('granted')
+        setStatusMsg({ type: 'ok', text: '✓ Push notifications enabled!' })
+      } else if (reason === 'permission_denied') {
+        setStatusMsg({ type: 'err', text: 'Permission denied — please enable notifications in your browser/phone settings.' })
+      } else if (reason === 'not_supported') {
+        setStatusMsg({ type: 'err', text: 'Push notifications are not supported in this browser.' })
+      } else {
+        setStatusMsg({ type: 'err', text: `Something went wrong: ${reason}` })
+      }
+    }
+    setToggling(false)
+  }
+
+  async function handlePrefChange(key, value) {
+    const updated = { ...notificationPrefs, [key]: value }
+    setNotificationPrefs(updated)
+    setSavingPrefs(true)
+    await saveNotificationPrefs(user.id, updated)
+    setSavingPrefs(false)
+  }
+
+  const PREF_ITEMS = [
+    { key: 'review_comments', label: 'Review comments & likes',  desc: 'When someone comments on or likes your review' },
+    { key: 'friend_requests', label: 'Friend requests',          desc: 'When someone adds you or accepts your request' },
+    { key: 'recommendations', label: 'Book recommendations',     desc: 'When a friend recommends a book to you' },
+    { key: 'messages',        label: 'Chat messages',            desc: 'Direct messages and book club activity' },
+  ]
+
+  const labelStyle = { fontSize: '0.83rem', fontWeight: 600, color: 'var(--rt-navy)' }
+  const descStyle  = { fontSize: '0.72rem', color: 'var(--rt-t3)', marginTop: '0.1rem' }
+
+  return (
+    <div className="rt-card" style={{ marginBottom: '1rem' }}>
+      <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.5rem' }}>
+        Push notifications
+      </div>
+
+      {/* Not installed as PWA */}
+      {!pwaInstalled && (
+        <div style={{ background: 'var(--rt-amber-pale)', border: '1px solid var(--rt-border)', borderRadius: 'var(--rt-r3)', padding: '0.75rem 1rem', marginBottom: '1rem' }}>
+          <div style={{ fontSize: '0.82rem', fontWeight: 700, color: 'var(--rt-amber-text)', marginBottom: '0.3rem' }}>
+            {isIos ? '📱 Install LitLoop to enable notifications' : '📲 Add LitLoop to your home screen'}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: 'var(--rt-t2)', lineHeight: 1.55 }}>
+            {isIos
+              ? 'Push notifications on iOS require the app to be installed. Tap the Share button in Safari, then "Add to Home Screen", then open the app from there.'
+              : 'For the best experience, add LitLoop to your home screen. In Chrome, tap the menu (⋮) and select "Add to Home screen" or "Install app".'}
+          </div>
+        </div>
+      )}
+
+      {/* Main enable/disable toggle */}
+      {pushSupported && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem', padding: '0.75rem 1rem', background: 'var(--rt-surface)', borderRadius: 'var(--rt-r3)' }}>
+          <div>
+            <div style={labelStyle}>Enable push notifications</div>
+            <div style={descStyle}>
+              {permState === 'denied'
+                ? 'Blocked in browser settings — tap below for instructions'
+                : subscribed ? 'Notifications are active on this device' : 'Get notified even when the app is closed'}
+            </div>
+          </div>
+          <button
+            onClick={handleTogglePush}
+            disabled={toggling || permState === 'denied' || (!pwaInstalled && isIos)}
+            style={{
+              flexShrink: 0,
+              width: 44, height: 26,
+              borderRadius: 13,
+              background: subscribed ? 'var(--rt-teal)' : 'var(--rt-border-md)',
+              border: 'none',
+              cursor: (toggling || permState === 'denied' || (!pwaInstalled && isIos)) ? 'not-allowed' : 'pointer',
+              position: 'relative',
+              transition: 'background 0.2s',
+              opacity: toggling ? 0.6 : 1,
+            }}
+            aria-label={subscribed ? 'Disable push notifications' : 'Enable push notifications'}
+          >
+            <span style={{
+              position: 'absolute',
+              top: 3, left: subscribed ? 21 : 3,
+              width: 20, height: 20,
+              borderRadius: '50%',
+              background: '#fff',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+              transition: 'left 0.2s',
+            }} />
+          </button>
+        </div>
+      )}
+
+      {/* Permission denied instructions */}
+      {permState === 'denied' && (
+        <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--rt-r3)', padding: '0.75rem 1rem', marginBottom: '1rem', fontSize: '0.78rem', color: '#991b1b', lineHeight: 1.55 }}>
+          <strong>Notifications are blocked.</strong> To re-enable:
+          {isIos
+            ? ' Go to Settings → LitLoop → Notifications and turn on Allow Notifications.'
+            : ' Click the lock icon in your browser address bar → Site settings → Notifications → Allow.'}
+        </div>
+      )}
+
+      {statusMsg && (
+        <div style={{ fontSize: '0.78rem', color: statusMsg.type === 'ok' ? '#166534' : '#991b1b', background: statusMsg.type === 'ok' ? '#f0fdf4' : '#fef2f2', border: `1px solid ${statusMsg.type === 'ok' ? '#bbf7d0' : '#fecaca'}`, borderRadius: 8, padding: '0.45rem 0.7rem', marginBottom: '0.85rem' }}>
+          {statusMsg.text}
+        </div>
+      )}
+
+      {/* Per-type preference toggles — only show when subscribed */}
+      {subscribed && (
+        <>
+          <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>
+            Notify me about
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+            {PREF_ITEMS.map(item => (
+              <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0', borderBottom: '0.5px solid var(--rt-border)' }}>
+                <div>
+                  <div style={labelStyle}>{item.label}</div>
+                  <div style={descStyle}>{item.desc}</div>
+                </div>
+                <button
+                  onClick={() => handlePrefChange(item.key, !notificationPrefs[item.key])}
+                  disabled={savingPrefs}
+                  style={{
+                    flexShrink: 0,
+                    width: 40, height: 24,
+                    borderRadius: 12,
+                    background: notificationPrefs[item.key] !== false ? 'var(--rt-teal)' : 'var(--rt-border-md)',
+                    border: 'none',
+                    cursor: savingPrefs ? 'not-allowed' : 'pointer',
+                    position: 'relative',
+                    transition: 'background 0.2s',
+                    opacity: savingPrefs ? 0.6 : 1,
+                    marginLeft: '1rem',
+                  }}
+                >
+                  <span style={{
+                    position: 'absolute',
+                    top: 2,
+                    left: notificationPrefs[item.key] !== false ? 18 : 2,
+                    width: 20, height: 20,
+                    borderRadius: '50%',
+                    background: '#fff',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                    transition: 'left 0.2s',
+                  }} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginTop: '0.75rem', lineHeight: 1.5 }}>
+            Changes save automatically. Notifications are sent to all devices where you've enabled them.
+          </div>
+        </>
+      )}
+
+      {!pushSupported && (
+        <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)', lineHeight: 1.5 }}>
+          Push notifications aren't supported in this browser. Try opening LitLoop in Chrome or Safari and adding it to your home screen.
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function AccountSettings({ onNavigate }) {
   const { user, signOut } = useAuthContext()
-  const { myUsername, myFirstName, myLastName, myBio, saveProfile } = useSocialContext()
+  const { myUsername, myFirstName, myLastName, myBio, saveProfile, notificationPrefs, setNotificationPrefs } = useSocialContext()
 
   const [firstName, setFirstName] = useState(myFirstName || '')
   const [lastName, setLastName]   = useState(myLastName || '')
@@ -15,7 +218,6 @@ export default function AccountSettings({ onNavigate }) {
   const [error, setError]             = useState(null)
   const [saving, setSaving]           = useState(false)
 
-  // Handle (username) — one-time change
   const [editingHandle, setEditingHandle]   = useState(false)
   const [newHandle, setNewHandle]           = useState(myUsername || '')
   const [handleSaving, setHandleSaving]     = useState(false)
@@ -39,10 +241,8 @@ export default function AccountSettings({ onNavigate }) {
     if (!clean || clean.length < 3) { setHandleError('Handle must be at least 3 characters'); return }
     if (clean === myUsername) { setEditingHandle(false); return }
     setHandleSaving(true)
-    // Check uniqueness
     const { data: existing } = await sb.from('profiles').select('id').eq('username', clean).single()
     if (existing) { setHandleError('That handle is already taken'); setHandleSaving(false); return }
-    // Save + mark handle_changed so they can't change again
     const { error } = await sb.from('profiles')
       .update({ username: clean, handle_changed: true })
       .eq('id', user.id)
@@ -50,7 +250,6 @@ export default function AccountSettings({ onNavigate }) {
     setHandleChanged(true)
     setEditingHandle(false)
     setHandleSaving(false)
-    // Reload page to refresh context
     window.location.reload()
   }
 
@@ -76,7 +275,6 @@ export default function AccountSettings({ onNavigate }) {
       {/* Profile card */}
       <div className="rt-card" style={{ marginBottom: '1rem' }}>
 
-        {/* First + last name */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.5rem' }}>
           <div>
             <label className="rt-field-label">First name</label>
@@ -93,7 +291,6 @@ export default function AccountSettings({ onNavigate }) {
           Shown as <strong>{firstName && lastName ? `${firstName}${lastName.charAt(0)}` : firstName || '—'}</strong> on friends' feeds. Full name is searchable.
         </div>
 
-        {/* Public handle */}
         <div style={{ marginBottom: '1rem' }}>
           <label className="rt-field-label">Public handle</label>
           {editingHandle ? (
@@ -148,7 +345,6 @@ export default function AccountSettings({ onNavigate }) {
           </div>
         </div>
 
-        {/* Bio */}
         <div style={{ marginBottom: '1rem' }}>
           <label className="rt-field-label">Bio</label>
           <textarea
@@ -169,6 +365,13 @@ export default function AccountSettings({ onNavigate }) {
           {saving ? 'Saving…' : 'Save changes'}
         </button>
       </div>
+
+      {/* Notifications */}
+      <NotificationSettings
+        user={user}
+        notificationPrefs={notificationPrefs}
+        setNotificationPrefs={setNotificationPrefs}
+      />
 
       {/* Image cache */}
       <div className="rt-card" style={{ marginBottom: '1rem' }}>

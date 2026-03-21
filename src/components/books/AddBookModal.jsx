@@ -1,7 +1,7 @@
 import { useState, useRef } from 'react'
 import { GENRES } from '../../lib/utils'
 import { ModalShell } from './BookSheet'
-import { processGoodreadsCSV, processStorygraphCSV } from '../../lib/importBooks'
+import { startBackgroundImport } from '../../lib/importManager'
 
 function Stars({ value, onChange }) {
   const [hover, setHover] = useState(0)
@@ -41,10 +41,6 @@ export default function AddBookModal({ defaultStatus, books, onAdd, onClose, use
   const [olDropdown, setOlDropdown] = useState([])
   const [error, setError]   = useState(null)
   const [dupPrompt, setDupPrompt] = useState(null) // { book, pendingData } — waiting for reread confirm
-
-  // Import state
-  const [importStatus, setImportStatus] = useState(null) // null | 'loading' | 'success' | 'error'
-  const [importMsg, setImportMsg]       = useState('')
 
   const olTimer    = useRef(null)
   const grInputRef = useRef(null)
@@ -138,10 +134,9 @@ async function searchOL(q) {
       status,
       rating:       status === 'read' ? (rating || null) : null,
       genre:        genre || null,
-      notes:        notes.trim() || null,
+      notes:        (showPrivateNotes && notes.trim()) ? notes.trim() : null,
       reviewBody:   review.trim() || null,
       reviewPublic: !!review.trim(),
-      notes:        (showPrivateNotes && notes.trim()) ? notes.trim() : null,
       dateRead:     status === 'read' ? (date || null) : null,
       dateStarted:  status === 'reading' ? new Date().toISOString().split('T')[0] : null,
       olKey:        olKey || null,
@@ -158,41 +153,14 @@ async function searchOL(q) {
   // ── CSV Import ────────────────────────────────────────────
   async function handleImport(file, type) {
     if (!file) return
-    setImportStatus('loading')
-    setImportMsg(`Reading CSV…`)
-    try {
-      const text = await file.text()
-      const onProgress = (done, total) => setImportMsg(
-        `Matching ${done}/${total} books against Open Library…`
-      )
-      const processFn = type === 'goodreads' ? processGoodreadsCSV : processStorygraphCSV
-      const { books: imported, skipped, matched } = await processFn(text, books, onProgress)
-
-      if (!imported.length && skipped > 0) {
-        setImportStatus('success')
-        setImportMsg(`All ${skipped} book${skipped !== 1 ? 's' : ''} already in your list.`)
-        return
-      }
-      if (!imported.length) throw new Error('No valid book rows found.')
-
-      // Add all imported books one by one via onAdd
-      for (const book of imported) {
-        await onAdd(book, { silent: true })
-      }
-
-      setImportStatus('success')
-      setImportMsg(
-        `✓ Imported ${imported.length} book${imported.length !== 1 ? 's' : ''}` +
-        (skipped ? ` · ${skipped} skipped (already in list)` : '') +
-        ` · ${matched} matched to Open Library`
-      )
-    } catch (err) {
-      setImportStatus('error')
-      setImportMsg(`Import failed: ${err.message}`)
-    }
-    // Reset file inputs
+    const text = await file.text()
+    // Hand off to the background manager — safe to close the modal immediately
+    startBackgroundImport({ csvText: text, type, addBook: onAdd, existingBooks: books })
     if (grInputRef.current) grInputRef.current.value = ''
     if (sgInputRef.current) sgInputRef.current.value = ''
+    // Close the modal so the user can keep using the app
+    // The global banner in AppShell will show progress
+    onClose()
   }
 
   return (
@@ -353,7 +321,7 @@ async function searchOL(q) {
             📥 Import from Goodreads or Storygraph
           </div>
           <div style={{ fontSize: '0.75rem', color: 'var(--rt-t3)', marginBottom: '0.75rem' }}>
-            Export your library as a CSV and upload it here.
+            Upload your CSV export — the import runs in the background and you can keep using the app. A progress bar will appear at the bottom of the screen.
           </div>
           <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
             {/* Goodreads */}
@@ -362,7 +330,7 @@ async function searchOL(q) {
               padding: '0.45rem 0.85rem', borderRadius: 'var(--rt-r3)',
               background: 'var(--rt-white)', border: '1.5px solid var(--rt-amber)',
               color: 'var(--rt-amber)', fontSize: '0.8rem', fontWeight: 700,
-              cursor: importStatus === 'loading' ? 'not-allowed' : 'pointer'
+              cursor: 'pointer'
             }}>
               Goodreads CSV
               <input
@@ -370,7 +338,6 @@ async function searchOL(q) {
                 type="file"
                 accept=".csv"
                 style={{ display: 'none' }}
-                disabled={importStatus === 'loading'}
                 onChange={e => handleImport(e.target.files[0], 'goodreads')}
               />
             </label>
@@ -381,7 +348,7 @@ async function searchOL(q) {
               padding: '0.45rem 0.85rem', borderRadius: 'var(--rt-r3)',
               background: 'var(--rt-white)', border: '1.5px solid var(--rt-amber)',
               color: 'var(--rt-amber)', fontSize: '0.8rem', fontWeight: 700,
-              cursor: importStatus === 'loading' ? 'not-allowed' : 'pointer'
+              cursor: 'pointer'
             }}>
               Storygraph CSV
               <input
@@ -389,28 +356,10 @@ async function searchOL(q) {
                 type="file"
                 accept=".csv"
                 style={{ display: 'none' }}
-                disabled={importStatus === 'loading'}
                 onChange={e => handleImport(e.target.files[0], 'storygraph')}
               />
             </label>
           </div>
-
-          {/* Status message */}
-          {importStatus && (
-            <div style={{
-              marginTop: '0.75rem', fontSize: '0.78rem', padding: '0.5rem 0.75rem',
-              borderRadius: 'var(--rt-r2)',
-              background: importStatus === 'error' ? '#fef2f2' : importStatus === 'success' ? '#f0fdf4' : 'var(--rt-surface)',
-              color: importStatus === 'error' ? '#991b1b' : importStatus === 'success' ? '#166534' : 'var(--rt-t2)',
-              border: `1px solid ${importStatus === 'error' ? '#fecaca' : importStatus === 'success' ? '#bbf7d0' : 'var(--rt-border)'}`,
-              display: 'flex', alignItems: 'center', gap: '0.5rem'
-            }}>
-              {importStatus === 'loading' && (
-                <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid var(--rt-border-md)', borderTopColor: 'var(--rt-navy)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
-              )}
-              {importMsg}
-            </div>
-          )}
         </div>
       </div>
 

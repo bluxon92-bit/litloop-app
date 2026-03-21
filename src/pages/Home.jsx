@@ -97,7 +97,7 @@ function FeedEngagementBar({ entryId, user, onOpenThread }) {
   )
 }
 
-export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile }) {
+export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile, onAddFriend, pendingReviewOpen }) {
   const { user } = useAuthContext()
   const { books, addBook, updateBook, deleteBook, findDuplicate } = useBooksContext()
   const { friends, feed, recs, loaded: socialLoaded, myDisplayName, myAvatarUrl, sendFriendRequest } = useSocialContext()
@@ -123,6 +123,44 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
     toastTimer.current = setTimeout(() => setToast(null), 2500)
     return () => clearTimeout(toastTimer.current)
   }, [toast])
+
+  // Deep-link from notification: open ReviewThreadSheet for a specific entry
+  useEffect(() => {
+    if (!pendingReviewOpen?.current) return
+    const pending = pendingReviewOpen.current
+    pendingReviewOpen.current = null
+    // Fetch the feed_events row so we have all the data needed for the sheet
+    sb.from('feed_events')
+      .select('id, user_id, event_type, book_ol_key, book_title, book_author, cover_id, review_body, rating, created_at, moment_id, moment_body')
+      .eq('id', pending.entryId)
+      .maybeSingle()
+      .then(({ data: ev }) => {
+        if (!ev) {
+          // Minimal fallback — open with just what we have from the notification
+          setActiveReview({
+            entryId:    pending.entryId,
+            bookTitle:  pending.bookTitle || '',
+            bookAuthor: '',
+            coverId:    null,
+            olKey:      null,
+            reviewBody: '',
+            rating:     null,
+            reviewer:   pending.reviewer || {},
+          })
+          return
+        }
+        setActiveReview({
+          entryId:    ev.moment_id || ev.id,
+          bookTitle:  ev.book_title  || pending.bookTitle || '',
+          bookAuthor: ev.book_author || '',
+          coverId:    ev.cover_id    || null,
+          olKey:      ev.book_ol_key || null,
+          reviewBody: ev.moment_body || ev.review_body || '',
+          rating:     ev.rating      || null,
+          reviewer:   pending.reviewer || {},
+        })
+      })
+  }) // runs every render — ref check makes it a no-op when nothing is pending
 
   // Infinite scroll — load more when sentinel comes into view
   useEffect(() => {
@@ -322,7 +360,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
           <div className="rt-card" style={{ marginBottom: '1.25rem', padding: '1rem 1rem 0.75rem' }}>
           <div style={{ display: 'flex', gap: '0.85rem', overflowX: 'auto', paddingBottom: '0.5rem', scrollbarWidth: 'none', msOverflowStyle: 'none' }} className="rt-recent-carousel">
             {[...read]
-              .sort((a, b) => new Date(b.dateRead || b.added || 0) - new Date(a.dateRead || a.added || 0))
+              .sort((a, b) => new Date(b.dateRead || '1970-01-01') - new Date(a.dateRead || '1970-01-01'))
               .slice(0, 10)
               .map(book => (
                 <div key={book.id} onClick={() => openDetail(book, 'mylist-history')} style={{ cursor: 'pointer', flexShrink: 0, width: 80 }}>
@@ -346,7 +384,14 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile 
           ) : reviewEvents.length === 0 ? (
             <div className="rt-feed-empty">
               <div className="rt-feed-empty-icon"><IcoOpenBook size={32} color="var(--rt-t3)" /></div>
-              <p>{friends.length === 0 ? 'Add friends to see their posts here.' : 'Nothing from friends yet.'}</p>
+              {friends.length === 0 ? (
+                <p>
+                  <button onClick={() => onAddFriend?.()} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--rt-amber)', fontWeight: 700, fontSize: 'inherit', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>Add friends</button>
+                  {' '}to see their posts here.
+                </p>
+              ) : (
+                <p>Nothing from friends yet.</p>
+              )}
             </div>
           ) : (
             <>

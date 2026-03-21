@@ -646,7 +646,11 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend, in
               <div className="rt-card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
                 <div style={{ marginBottom: '0.5rem' }}><IcoChat size={36} color="var(--rt-t3)" /></div>
                 <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.35rem' }}>No chats yet</div>
-                <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)' }}>Start a book chat from any book's detail panel.</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)' }}>
+                  Start a book chat from any book's detail panel, or{' '}
+                  <button onClick={() => onAddFriend?.()} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--rt-amber)', fontWeight: 700, fontSize: 'inherit', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>add a friend</button>
+                  {' '}to get started.
+                </div>
               </div>
             ) : (
               chats.map(chat => {
@@ -779,7 +783,11 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend, in
             ) : friends.length === 0 ? (
               <div className="rt-card" style={{ textAlign: 'center', padding: '2rem' }}>
                 <div style={{ marginBottom: '0.4rem' }}><IcoUsers size={34} color="var(--rt-t3)" /></div>
-                <div style={{ fontSize: '0.85rem', color: 'var(--rt-t3)' }}>No friends yet — add one above or share your invite link.</div>
+                <div style={{ fontSize: '0.85rem', color: 'var(--rt-t3)' }}>
+                  No friends yet —{' '}
+                  <button onClick={() => onAddFriend?.()} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--rt-amber)', fontWeight: 700, fontSize: 'inherit', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>add one</button>
+                  {' '}above or share your invite link.
+                </div>
               </div>
             ) : (
               <div className="rt-card">

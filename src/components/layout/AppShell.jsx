@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useAuthContext } from '../../context/AuthContext'
 import { useChatContext } from '../../context/ChatContext'
 import { useSocialContext } from '../../context/SocialContext'
-import { processGoodreadsCSV, processStorygraphCSV } from '../../lib/importBooks'
+import { startBackgroundImport } from '../../lib/importManager'
 import { useBooksContext } from '../../context/BooksContext'
 import Home from '../../pages/Home'
 import MyList from '../../pages/MyList'
@@ -46,12 +46,12 @@ function IcoStats() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
 }
 
-// Nav order: Home, Chat, My List, Discover, Profile
+// Nav order: Home, Discover, My List, Chat, Profile
 const MOBILE_TABS = [
   { id: 'home',     label: 'Home',    icon: IcoHome    },
-  { id: 'chat',     label: 'Chat',    icon: IcoChat    },
-  { id: 'mylist',   label: 'My List', icon: IcoList    },
   { id: 'discover', label: 'Discover',icon: IcoDiscover},
+  { id: 'mylist',   label: 'My List', icon: IcoList    },
+  { id: 'chat',     label: 'Chat',    icon: IcoChat    },
   { id: 'profile',  label: 'Profile', icon: IcoProfile },
 ]
 
@@ -434,6 +434,29 @@ const ONBOARDING_MOODS = [
   { id: 'classics',        label: 'The Classics',     emoji: '📜', desc: 'The ones that started everything' },
 ]
 
+// ── Invite block used in onboarding step 4 ───────────────────
+function OnboardingInviteBlock({ generateInviteLink }) {
+  const [copied, setCopied] = useState(false)
+  async function handleCopy() {
+    const link = await generateInviteLink()
+    if (link) {
+      try { await navigator.clipboard.writeText(link) } catch {}
+      setCopied(true); setTimeout(() => setCopied(false), 2000)
+    }
+  }
+  return (
+    <div style={{ background: 'var(--rt-navy)', borderRadius: 'var(--rt-r3)', padding: '1rem 1.25rem', marginBottom: '1.25rem' }}>
+      <div style={{ fontSize: '1rem', fontWeight: 700, color: '#fff', marginBottom: '0.35rem' }}>Invite friends to LitLoop</div>
+      <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.5, marginBottom: '0.85rem' }}>
+        Don't see your friends yet? Share your invite link and they'll be able to find you when they join.
+      </div>
+      <button onClick={handleCopy} style={{ width: '100%', background: copied ? 'var(--rt-teal)' : 'var(--rt-amber)', color: '#fff', border: 'none', borderRadius: 8, padding: '0.65rem 1rem', textAlign: 'center', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer', transition: 'background 0.2s' }}>
+        {copied ? '✓ Copied!' : 'Copy invite link'}
+      </button>
+    </div>
+  )
+}
+
 function OnboardingFlow({ user, onComplete }) {
   const { saveProfile, completeOnboarding, setPreferredMoods, sendFriendRequest } = useSocialContext()
   const { addBook } = useBooksContext()
@@ -557,20 +580,11 @@ function OnboardingFlow({ user, onComplete }) {
 
   async function handleImport(file, type) {
     if (!file) return
+    const text = await file.text()
+    // Kick off in the background — safe to navigate away immediately
+    startBackgroundImport({ csvText: text, type, addBook, existingBooks: [] })
     setImportStatus('loading')
-    setImportMsg('Reading CSV…')
-    try {
-      const text = await file.text()
-      const onProgress = (done, total) => setImportMsg(`Matching ${done}/${total} books…`)
-      const processFn = type === 'goodreads' ? processGoodreadsCSV : processStorygraphCSV
-      const { books: imported, skipped } = await processFn(text, [], onProgress)
-      for (const book of imported) { await addBook({ ...book, silent: true }) }
-      setImportStatus('done')
-      setImportMsg(`✓ Imported ${imported.length} book${imported.length !== 1 ? 's' : ''}${skipped ? ` · ${skipped} skipped` : ''}`)
-    } catch {
-      setImportStatus('done')
-      setImportMsg('Could not read file — check it\'s a valid CSV export')
-    }
+    setImportMsg('Import started — you can continue and it will run in the background')
     if (grInputRef.current) grInputRef.current.value = ''
     if (sgInputRef.current) sgInputRef.current.value = ''
   }
@@ -602,7 +616,7 @@ function OnboardingFlow({ user, onComplete }) {
       background: 'var(--rt-cream)',
       fontFamily: 'var(--rt-font-body)',
       display: 'flex', flexDirection: 'column',
-      overflowY: 'auto',
+      overflowY: 'auto', overflowX: 'hidden',
     }}>
       {/* Progress bar */}
       <div style={{ height: 3, background: 'var(--rt-border)', flexShrink: 0 }}>
@@ -616,7 +630,7 @@ function OnboardingFlow({ user, onComplete }) {
       </div>
 
       {/* Body */}
-      <div style={{ flex: 1, maxWidth: 540, width: '100%', margin: '0 auto', padding: '2rem 1.5rem 3rem' }}>
+      <div style={{ flex: 1, maxWidth: 540, width: '100%', margin: '0 auto', padding: '2rem 1.5rem 3rem', boxSizing: 'border-box' }}>
 
         {/* ── Step 1: Name + handle ── */}
         {step === 1 && (
@@ -703,7 +717,7 @@ function OnboardingFlow({ user, onComplete }) {
               Pick the reading moods that feel like you. We'll use these to personalise your LitLoop Picks.
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '2rem' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '2rem', width: '100%', boxSizing: 'border-box' }}>
               {ONBOARDING_MOODS.map(mood => {
                 const selected = moods.includes(mood.id)
                 return (
@@ -715,6 +729,7 @@ function OnboardingFlow({ user, onComplete }) {
                       background: selected ? 'var(--rt-navy)' : 'var(--rt-white)',
                       border: `1.5px solid ${selected ? 'var(--rt-navy)' : 'var(--rt-border-md)'}`,
                       borderRadius: 'var(--rt-r3)', cursor: 'pointer', textAlign: 'left', width: '100%',
+                      boxSizing: 'border-box',
                       transition: 'all 0.15s',
                     }}>
                     <span style={{ fontSize: '1.25rem', flexShrink: 0, width: 28, textAlign: 'center' }}>{mood.emoji}</span>
@@ -798,11 +813,10 @@ function OnboardingFlow({ user, onComplete }) {
               </div>
             )}
 
-            {/* Continue button — shows when book selected or import done */}
-            {(currentBook || importStatus === 'done') && (
+            {/* Continue button — shows when book selected or import has started */}
+            {(currentBook || importStatus) && (
               <button onClick={handleStep3} style={{ ...primaryBtn(false), marginBottom: '1.25rem' }}>
-                {currentBook && importStatus === 'done' ? 'Continue →' :
-                 currentBook ? 'Add to my list →' : 'Continue →'}
+                {currentBook ? 'Add to my list & continue →' : 'Continue →'}
               </button>
             )}
 
@@ -823,8 +837,8 @@ function OnboardingFlow({ user, onComplete }) {
                 </label>
               </div>
               {importStatus && (
-                <div style={{ marginTop: '0.65rem', fontSize: '0.78rem', padding: '0.45rem 0.7rem', borderRadius: 8, background: importStatus === 'done' ? '#f0fdf4' : 'var(--rt-surface)', color: importStatus === 'done' ? '#166534' : 'var(--rt-t2)', border: `1px solid ${importStatus === 'done' ? '#bbf7d0' : 'var(--rt-border)'}`, display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                  {importStatus === 'loading' && <span style={{ width: 10, height: 10, border: '2px solid var(--rt-border-md)', borderTopColor: 'var(--rt-navy)', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
+                <div style={{ marginTop: '0.65rem', fontSize: '0.78rem', padding: '0.45rem 0.7rem', borderRadius: 8, background: 'var(--rt-surface)', color: 'var(--rt-t2)', border: '1px solid var(--rt-border)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span style={{ width: 10, height: 10, border: '2px solid var(--rt-border-md)', borderTopColor: 'var(--rt-navy)', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
                   {importMsg}
                 </div>
               )}
@@ -846,7 +860,7 @@ function OnboardingFlow({ user, onComplete }) {
               Reading is better together
             </h2>
             <p style={{ color: 'var(--rt-t3)', fontSize: '0.88rem', margin: '0 0 1.75rem', lineHeight: 1.5 }}>
-              Search for friends by name or handle to add them. You can always do this later.
+              Search for friends by name or handle, or share your invite link. You can always do this later.
             </p>
 
             <div style={{ position: 'relative', marginBottom: '0.75rem' }}>
@@ -890,6 +904,9 @@ function OnboardingFlow({ user, onComplete }) {
                 })}
               </div>
             )}
+
+            {/* Invite block */}
+            <OnboardingInviteBlock generateInviteLink={generateInviteLink} />
 
             <button onClick={handleFinish} style={{ ...primaryBtn(false), marginBottom: '0.75rem' }}>
               {addedFriends.size > 0 ? `Continue with ${addedFriends.size} friend${addedFriends.size > 1 ? 's' : ''} added →` : 'Skip for now →'}
@@ -978,26 +995,58 @@ export default function AppShell() {
   const [fabAction, setFabAction]         = useState(null) // 'addbook'|'recommend'|'chat'|'friend'|'moment'
   const [fabChatPreselect, setFabChatPreselect] = useState(null) // userId to pre-select in FabChatModal
   const [dismissedRequests, setDismissedRequests] = useState(new Set()) // friendshipIds hidden by ×
+  // Pending deep-link actions set by notification clicks, consumed by page components
+  const pendingReviewOpen = useRef(null) // { entryId, bookTitle, bookAuthor, coverId, olKey, reviewBody, rating, reviewer }
+  const pendingRecOpen    = useRef(null) // { book_ol_key, book_title, book_author, cover_id, message, from_user_id }
   const [importBanner, setImportBanner]           = useState(() => {
     try { return JSON.parse(sessionStorage.getItem('litloop_import') || 'null') } catch { return null }
   })
 
   // Poll sessionStorage for import progress updates
+  // Always poll — catches imports that started in onboarding and continue into the main app
   useEffect(() => {
-    if (!importBanner || importBanner.status === 'done' || importBanner.status === 'error') return
     const timer = setInterval(() => {
       try {
         const data = JSON.parse(sessionStorage.getItem('litloop_import') || 'null')
-        if (data) setImportBanner(data)
-        if (data?.status === 'done' || data?.status === 'error') clearInterval(timer)
+        if (!data) return
+        setImportBanner(data)
+        // Stop polling once the import reaches a terminal state and user has seen it
+        if ((data.status === 'done' || data.status === 'error') && importBanner?.status === data.status) {
+          clearInterval(timer)
+        }
       } catch {}
     }, 800)
     return () => clearInterval(timer)
-  }, [importBanner?.status])
+  }, []) // mount-only — runs for the lifetime of AppShell
   const [activeFriendProfile, setActiveFriendProfile] = useState(null) // friend to view from home feed
   const bellRef = useRef(null)
 
   function onNavigate(tab) { setActiveTab(tab) }
+
+  // Listen for notification clicks from the service worker
+  // When the user taps a push notification, the SW posts NOTIFICATION_CLICK
+  // which we handle here the same way as in-app notification taps
+  useEffect(() => {
+    if (!navigator.serviceWorker) return
+    function handleSWMessage(e) {
+      if (e.data?.type !== 'NOTIFICATION_CLICK') return
+      const { data } = e.data
+      if (!data) return
+      // Route to the right place based on notification data
+      if (data.entryId) {
+        pendingReviewOpen.current = { entryId: data.entryId, bookTitle: data.bookTitle || '' }
+        setActiveTab('home')
+      } else if (data.url === '/discover') {
+        setActiveTab('discover')
+      } else if (data.url === '/chat' || data.url?.includes('chat')) {
+        setActiveTab('chat')
+      } else {
+        setActiveTab('home')
+      }
+    }
+    navigator.serviceWorker.addEventListener('message', handleSWMessage)
+    return () => navigator.serviceWorker.removeEventListener('message', handleSWMessage)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function openChatModal(chatIdOrObj, book) {
     // If a full chat object is passed, use it directly
@@ -1064,11 +1113,14 @@ export default function AppShell() {
       id: 'chat-' + c.id,
       icon: <IcoChatBubble size={18} color="var(--rt-navy)" />,
       text: c.lastMessagePreview
-        ? `New message in "${c.chatName || c.bookTitle}": ${c.lastMessagePreview.slice(0, 60)}${c.lastMessagePreview.length > 60 ? '…' : ''}`
+        ? `New message in "${c.chatName || c.bookTitle}": ${c.lastMessagePreview.slice(0, 60)}${c.lastMessagePreview.length > 60 ? '\u2026' : ''}`
         : `New message in "${c.chatName || c.bookTitle}"`,
       time: c.lastMessageAt,
       badge: c.unread > 1 ? c.unread : null,
-      action: () => { openChatModal(c, { title: c.bookTitle, author: c.bookAuthor, coverId: c.coverIdRaw }); setNotifOpen(false) }
+      action: () => {
+        openChatModal(c, { title: c.bookTitle, author: c.bookAuthor, coverId: c.coverIdRaw })
+        setNotifOpen(false)
+      }
     })),
     ...pending.map(p => ({
       id: 'req-' + p.friendshipId,
@@ -1082,63 +1134,102 @@ export default function AppShell() {
       icon: <IcoBook size={18} color="var(--rt-navy)" />,
       text: `${r.profiles?.display_name || 'A friend'} recommended "${r.book_title || 'a book'}"`,
       time: r.created_at,
-      action: () => { setActiveTab('discover'); setNotifOpen(false) }
-    })),
-    ...(feed || []).filter(ev => ev.event_type === 'posted_review').slice(0, 3).map(ev => ({
-      id: 'feed-' + ev.id,
-      icon: '⭐',
-      text: `${ev.profiles?.display_name || 'A friend'} reviewed "${ev.book_title || 'a book'}"`,
-      time: ev.created_at,
-      action: () => { setActiveTab('home'); setNotifOpen(false) }
+      action: () => {
+        pendingRecOpen.current = r
+        setActiveTab('discover')
+        setNotifOpen(false)
+      }
     })),
     ...(socialNotifs || []).filter(n => !n.read).map(n => {
       const actor = n.actorName || 'Someone'
       const book  = n.bookTitle ? `"${n.bookTitle}"` : 'a book'
-      let text, icon
+      let text, icon, action
+
+      const markAndDo = (fn) => () => {
+        markNotificationsRead?.([n.id])
+        setNotifOpen(false)
+        fn()
+      }
+
       switch (n.type) {
         case 'review_liked':
         case 'review_like':
-          text = `${actor} liked your review of ${book}`; icon = '❤️'; break
+          text   = `${actor} liked your review of ${book}`
+          icon   = '\u2764\ufe0f'
+          action = markAndDo(() => {
+            if (n.entry_id) pendingReviewOpen.current = { entryId: n.entry_id, bookTitle: n.bookTitle, reviewer: { displayName: actor } }
+            setActiveTab('home')
+          })
+          break
         case 'review_commented':
         case 'review_comment':
-          text = `${actor} commented on your review of ${book}`; icon = '💬'; break
+          text   = `${actor} commented on your review of ${book}`
+          icon   = '\ud83d\udcac'
+          action = markAndDo(() => {
+            if (n.entry_id) pendingReviewOpen.current = { entryId: n.entry_id, bookTitle: n.bookTitle, reviewer: { displayName: actor } }
+            setActiveTab('home')
+          })
+          break
         case 'comment_liked':
-          text = `${actor} liked your comment`; icon = '❤️'; break
+          text   = `${actor} liked your comment`
+          icon   = '\u2764\ufe0f'
+          action = markAndDo(() => {
+            if (n.entry_id) pendingReviewOpen.current = { entryId: n.entry_id, bookTitle: n.bookTitle, reviewer: { displayName: actor } }
+            setActiveTab('home')
+          })
+          break
         case 'thread_activity':
-          text = `${actor} replied in a thread you're in`; icon = '💬'; break
+          text   = `${actor} replied in a thread you're in`
+          icon   = '\ud83d\udcac'
+          action = markAndDo(() => {
+            if (n.entry_id) pendingReviewOpen.current = { entryId: n.entry_id, bookTitle: n.bookTitle, reviewer: { displayName: actor } }
+            setActiveTab('home')
+          })
+          break
         case 'friend_request':
-          text = `${actor} sent you a friend request`; icon = '👋'; break
+          text   = `${actor} sent you a friend request`
+          icon   = '\ud83d\udc4b'
+          action = markAndDo(() => setActiveTab('chat'))
+          break
         case 'friend_accepted':
-          text = `${actor} accepted your friend request`; icon = '✓'; break
+          text   = `${actor} accepted your friend request`
+          icon   = '\u2713'
+          action = markAndDo(() => setActiveTab('chat'))
+          break
         case 'book_recommendation':
-          text = `${actor} recommended ${book}`; icon = '📖'; break
+          text   = `${actor} recommended ${book}`
+          icon   = '\ud83d\udcd6'
+          action = markAndDo(() => {
+            const matchingRec = (recs || []).find(r => r.from_user_id === n.actor_id && r.book_title === n.bookTitle)
+            if (matchingRec) pendingRecOpen.current = matchingRec
+            setActiveTab('discover')
+          })
+          break
         case 'co_reading_joined':
-          text = `${actor} is also reading ${book}`; icon = '📖'; break
         case 'co_reading_started':
-          text = `${actor} just started reading ${book} — you're reading it too!`; icon = '📖'; break
         case 'friend_already_reading':
-          text = `${actor} is already reading ${book}`; icon = '📖'; break
+          text   = n.type === 'co_reading_joined' ? `${actor} is also reading ${book}`
+                 : n.type === 'friend_already_reading' ? `${actor} is already reading ${book}`
+                 : `${actor} just started reading ${book} — you're reading it too!`
+          icon   = '\ud83d\udcd6'
+          action = markAndDo(() => setActiveTab('home'))
+          break
         default:
-          if (!n.bookTitle) return null  // hide old untyped notifications with no context
-          text = `New activity from ${actor}`; icon = '🔔'
+          if (!n.bookTitle) return null
+          text   = `New activity from ${actor}`
+          icon   = '\ud83d\udd14'
+          action = markAndDo(() => setActiveTab('home'))
       }
-      return {
-        id: 'social-' + n.id,
-        icon,
-        text,
-        time: n.created_at,
-        unread: true,
-        action: () => { setActiveTab('home'); setNotifOpen(false) }
-      }
+      return { id: 'social-' + n.id, icon, text, time: n.created_at, unread: true, action }
     }).filter(Boolean),
   ].slice(0, 15)
 
   function renderPage() {
     switch (activeTab) {
-      case 'home':     return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} onViewFriendProfile={f => { setActiveTab('chat'); setActiveFriendProfile(f) }} />
+      case 'home':     return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} onViewFriendProfile={f => { setActiveTab('chat'); setActiveFriendProfile(f) }} onAddFriend={() => setFabAction('friend')} pendingReviewOpen={pendingReviewOpen} />
       case 'mylist':   return <MyList          onNavigate={onNavigate} onOpenChatModal={openChatModal} />
       case 'stats':    return <Stats           onNavigate={onNavigate} />
-      case 'discover': return <Discover        onNavigate={onNavigate} onOpenChatModal={openChatModal} onRecommend={() => setFabAction('recommend')} />
+      case 'discover': return <Discover        onNavigate={onNavigate} onOpenChatModal={openChatModal} onRecommend={() => setFabAction('recommend')} pendingRecOpen={pendingRecOpen} />
       case 'chat':     return <Chat            onNavigate={onNavigate} onOpenChatModal={openChatModal} onAddFriend={() => setFabAction('friend')} onOpenChatWithFriend={openChatWithFriend} initialFriendProfile={activeFriendProfile} onClearFriendProfile={() => setActiveFriendProfile(null)} />
       case 'profile':  return <Profile         onNavigate={onNavigate} onOpenChatModal={openChatModal} />
       case 'account':  return <AccountSettings onNavigate={onNavigate} />
@@ -1485,16 +1576,45 @@ export default function AppShell() {
         />
       )}
       {/* Import progress banner */}
-      {importBanner && importBanner.status !== 'done' && importBanner.status !== 'error' && (
-        <div style={{ position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', zIndex: 1100, width: 'min(96vw, 420px)', background: 'var(--rt-navy)', color: '#fff', borderRadius: 12, padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.65rem', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
-          <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
-          <span style={{ fontSize: '0.82rem', fontWeight: 500, flex: 1 }}>{importBanner.msg}</span>
+      {/* ── Import progress banner ── */}
+      {importBanner && importBanner.status === 'loading' && (
+        <div style={{
+          position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 1100, width: 'min(96vw, 420px)',
+          background: 'var(--rt-navy)', color: '#fff',
+          borderRadius: 12, padding: '0.75rem 1rem',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+          overflow: 'hidden',
+        }}>
+          {/* Progress bar strip along top */}
+          {importBanner.pct > 0 && (
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: 'rgba(255,255,255,0.15)' }}>
+              <div style={{ height: '100%', background: 'var(--rt-amber)', width: `${importBanner.pct}%`, transition: 'width 0.4s ease', borderRadius: '12px 0 0 0' }} />
+            </div>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <span style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+            <span style={{ fontSize: '0.82rem', fontWeight: 500, flex: 1 }}>{importBanner.msg}</span>
+            {importBanner.pct > 0 && (
+              <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.55)', flexShrink: 0 }}>{importBanner.pct}%</span>
+            )}
+          </div>
         </div>
       )}
       {importBanner && (importBanner.status === 'done' || importBanner.status === 'error') && (
-        <div style={{ position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)', zIndex: 1100, width: 'min(96vw, 420px)', background: importBanner.status === 'done' ? '#166534' : '#991b1b', color: '#fff', borderRadius: 12, padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.65rem', boxShadow: '0 4px 20px rgba(0,0,0,0.2)' }}>
+        <div style={{
+          position: 'fixed', bottom: '5rem', left: '50%', transform: 'translateX(-50%)',
+          zIndex: 1100, width: 'min(96vw, 420px)',
+          background: importBanner.status === 'done' ? '#166534' : '#991b1b',
+          color: '#fff', borderRadius: 12, padding: '0.75rem 1rem',
+          display: 'flex', alignItems: 'center', gap: '0.65rem',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+        }}>
           <span style={{ fontSize: '0.82rem', fontWeight: 500, flex: 1 }}>{importBanner.msg}</span>
-          <button onClick={() => { setImportBanner(null); sessionStorage.removeItem('litloop_import') }} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: '1rem', cursor: 'pointer', padding: 0, lineHeight: 1, flexShrink: 0 }}>×</button>
+          <button
+            onClick={() => { setImportBanner(null); sessionStorage.removeItem('litloop_import') }}
+            style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: '1rem', cursor: 'pointer', padding: 0, lineHeight: 1, flexShrink: 0 }}
+          >×</button>
         </div>
       )}
       <GlobalFriendBanner
