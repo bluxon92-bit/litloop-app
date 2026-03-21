@@ -231,7 +231,6 @@ function BookModal({ book, added, dupMsg, onReread, onClose, onAddToTBR, onRecom
             </div>
           )}
           {book.desc && <p style={{ fontSize: '0.85rem', color: 'var(--rt-navy)', lineHeight: 1.6, margin: '0 0 1rem', fontStyle: 'italic', borderLeft: '3px solid var(--rt-amber)', paddingLeft: '0.75rem' }}>{book.desc}</p>}
-          {book.message && <p style={{ fontSize: '0.85rem', color: 'var(--rt-t2)', fontStyle: 'italic', margin: '0 0 1rem' }}>"{book.message}"</p>}
           <div style={{ marginBottom: '1.25rem' }}>
             <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.4rem' }}>About this book</div>
             {descLoading
@@ -463,7 +462,7 @@ function DiscoverChatPicker({ book, friends, chats, startOrOpenChat, onOpenChatM
 }
 
 // ── Main Discover page ────────────────────────────────────────────
-export default function Discover({ onNavigate, onOpenChatModal, onRecommend }) {
+export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pendingRecOpen }) {
   const { user }                               = useAuthContext()
   const { books, addBook, findDuplicate }      = useBooksContext()
   const { recs, friends, feed, dismissRec, acceptRecToTBR, sendRecommendation, preferredMoods } = useSocialContext()
@@ -482,6 +481,27 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend }) {
   const [addedKeys, setAddedKeys]           = useState(new Set())
   const [dupMsgKey, setDupMsgKey]           = useState(null)
   const [pendingReread, setPendingReread]   = useState(null)
+
+  // Deep-link from notification: open a specific recommended book's detail panel
+  useEffect(() => {
+    if (!pendingRecOpen?.current) return
+    const r = pendingRecOpen.current
+    pendingRecOpen.current = null
+    setShowRecommend(false)
+    setShowChatPicker(false)
+    setSelectedBook({
+      title:        r.book_title  || '',
+      author:       r.book_author || '',
+      coverId:      r.cover_id    || null,
+      olKey:        r.book_ol_key || null,
+      fromFriend:   r.profiles?.display_name || r.profiles?.username || 'A friend',
+      message:      r.message     || null,
+      recommenders: [{ name: r.profiles?.display_name || r.profiles?.username || 'A friend', userId: r.from_user_id, message: r.message }],
+      _key:         `fr-${r.book_ol_key || r.book_title}`,
+      _recs:        [r],
+      _rec:         r,
+    })
+  }) // runs every render — ref check makes it a no-op when nothing pending
 
   const pendingRecs = (recs || []).filter(r => r.status === 'pending')
 

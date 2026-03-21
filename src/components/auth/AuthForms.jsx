@@ -82,6 +82,8 @@ export default function AuthForms() {
       fontFamily: 'var(--rt-font-body)',
       display: 'flex',
       flexDirection: 'column',
+      overflowX: 'hidden',
+      boxSizing: 'border-box',
     }}>
 
       {/* ── Navy hero panel ── */}
@@ -89,6 +91,8 @@ export default function AuthForms() {
         background: 'linear-gradient(160deg, #111C35 0%, #1a2744 55%, #243A5E 100%)',
         padding: 'clamp(2rem, 5vw, 3.5rem) clamp(1.25rem, 5vw, 3rem) clamp(1.75rem, 4vw, 2.5rem)',
         textAlign: 'center',
+        boxSizing: 'border-box',
+        width: '100%',
       }}>
         {/* LitLoop wordmark — replace with logo when ready */}
         <div style={{
@@ -112,10 +116,12 @@ export default function AuthForms() {
         {/* Feature grid */}
         <div style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))',
           gap: '0.65rem',
           maxWidth: 640,
           margin: '0 auto',
+          width: '100%',
+          boxSizing: 'border-box',
         }}>
           {FEATURES.map(f => (
             <div key={f.title} style={{
