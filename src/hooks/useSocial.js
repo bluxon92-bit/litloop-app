@@ -234,11 +234,11 @@ export function useSocial(user) {
     // 2) UPDATEs where I'm the requester (my sent requests being accepted/declined)
     const ch = sb.channel(`friendships_${user.id}`)
       .on('postgres_changes', {
-        event: '*', schema: 'staging', table: 'friendships',
+        event: '*', schema: 'public', table: 'friendships',
         filter: `addressee_id=eq.${user.id}`
       }, () => loadSocialData())
       .on('postgres_changes', {
-        event: 'UPDATE', schema: 'staging', table: 'friendships',
+        event: 'UPDATE', schema: 'public', table: 'friendships',
         filter: `requester_id=eq.${user.id}`
       }, () => loadSocialData())
       .subscribe()
@@ -248,7 +248,7 @@ export function useSocial(user) {
     if (recsChannelRef.current) { sb.removeChannel(recsChannelRef.current); recsChannelRef.current = null }
     const recsCh = sb.channel(`recs_${user.id}`)
       .on('postgres_changes', {
-        event: 'INSERT', schema: 'staging', table: 'book_recommendations',
+        event: 'INSERT', schema: 'public', table: 'book_recommendations',
         filter: `to_user_id=eq.${user.id}`
       }, () => loadSocialData())
       .subscribe()
@@ -258,7 +258,7 @@ export function useSocial(user) {
     if (notifChannelRef.current) { sb.removeChannel(notifChannelRef.current); notifChannelRef.current = null }
     const notifCh = sb.channel(`notifications_${user.id}`)
       .on('postgres_changes', {
-        event: 'INSERT', schema: 'staging', table: 'notifications',
+        event: 'INSERT', schema: 'public', table: 'notifications',
         filter: `user_id=eq.${user.id}`
       }, () => loadNotifications())
       .subscribe()

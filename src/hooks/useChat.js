@@ -26,7 +26,7 @@ export function useChat(user) {
     if (!user) return
     const ch = sb.channel(`chat_list_${user.id}`)
       .on('postgres_changes', {
-        event: 'INSERT', schema: 'staging', table: 'chat_participants',
+        event: 'INSERT', schema: 'public', table: 'chat_participants',
         filter: `user_id=eq.${user.id}`
       }, () => loadChatList())
       .subscribe()
@@ -244,12 +244,12 @@ export function useChat(user) {
   function subscribeToThread(chatId) {
     if (channelRef.current) { sb.removeChannel(channelRef.current); channelRef.current = null }
     const ch = sb.channel(`chat_${chatId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'staging', table: 'chat_messages', filter: `chat_id=eq.${chatId}` }, payload => {
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `chat_id=eq.${chatId}` }, payload => {
         if (payload.new.user_id === user.id) return
         setMessages(prev => [...prev, payload.new])
         markChatRead(chatId)
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'staging', table: 'chat_messages', filter: `chat_id=eq.${chatId}` }, payload => {
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'chat_messages', filter: `chat_id=eq.${chatId}` }, payload => {
         setMessages(prev => prev.map(m => m.id === payload.new.id ? payload.new : m))
       })
       .subscribe()
