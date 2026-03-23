@@ -6,15 +6,18 @@ import CoverImage from './books/CoverImage'
 const MAX_UPDATE = 280
 const MAX_QUOTE  = 500
 
-export default function MomentComposer({ user, books, onClose, onPosted, preselectedBook = null, prefilledType = 'update', prefilledPageRef = null }) {
-  const [step, setStep]             = useState(preselectedBook ? 'compose' : 'book')
+export default function MomentComposer({ user, books, onClose, onPosted, preselectedBook = null, prefilledType = 'update', prefilledPageRef = null, editMode = false, initialMoment = null }) {
+  const prefBook = editMode && initialMoment
+    ? { title: initialMoment.book_title, author: initialMoment.book_author, coverId: initialMoment.cover_id, olKey: initialMoment.book_ol_key }
+    : preselectedBook
+  const [step, setStep]             = useState((prefBook || editMode) ? 'compose' : 'book')
   const [search, setSearch]         = useState('')
-  const [selectedBook, setSelectedBook] = useState(preselectedBook)
-  const [momentType, setMomentType] = useState(prefilledType)
-  const [body, setBody]             = useState('')
-  const [pageRef, setPageRef]       = useState(prefilledPageRef ? String(prefilledPageRef) : '')
+  const [selectedBook, setSelectedBook] = useState(prefBook)
+  const [momentType, setMomentType] = useState(editMode && initialMoment ? (initialMoment.moment_type || 'update') : prefilledType)
+  const [body, setBody]             = useState(editMode && initialMoment ? (initialMoment.moment_body || '') : '')
+  const [pageRef, setPageRef]       = useState(editMode && initialMoment && initialMoment.page_ref ? String(initialMoment.page_ref) : (prefilledPageRef ? String(prefilledPageRef) : ''))
   const [posting, setPosting]         = useState(false)
-  const [spoilerWarning, setSpoilerWarning] = useState(false)
+  const [spoilerWarning, setSpoilerWarning] = useState(editMode && initialMoment ? !!initialMoment.spoiler_warning : false)
   const textareaRef = useRef(null)
 
   // Sort: currently reading first, then rest of library
@@ -57,17 +60,27 @@ export default function MomentComposer({ user, books, onClose, onPosted, presele
     if (!body.trim() || overLimit || posting || !user) return
     setPosting(true)
     try {
-      await sb.rpc('create_book_moment', {
-        p_user_id:     user.id,
-        p_book_ol_key: selectedBook?.olKey   || null,
-        p_book_title:  selectedBook?.title   || null,
-        p_book_author: selectedBook?.author  || null,
-        p_cover_id:    selectedBook?.coverId ? Number(selectedBook.coverId) : null,
-        p_moment_type: momentType,
-        p_body:        body.trim(),
-        p_page_ref:    pageRef ? parseInt(pageRef, 10) : null,
-        p_spoiler:     spoilerWarning,
-      })
+      if (editMode && initialMoment) {
+        // Update existing feed_event row directly
+        await sb.from('feed_events').update({
+          moment_body:     body.trim(),
+          moment_type:     momentType,
+          page_ref:        pageRef ? parseInt(pageRef, 10) : null,
+          spoiler_warning: spoilerWarning,
+        }).eq('id', initialMoment.id)
+      } else {
+        await sb.rpc('create_book_moment', {
+          p_user_id:     user.id,
+          p_book_ol_key: selectedBook?.olKey   || null,
+          p_book_title:  selectedBook?.title   || null,
+          p_book_author: selectedBook?.author  || null,
+          p_cover_id:    selectedBook?.coverId ? Number(selectedBook.coverId) : null,
+          p_moment_type: momentType,
+          p_body:        body.trim(),
+          p_page_ref:    pageRef ? parseInt(pageRef, 10) : null,
+          p_spoiler:     spoilerWarning,
+        })
+      }
       onPosted?.()
       onClose()
     } catch (e) {
@@ -146,7 +159,7 @@ export default function MomentComposer({ user, books, onClose, onPosted, presele
       {/* Header */}
       <div style={{ background: 'linear-gradient(160deg,#111C35,var(--rt-navy))', padding: '1.25rem 1rem 0.9rem', flexShrink: 0, borderRadius: '20px 20px 0 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: '#fff' }}>Share a moment</div>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: '#fff' }}>{editMode ? 'Edit moment' : 'Share a moment'}</div>
           <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '50%', width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '0.95rem' }}>×</button>
         </div>
       </div>
@@ -246,7 +259,7 @@ export default function MomentComposer({ user, books, onClose, onPosted, presele
             transition: 'all 0.15s',
           }}
         >
-          {posting ? 'Posting…' : 'Post moment'}
+          {posting ? (editMode ? 'Saving…' : 'Posting…') : (editMode ? 'Save changes' : 'Post moment')}
         </button>
       </div>
     </ModalShell>
