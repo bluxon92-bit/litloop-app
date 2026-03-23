@@ -49,7 +49,7 @@ export function useBooks(user) {
     setSyncing(true)
     const { data, error } = await sb
       .from('reading_entries')
-      .select('*, books(title, author, cover_id, ol_key)')
+      .select('*, books(title, author, cover_id, ol_key, cover_url, isbn, description, google_books_id)')
       .eq('user_id', user.id)
       .order('added_at', { ascending: false })
 
@@ -59,9 +59,12 @@ export function useBooks(user) {
         cloudId:      e.id,
         title:        e.books?.title     || e.title_manual  || '',
         author:       e.books?.author    || e.author_manual || '',
-        coverId:      e.books?.cover_id  || null,
-        olKey:        e.books?.ol_key    || null,
-        coverUrl:     e.books?.cover_url || null,
+        coverId:       e.books?.cover_id        || null,
+        olKey:         e.books?.ol_key          || null,
+        coverUrl:      e.books?.cover_url       || null,
+        isbn:          e.books?.isbn            || null,
+        description:   e.books?.description     || null,
+        googleBooksId: e.books?.google_books_id || null,
         status:       e.status,
         rating:       e.rating           || null,
         notes:        e.notes            || null,
@@ -122,10 +125,13 @@ export function useBooks(user) {
       dateRead:     bookData.dateRead     || null,
       dateStarted:  bookData.dateStarted  || null,
       added:        new Date().toISOString(),
-      coverId:      bookData.coverId      || null,
-      olKey:        bookData.olKey        || null,
-      coverUrl:     bookData.coverUrl     || null,
-      userId:       user?.id              || null,
+      coverId:       bookData.coverId       || null,
+      olKey:         bookData.olKey         || null,
+      coverUrl:      bookData.coverUrl      || null,
+      isbn:          bookData.isbn          || null,
+      description:   bookData.description   || null,
+      googleBooksId: bookData.googleBooksId || null,
+      userId:        user?.id              || null,
       favourite:    false,
       favOrder:     null,
     }
@@ -142,8 +148,11 @@ export function useBooks(user) {
           title:  bookData.title  || null,
           author: bookData.author || null,
         }
-        // Only set cover_id when we actually have one — avoid overwriting an existing cover with null
-        if (bookData.coverId) bookRow.cover_id = Number(bookData.coverId)
+        if (bookData.coverId)       bookRow.cover_id       = Number(bookData.coverId)
+        if (bookData.isbn)          bookRow.isbn           = bookData.isbn
+        if (bookData.description)   bookRow.description    = bookData.description
+        if (bookData.googleBooksId) bookRow.google_books_id = bookData.googleBooksId
+        if (bookData.coverUrl)      bookRow.cover_url      = bookData.coverUrl
         const { data: upserted } = await sb
           .from('books')
           .upsert(bookRow, { onConflict: 'ol_key', ignoreDuplicates: false })
@@ -169,8 +178,33 @@ export function useBooks(user) {
 
       if (bookId) {
         row.book_id = bookId
+      } else if (bookData.googleBooksId || bookData.isbn) {
+        // Google Books result — upsert into books table by google_books_id
+        const bookRow = {
+          title:  bookData.title  || null,
+          author: bookData.author || null,
+        }
+        if (bookData.googleBooksId) bookRow.google_books_id = bookData.googleBooksId
+        if (bookData.isbn)          bookRow.isbn            = bookData.isbn
+        if (bookData.description)   bookRow.description     = bookData.description
+        if (bookData.coverUrl)      bookRow.cover_url       = bookData.coverUrl
+        if (bookData.coverId)       bookRow.cover_id        = Number(bookData.coverId)
+        // Use google_books_id as conflict key if available, else isbn
+        const conflictCol = bookData.googleBooksId ? 'google_books_id' : 'isbn'
+        const { data: gbUpserted } = await sb
+          .from('books')
+          .upsert(bookRow, { onConflict: conflictCol, ignoreDuplicates: false })
+          .select('id')
+          .single()
+        if (gbUpserted) {
+          bookId = gbUpserted.id
+          row.book_id = bookId
+        } else {
+          row.title_manual  = bookData.title
+          row.author_manual = bookData.author || null
+        }
       } else {
-        // Manual entry — no OL data, store title/author directly
+        // Manual entry — no external data
         row.title_manual  = bookData.title
         row.author_manual = bookData.author || null
       }

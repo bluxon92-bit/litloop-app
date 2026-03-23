@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react'
+import { lookupByTitle, matchBookToOL } from '../../lib/importBooks'
 import { GENRES } from '../../lib/utils'
 import { ModalShell } from './BookSheet'
 import { startBackgroundImport } from '../../lib/importManager'
@@ -36,8 +37,12 @@ export default function AddBookModal({ defaultStatus, books, onAdd, onClose, use
   const [review, setReview] = useState('')
   const [showPrivateNotes, setShowPrivateNotes] = useState(false)
   const [date, setDate]     = useState(new Date().toISOString().split('T')[0])
-  const [olKey, setOlKey]   = useState(null)
-  const [coverId, setCoverId] = useState(null)
+  const [olKey, setOlKey]           = useState(null)
+  const [coverId, setCoverId]       = useState(null)
+  const [coverUrl, setCoverUrl]     = useState(null)
+  const [isbn, setIsbn]             = useState(null)
+  const [googleBooksId, setGoogleBooksId] = useState(null)
+  const [description, setDescription]     = useState(null)
   const [olDropdown, setOlDropdown] = useState([])
   const [error, setError]   = useState(null)
   const [dupPrompt, setDupPrompt] = useState(null) // { book, pendingData } — waiting for reread confirm
@@ -72,30 +77,78 @@ function cleanBookTitle(title) {
     .trim()
 }
 
-async function searchOL(q) {
-    if (q.length < 4) { setOlDropdown([]); return }
+async function searchBooks(q) {
+    if (q.length < 2) { setOlDropdown([]); return }
     try {
-      const cleanQ = cleanBookTitle(q)
-      // Try title search first for better precision, fall back to freetext
-      const url = `https://openlibrary.org/search.json?title=${encodeURIComponent(cleanQ)}&fields=key,title,author_name,first_publish_year,cover_i&limit=6&language=eng`
+      // Google Books primary — faster and better fuzzy matching
+      const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=8&printType=books&langRestrict=en`
       const res = await fetch(url)
       const data = await res.json()
-      setOlDropdown((data.docs || []).slice(0, 6))
+      const googleItems = (data.items || []).map(item => {
+        const info = item.volumeInfo || {}
+        const identifiers = info.industryIdentifiers || []
+        const isbn = identifiers.find(i => i.type === 'ISBN_13')?.identifier
+                  || identifiers.find(i => i.type === 'ISBN_10')?.identifier || null
+        const coverUrl = info.imageLinks?.thumbnail
+          ? info.imageLinks.thumbnail.replace('zoom=1', 'zoom=2').replace('http://', 'https://')
+          : null
+        return {
+          key: item.id,
+          title: info.title || '',
+          author_name: info.authors || [],
+          first_publish_year: info.publishedDate ? parseInt(info.publishedDate) : null,
+          description: info.description ? info.description.slice(0, 500) : null,
+          cover_i: null,
+          _coverUrl: coverUrl,
+          _isbn: isbn,
+          _googleId: item.id,
+        }
+      })
+
+      if (googleItems.length >= 3) { setOlDropdown(googleItems.slice(0, 7)); return }
+
+      // OL fallback if Google returns fewer than 3 results
+      try {
+        const olUrl = `https://openlibrary.org/search.json?title=${encodeURIComponent(q)}&fields=key,title,author_name,first_publish_year,cover_i&limit=6&language=eng`
+        const olRes = await fetch(olUrl)
+        const olData = await olRes.json()
+        const olItems = (olData.docs || []).map(doc => ({
+          key: doc.key,
+          title: doc.title || '',
+          author_name: doc.author_name || [],
+          first_publish_year: doc.first_publish_year || null,
+          cover_i: doc.cover_i || null,
+          description: null,
+          _coverUrl: null,
+          _isbn: null,
+          _googleId: null,
+        }))
+        // Merge — dedupe by title, Google results first
+        const seen = new Set(googleItems.map(i => i.title.toLowerCase()))
+        const merged = [...googleItems, ...olItems.filter(i => !seen.has(i.title.toLowerCase()))]
+        setOlDropdown(merged.slice(0, 7))
+      } catch { setOlDropdown(googleItems) }
+
     } catch { setOlDropdown([]) }
   }
 
   function handleTitleChange(v) {
     setTitle(v)
-    setOlKey(null); setCoverId(null)
+    setOlKey(null); setCoverId(null); setCoverUrl(null); setIsbn(null); setGoogleBooksId(null); setDescription(null)
     clearTimeout(olTimer.current)
-    olTimer.current = setTimeout(() => searchOL(v), 500)
+    // 280ms debounce — fast enough to feel instant, slow enough to avoid spamming
+    olTimer.current = setTimeout(() => searchBooks(v), 280)
   }
 
   function selectOL(doc) {
     setTitle(doc.title || '')
     setAuthor((doc.author_name || []).join(', ') || '')
-    setOlKey(doc.key || null)
+    setOlKey(doc._googleId ? null : (doc.key || null))
     setCoverId(doc.cover_i || null)
+    if (doc._coverUrl) setCoverUrl(doc._coverUrl)
+    if (doc._isbn) setIsbn(doc._isbn)
+    if (doc._googleId) setGoogleBooksId(doc._googleId)
+    if (doc.description) setDescription(doc.description)
     setOlDropdown([])
   }
 
@@ -115,8 +168,12 @@ async function searchOL(q) {
         notes:        (showPrivateNotes && notes.trim()) ? notes.trim() : null,
         dateRead:     status === 'read' ? (date || null) : null,
         dateStarted:  status === 'reading' ? new Date().toISOString().split('T')[0] : null,
-        olKey:        olKey || null,
-        coverId:      coverId || null,
+        olKey:         olKey        || null,
+        coverId:       coverId      || null,
+        coverUrl:      coverUrl     || null,
+        isbn:          isbn         || null,
+        googleBooksId: googleBooksId || null,
+        description:   description  || null,
       }
       const isTBRorReading = dup.status === 'tbr' || dup.status === 'reading'
       if (isTBRorReading) {
@@ -185,9 +242,9 @@ async function searchOL(q) {
             onChange={e => handleTitleChange(e.target.value)}
             autoComplete="off"
           />
-          {coverId && (
+          {(coverId || coverUrl) && (
             <img
-              src={`https://covers.openlibrary.org/b/id/${coverId}-S.jpg`}
+              src={coverUrl || `https://covers.openlibrary.org/b/id/${coverId}-S.jpg`}
               style={{ position: 'absolute', right: 8, top: 28, height: 38, borderRadius: 4, boxShadow: '0 1px 4px rgba(0,0,0,0.2)' }}
               alt=""
             />
@@ -199,7 +256,7 @@ async function searchOL(q) {
               borderRadius: 'var(--rt-r3)', boxShadow: 'var(--rt-s2)', maxHeight: 260, overflowY: 'auto'
             }}>
               {olDropdown.map((doc, i) => {
-                const coverSrc = doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-S.jpg` : null
+                const coverSrc = doc._coverUrl || (doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-S.jpg` : null)
                 return (
                   <div
                     key={i}

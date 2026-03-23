@@ -10,15 +10,12 @@ const SUPABASE_URL = import.meta.env.SUPABASE_URL
  *
  * Returns null on any failure (caller should fall back to OL URL).
  */
+// Upload from Open Library cover ID (primary path)
 export async function uploadCoverToSupabase(coverId, olKey) {
   if (!coverId || !olKey) return null
 
-  // olKey must look like a real OL key e.g. "/works/OL12345W"
-  // Guard prevents titles or other strings leaking in as folder names
   if (!String(olKey).match(/OL\d+[A-Z]/)) return null
 
-  // Build a storage-safe folder name: strip leading slash, replace remaining
-  // slashes with underscores, then remove any char that isn't alphanumeric/underscore/hyphen
   const safeFolder = String(olKey)
     .replace(/^\//, '')
     .replace(/\//g, '_')
@@ -28,25 +25,21 @@ export async function uploadCoverToSupabase(coverId, olKey) {
 
   const path = `${safeFolder}/${coverId}.jpg`
 
-  // Check if already uploaded (avoid re-uploading on every render)
   const { data: existing } = await sb.storage.from(BUCKET).list(safeFolder)
   if (existing?.some(f => f.name === `${coverId}.jpg`)) {
     return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`
   }
 
-  // Fetch from Open Library
   let blob
   try {
     const res = await fetch(`https://covers.openlibrary.org/b/id/${coverId}-M.jpg`)
     if (!res.ok) return null
     blob = await res.blob()
-    // OL returns a tiny 1x1 gif for missing covers — skip those
     if (blob.size < 1000) return null
   } catch {
     return null
   }
 
-  // Upload to Supabase Storage
   const { error: uploadError } = await sb.storage
     .from(BUCKET)
     .upload(path, blob, { contentType: 'image/jpeg', upsert: true })
@@ -58,11 +51,43 @@ export async function uploadCoverToSupabase(coverId, olKey) {
 
   const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`
 
-  // Persist the URL back to the books table so future loads skip OL entirely
-  await sb
-    .from('books')
-    .update({ cover_url: publicUrl })
-    .eq('ol_key', olKey)
+  await sb.from('books').update({ cover_url: publicUrl }).eq('ol_key', olKey)
+
+  return publicUrl
+}
+
+// Upload from a Google Books cover URL (fallback when no OL cover exists)
+// Uses google_books_id as the storage folder key
+export async function uploadGoogleCoverToSupabase(googleBooksId, coverUrl) {
+  if (!googleBooksId || !coverUrl) return null
+
+  const safeFolder = `google_${googleBooksId.replace(/[^a-zA-Z0-9_-]/g, '')}`
+  const path = `${safeFolder}/cover.jpg`
+
+  const { data: existing } = await sb.storage.from(BUCKET).list(safeFolder)
+  if (existing?.some(f => f.name === 'cover.jpg')) {
+    return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`
+  }
+
+  let blob
+  try {
+    const res = await fetch(coverUrl)
+    if (!res.ok) return null
+    blob = await res.blob()
+    if (blob.size < 1000) return null
+  } catch {
+    return null
+  }
+
+  const { error: uploadError } = await sb.storage
+    .from(BUCKET)
+    .upload(path, blob, { contentType: 'image/jpeg', upsert: true })
+
+  if (uploadError) return null
+
+  const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`
+
+  await sb.from('books').update({ cover_url: publicUrl }).eq('google_books_id', googleBooksId)
 
   return publicUrl
 }
