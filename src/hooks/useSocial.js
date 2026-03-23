@@ -266,27 +266,35 @@ export function useSocial(user) {
   }
 
   // ── Add friend via @username (uses RPC to bypass RLS) ────────
+  const _sendingRef = useRef(false)
   async function sendFriendRequest(raw) {
-    const lookup = raw.trim().replace(/^@/, '').toLowerCase()
-    if (!lookup) return { error: 'Enter a username' }
+    if (_sendingRef.current) return { error: 'Already sending, please wait.' }
+    _sendingRef.current = true
+    try {
+      const lookup = raw.trim().replace(/^@/, '').toLowerCase()
+      if (!lookup) return { error: 'Enter a username' }
 
-    const { data: targetId, error: rpcErr } = await sb.rpc('find_user_by_username', { p_username: lookup })
-    if (rpcErr) return { error: 'Search failed: ' + rpcErr.message }
-    if (!targetId) return { error: `No account found for "@${lookup}"` }
-    if (targetId === user.id) return { error: "That's you! Try a friend's username." }
-    if (friends.find(f => f.userId === targetId)) return { error: "You're already friends with this person." }
+      const { data: targetId, error: rpcErr } = await sb.rpc('find_user_by_username', { p_username: lookup })
+      if (rpcErr) return { error: 'Search failed: ' + rpcErr.message }
+      if (!targetId) return { error: `No account found for "@${lookup}"` }
+      if (targetId === user.id) return { error: "That's you! Try a friend's username." }
+      if (friends.find(f => f.userId === targetId)) return { error: "You're already friends with this person." }
+      if (outgoingPending.find(f => f.userId === targetId)) return { error: 'Friend request already sent.' }
 
-    const { error } = await sb.from('friendships').insert({
-      requester_id: user.id,
-      addressee_id: targetId,
-      status: 'pending'
-    })
-    if (error) {
-      if (error.code === '23505') return { error: 'Friend request already sent.' }
-      return { error: error.message }
+      const { error } = await sb.from('friendships').insert({
+        requester_id: user.id,
+        addressee_id: targetId,
+        status: 'pending'
+      })
+      if (error) {
+        if (error.code === '23505') return { error: 'Friend request already sent.' }
+        return { error: error.message }
+      }
+      await loadSocialData()
+      return { success: `✓ Friend request sent to @${lookup}!` }
+    } finally {
+      _sendingRef.current = false
     }
-    await loadSocialData()
-    return { success: `✓ Friend request sent to @${lookup}!` }
   }
 
   async function acceptFriendRequest(friendshipId) {

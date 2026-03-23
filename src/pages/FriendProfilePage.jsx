@@ -86,8 +86,39 @@ function FeedEngagementBar({ entryId, user, onOpenThread }) {
   )
 }
 
+// ── Spoiler-aware body ───────────────────────────────────────
+function SpoilerBody({ isSpoiler, isItalic, barCol = 'var(--rt-navy)', onClick, children }) {
+  const [revealed, setRevealed] = useState(false)
+  const showBlur = isSpoiler && !revealed
+  return (
+    <div
+      onClick={showBlur ? e => { e.stopPropagation(); setRevealed(true) } : onClick}
+      style={{ borderLeft: `3px solid ${barCol}`, paddingLeft: '0.5rem', cursor: 'pointer', position: 'relative' }}
+    >
+      <p style={{
+        fontSize: '0.82rem', color: 'var(--rt-navy)', lineHeight: 1.6, margin: 0,
+        display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden',
+        fontStyle: isItalic ? 'italic' : 'normal', fontFamily: isItalic ? 'Georgia, serif' : 'inherit',
+        filter: showBlur ? 'blur(4px)' : 'none', userSelect: showBlur ? 'none' : 'auto', transition: 'filter 0.2s',
+      }}>
+        {children}
+      </p>
+      {showBlur && (
+        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--rt-t3)', background: 'var(--rt-white)', border: '1px solid var(--rt-border)', borderRadius: 99, padding: '0.15em 0.6em', letterSpacing: '0.04em' }}>
+            ⚠ Spoiler — tap to reveal
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function FriendProfilePage({ friend, onBack, onOpenChatModal, chats, user, books: myBooks, onStartChat, onViewChat, onAddToTBR, onViewProfile, onAddFriend, myAvatarUrl, myDisplayName }) {
   const { friends } = useSocialContext()
+  const [activeTab, setActiveTab]       = useState('reviews')
+  const [moments, setMoments]           = useState(null)
+  const [momentsLoading, setMomentsLoading] = useState(false)
   const [entries, setEntries]       = useState(null)
   const [profile, setProfile]       = useState(null)
   const [favBooks, setFavBooks]     = useState([])
@@ -97,6 +128,23 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
   const [activeReview, setActiveReview] = useState(null)
 
   useEffect(() => { if (friend?.userId) load() }, [friend?.userId])
+
+  useEffect(() => {
+    if (activeTab === 'moments' && moments === null && friend?.userId) loadMoments()
+  }, [activeTab, friend?.userId])
+
+  async function loadMoments() {
+    setMomentsLoading(true)
+    const { data, error } = await sb
+      .from('feed_events')
+      .select('id, event_type, book_ol_key, book_title, book_author, cover_id, moment_id, moment_type, moment_body, page_ref, spoiler_warning, created_at')
+      .eq('user_id', friend.userId)
+      .eq('event_type', 'book_moment')
+      .order('created_at', { ascending: false })
+      .limit(50)
+    if (!error) setMoments(data || [])
+    setMomentsLoading(false)
+  }
 
   async function load() {
     setLoading(true); setError(null)
@@ -360,10 +408,27 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
             </div>
           )}
 
-          {/* ── Reviews ── */}
-          {reviews.length > 0 && (
+          {/* ── Tabs ── */}
+          {(() => {
+            const tabStyle = (active) => ({
+              flex: 1, padding: '0.65rem 0', textAlign: 'center',
+              fontSize: '0.82rem', fontWeight: 600,
+              color: active ? 'var(--rt-navy)' : 'var(--rt-t3)',
+              borderBottom: active ? '2px solid var(--rt-amber)' : '2px solid transparent',
+              background: 'none', border: 'none',
+              cursor: 'pointer', transition: 'color 0.15s',
+            })
+            return (
+              <div style={{ display: 'flex', borderBottom: '1px solid var(--rt-border)', marginBottom: '1rem' }}>
+                <button style={tabStyle(activeTab === 'reviews')} onClick={() => setActiveTab('reviews')}>Reviews</button>
+                <button style={tabStyle(activeTab === 'moments')} onClick={() => setActiveTab('moments')}>Moments</button>
+              </div>
+            )
+          })()}
+
+          {/* ── Reviews tab ── */}
+          {activeTab === 'reviews' && reviews.length > 0 && (
             <div style={{ marginBottom: '1.1rem' }}>
-              <SLabel style={{ marginBottom: '0.75rem' }}>{friend.displayName.split(' ')[0]}'s reviews</SLabel>
               {reviews.map((b, i) => {
                 const stars = b.rating > 0 ? '★'.repeat(b.rating) + '☆'.repeat(5 - b.rating) : null
                 const dateStr = b.reviewedAt ? fmtDate(b.reviewedAt) : null
@@ -405,8 +470,57 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
             </div>
           )}
 
-          {/* Empty state */}
-          {readingBooks.length === 0 && reviews.length === 0 && favBooks.length === 0 && (
+          {/* ── Moments tab ── */}
+          {activeTab === 'moments' && (
+            momentsLoading ? (
+              <div style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>Loading…</div>
+            ) : !moments || moments.length === 0 ? (
+              <div className="rt-card" style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>
+                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>✨</div>
+                {friend.displayName.split(' ')[0]} hasn't shared any moments yet.
+              </div>
+            ) : (
+              moments.map(ev => {
+                const isQuote  = ev.moment_type === 'quote'
+                const barCol   = isQuote ? 'var(--rt-amber)' : 'var(--rt-teal)'
+                const badgeBg  = isQuote ? 'var(--rt-amber-pale)' : '#e1f5ee'
+                const badgeCol = isQuote ? 'var(--rt-amber-text)' : '#085041'
+                const badgeTxt = isQuote ? 'Quote' : 'Reading update'
+                const isSpoiler = !!ev.spoiler_warning
+                const dateStr  = ev.created_at ? new Date(ev.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''
+                const coverId  = ev.cover_id || null
+                const olKey    = ev.book_ol_key || null
+                const openThread = () => setActiveReview({ entryId: ev.moment_id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, olKey, reviewBody: ev.moment_body, rating: null, reviewedAt: ev.created_at, reviewer: { userId: friend.userId, displayName: friend.displayName, avatarUrl: friend.avatarUrl } })
+                return (
+                  <div key={ev.id} style={{ background: 'var(--rt-white)', border: '1px solid var(--rt-border)', borderRadius: 12, padding: '0.75rem', marginBottom: '0.65rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
+                      <span style={{ background: badgeBg, color: badgeCol, borderRadius: 99, padding: '0.15em 0.55em', fontSize: '0.65rem', fontWeight: 700 }}>
+                        {badgeTxt}{ev.page_ref ? ` · ${ev.page_ref}%` : ''}
+                      </span>
+                      <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginLeft: 'auto' }}>{dateStr}</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: '0.6rem' }}>
+                      <div style={{ width: 80, height: 116, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.13)' }}>
+                        <CoverImage coverId={coverId} olKey={olKey} title={ev.book_title || ''} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.15rem' }}>{ev.book_title || ''}</div>
+                        {ev.book_author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>{ev.book_author}</div>}
+                        <SpoilerBody isSpoiler={isSpoiler} isItalic={isQuote} barCol={barCol} onClick={openThread}>
+                          {ev.moment_body}
+                        </SpoilerBody>
+                      </div>
+                    </div>
+                    <div style={{ height: '0.5px', background: 'var(--rt-border)', marginBottom: '0.5rem' }} />
+                    <FeedEngagementBar entryId={ev.moment_id} user={user} onOpenThread={openThread} />
+                  </div>
+                )
+              })
+            )
+          )}
+
+          {/* Empty state — only show on reviews tab when nothing at all */}
+          {activeTab === 'reviews' && readingBooks.length === 0 && reviews.length === 0 && favBooks.length === 0 && (
             <div className="rt-card" style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>
               <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📚</div>
               {friend.displayName} hasn't logged any books yet.

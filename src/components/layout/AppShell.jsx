@@ -88,11 +88,13 @@ function FabModal({ onClose, children, maxWidth = 480 }) {
 // ── FAB: Add Friend modal ─────────────────────────────────────
 function FabFriendModal({ onClose, sendFriendRequest, generateInviteLink }) {
   const { user } = useAuthContext()
-  const { friends } = useSocialContext()
+  const { friends, outgoingPending } = useSocialContext()
   const [input, setInput]               = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching]       = useState(false)
-  const [sentRequests, setSentRequests] = useState(new Set())
+  // Initialise with already-sent outgoing requests so re-opening the modal
+  // correctly shows those users as "Sent" rather than re-enabling the Add button
+  const [sentRequests, setSentRequests] = useState(() => new Set((outgoingPending || []).map(f => f.userId)))
   const [msg, setMsg]                   = useState(null)
   const [copied, setCopied]             = useState(false)
   const searchTimer                     = useRef(null)
