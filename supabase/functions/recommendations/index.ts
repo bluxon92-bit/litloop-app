@@ -27,14 +27,21 @@ serve(async (req) => {
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 1200,
         messages: [{ role: 'user', content: prompt }],
       }),
     });
 
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(`Anthropic API error ${res.status}: ${errData?.error?.message || res.statusText}`);
+    }
+
     const data = await res.json();
     const text = data.content?.find((c: any) => c.type === 'text')?.text || '';
+
+    if (!text) throw new Error('Empty content from Anthropic API');
 
     return new Response(
       JSON.stringify({ text }),

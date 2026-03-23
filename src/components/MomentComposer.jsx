@@ -43,8 +43,12 @@ export default function MomentComposer({ user, books, onClose, onPosted, presele
     }
   }, [step, momentType])
 
-  // Reset body when switching type
-  useEffect(() => { setBody('') }, [momentType])
+  // Reset body when user manually switches type — but not on initial mount (edit mode pre-fills body)
+  const isMounted = useRef(false)
+  useEffect(() => {
+    if (!isMounted.current) { isMounted.current = true; return }
+    setBody('')
+  }, [momentType])
 
   function selectBook(book) {
     setSelectedBook(book)
