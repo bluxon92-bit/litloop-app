@@ -1,23 +1,26 @@
 import { useState, useEffect } from 'react'
 import { sb } from '../lib/supabase'
 
-const SUPABASE_URL  = import.meta.env.SUPABASE_URL
-const SUPABASE_ANON = import.meta.env.SUPABASE_ANON
-
 async function callRecsAPI(prompt) {
+  // Derive URL and key from the existing Supabase client to avoid env var issues
+  const supabaseUrl  = sb.supabaseUrl
+  const supabaseKey  = sb.supabaseKey
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 20000)
   try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/recommendations`, {
+    const res = await fetch(`${supabaseUrl}/functions/v1/recommendations`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON}`,
+        'Authorization': `Bearer ${supabaseKey}`,
       },
       body: JSON.stringify({ prompt }),
       signal: controller.signal,
     })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}))
+      throw new Error(errData?.error || errData?.message || `HTTP ${res.status}`)
+    }
     const data = await res.json()
     const text = data.text || ''
     if (!text) throw new Error('Empty response from AI')
