@@ -22,6 +22,7 @@ export function useSocial(user) {
   const [notificationPrefs, setNotificationPrefs]   = useState({
     messages: true, friend_requests: true, recommendations: true, review_comments: true
   })
+  const [blockedIds, setBlockedIds] = useState([])
   const channelRef                          = useRef(null)
   const recsChannelRef                      = useRef(null)
   const notifChannelRef                     = useRef(null)
@@ -37,6 +38,7 @@ export function useSocial(user) {
     loadProfile()
     loadSocialData()
     loadNotifications()
+    loadBlocks()
     setupRealtime()
     handleInviteParam()
     return () => {
@@ -271,15 +273,25 @@ export function useSocial(user) {
     if (_sendingRef.current) return { error: 'Already sending, please wait.' }
     _sendingRef.current = true
     try {
-      const lookup = raw.trim().replace(/^@/, '').toLowerCase()
+      const lookup = raw.trim().replace(/^@/, '')
       if (!lookup) return { error: 'Enter a username' }
 
-      const { data: targetId, error: rpcErr } = await sb.rpc('find_user_by_username', { p_username: lookup })
-      if (rpcErr) return { error: 'Search failed: ' + rpcErr.message }
-      if (!targetId) return { error: `No account found for "@${lookup}"` }
+      // UUID pattern — bypass username lookup, use id directly
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lookup)
+      let targetId
+
+      if (isUuid) {
+        targetId = lookup
+      } else {
+        const { data, error: rpcErr } = await sb.rpc('find_user_by_username', { p_username: lookup.toLowerCase() })
+        if (rpcErr) return { error: 'Search failed: ' + rpcErr.message }
+        if (!data) return { error: `No account found for "@${lookup}"` }
+        targetId = data
+      }
+
       if (targetId === user.id) return { error: "That's you! Try a friend's username." }
       if (friends.find(f => f.userId === targetId)) return { error: "You're already friends with this person." }
-      if (outgoingPending.find(f => f.userId === targetId)) return { error: 'Friend request already sent.' }
+      if (outgoingPending.find(f => f.addresseeId === targetId)) return { error: 'Friend request already sent.' }
 
       const { error } = await sb.from('friendships').insert({
         requester_id: user.id,
@@ -291,7 +303,7 @@ export function useSocial(user) {
         return { error: error.message }
       }
       await loadSocialData()
-      return { success: `✓ Friend request sent to @${lookup}!` }
+      return { success: `✓ Friend request sent!` }
     } finally {
       _sendingRef.current = false
     }
@@ -465,6 +477,46 @@ export function useSocial(user) {
     return { error: error?.message || null }
   }
 
+  // ── Block / Report ───────────────────────────────────────────
+  async function loadBlocks() {
+    const { data } = await sb
+      .from('blocks')
+      .select('blocked_id')
+      .eq('blocker_id', user.id)
+    setBlockedIds((data || []).map(b => b.blocked_id))
+  }
+
+  async function blockUser(targetId) {
+    if (!targetId || targetId === user.id) return { error: 'Invalid user' }
+    const { error } = await sb
+      .from('blocks')
+      .insert({ blocker_id: user.id, blocked_id: targetId })
+    if (!error) setBlockedIds(prev => [...new Set([...prev, targetId])])
+    return { error: error?.message || null }
+  }
+
+  async function unblockUser(targetId) {
+    const { error } = await sb
+      .from('blocks')
+      .delete()
+      .eq('blocker_id', user.id)
+      .eq('blocked_id', targetId)
+    if (!error) setBlockedIds(prev => prev.filter(id => id !== targetId))
+    return { error: error?.message || null }
+  }
+
+  async function submitReport({ reportedUserId, contentType, contentId, reason, note }) {
+    const { error } = await sb.from('reports').insert({
+      reporter_id:      user.id,
+      reported_user_id: reportedUserId || null,
+      content_type:     contentType    || null,
+      content_id:       contentId      || null,
+      reason,
+      note:             note           || null,
+    })
+    return { error: error?.message || null }
+  }
+
   return {
     friends, pending, outgoingPending, feed, recs, notifications, loaded,
     myUsername, myDisplayName, myFirstName, myLastName, myBio, myAvatarUrl, topBookIds, preferredMoods, setPreferredMoods, profileLoaded,
@@ -474,5 +526,6 @@ export function useSocial(user) {
     dismissRec, acceptRecToTBR, sendRec,
     saveProfile, completeOnboarding, onboardingComplete, saveFavBooks, uploadAvatar, generateInviteLink,
     loadNotifications, markNotificationsRead,
+    blockedIds, blockUser, unblockUser, submitReport,
   }
 }

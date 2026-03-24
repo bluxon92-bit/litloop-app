@@ -4,6 +4,7 @@ import { avatarColour, avatarInitial, fmtDate, timeAgo } from '../lib/utils'
 import CoverImage from './books/CoverImage'
 import BookDetailPanel from './books/BookDetailPanel'
 import { ModalShell } from './books/BookSheet'
+import ReportSheet from './ReportSheet'
 
 // ── Heart icon ────────────────────────────────────────────────
 function HeartIcon({ filled, size = 15 }) {
@@ -48,6 +49,7 @@ export default function ReviewThreadSheet({
   onViewChat,
   onViewProfile,
   onAddFriend,
+  submitReport,
 }) {
   const [comments, setComments]         = useState([])
   const [reviewLikes, setReviewLikes]   = useState([])
@@ -56,6 +58,7 @@ export default function ReviewThreadSheet({
   const [showBookDetail, setShowBookDetail] = useState(false)
   const [likingReview, setLikingReview] = useState(false)
   const [likingComment, setLikingComment] = useState(null) // comment id being liked
+  const [reportTarget, setReportTarget] = useState(null)
   const commentsEndRef = useRef(null)
   const textareaRef    = useRef(null)
 
@@ -84,7 +87,7 @@ export default function ReviewThreadSheet({
 
     if (data && data.length > 0) {
       // Fetch profiles separately via RPC to avoid cross-schema join issues
-      const userIds = [...new Set(data.map(c => c.user_id))]
+      const userIds = [...new Set(data.map(c => c.user_id).filter(Boolean))]
       let profileMap = {}
       const { data: profiles } = await sb.rpc('get_profiles_by_ids', { user_ids: userIds })
       ;(profiles || []).forEach(p => { profileMap[p.id] = p })
@@ -161,8 +164,8 @@ export default function ReviewThreadSheet({
       setComments(prev => prev.map(c =>
         c.id === comment.id ? { ...c, likes: [...c.likes, { user_id: user.id }] } : c
       ))
-      // Notify comment author if not self
-      if (comment.user_id !== user.id) {
+      // Notify comment author if not self and not deleted
+      if (comment.user_id && comment.user_id !== user.id) {
         await sb.from('notifications').insert({
           user_id:    comment.user_id,
           actor_id:   user.id,
@@ -257,7 +260,16 @@ export default function ReviewThreadSheet({
   }
 
   return (
-    <ModalShell onClose={onClose} maxWidth={520}>
+    <>
+      <ReportSheet
+        open={!!reportTarget}
+        onClose={() => setReportTarget(null)}
+        title="Report comment"
+        onSubmit={async (reason, note) => {
+          if (submitReport) await submitReport({ ...reportTarget, reason, note })
+        }}
+      />
+      <ModalShell onClose={onClose} maxWidth={520}>
       {/* ── Navy book header ── */}
       <div style={{
         background: 'linear-gradient(160deg, #111C35 0%, var(--rt-navy) 100%)',
@@ -360,27 +372,28 @@ export default function ReviewThreadSheet({
           )}
 
           {comments.map(c => {
-            const name       = c.profiles?.display_name || c.profiles?.username || 'Someone'
-            const avUrl      = c.profiles?.avatar_url || null
-            const isFriend   = friendIds.has(c.user_id)
-            const isMe       = c.user_id === user?.id
+            const isDeleted  = c.user_id === null
+            const name       = isDeleted ? 'Deleted user' : (c.profiles?.display_name || c.profiles?.username || 'Someone')
+            const avUrl      = isDeleted ? null : (c.profiles?.avatar_url || null)
+            const isFriend   = !isDeleted && friendIds.has(c.user_id)
+            const isMe       = !isDeleted && c.user_id === user?.id
             const myComLike  = c.likes.find(l => l.user_id === user?.id)
             const comLikeCount = c.likes.length
 
             return (
               <div key={c.id} style={{ display: 'flex', gap: '0.55rem', marginBottom: '1rem' }}>
-                <Avatar userId={c.user_id} displayName={name} avatarUrl={avUrl} size={24} />
+                <Avatar userId={isDeleted ? 'deleted' : c.user_id} displayName={name} avatarUrl={avUrl} size={24} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {/* Name row */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.2rem', flexWrap: 'wrap' }}>
-                    <button
-                      onClick={() => !isMe && onViewProfile?.({ userId: c.user_id, displayName: name, avatarUrl: avUrl })}
-                      style={{ background: 'none', border: 'none', padding: 0, cursor: (!isMe && onViewProfile) ? 'pointer' : 'default', fontSize: '0.82rem', fontWeight: 700, color: 'var(--rt-navy)', textDecoration: (!isMe && onViewProfile) ? 'underline' : 'none', textUnderlineOffset: 2 }}
+                    <span
+                      onClick={() => !isDeleted && !isMe && onViewProfile?.({ userId: c.user_id, displayName: name, avatarUrl: avUrl })}
+                      style={{ background: 'none', border: 'none', padding: 0, cursor: (!isDeleted && !isMe && onViewProfile) ? 'pointer' : 'default', fontSize: '0.82rem', fontWeight: 700, color: isDeleted ? 'var(--rt-t3)' : 'var(--rt-navy)', textDecoration: (!isDeleted && !isMe && onViewProfile) ? 'underline' : 'none', textUnderlineOffset: 2 }}
                     >
                       {name}
-                    </button>
-                    {/* Add friend pill for non-friends */}
-                    {!isFriend && !isMe && (
+                    </span>
+                    {/* Add friend pill — not shown for deleted users */}
+                    {!isDeleted && !isFriend && !isMe && (
                       <button
                         onClick={() => onAddFriend?.({ userId: c.user_id, displayName: name, avatarUrl: avUrl })}
                         style={{ fontSize: '0.6rem', fontWeight: 700, background: 'var(--rt-surface)', border: '1px solid var(--rt-border-md)', borderRadius: 99, padding: '0.1rem 0.45rem', color: 'var(--rt-t2)', cursor: 'pointer', whiteSpace: 'nowrap' }}
@@ -392,17 +405,25 @@ export default function ReviewThreadSheet({
                   </div>
                   {/* Comment body */}
                   <p style={{ fontSize: '0.85rem', color: 'var(--rt-navy)', lineHeight: 1.5, margin: '0 0 0.3rem' }}>{c.body}</p>
-                  {/* Comment like */}
-                  <button
-                    onClick={() => toggleCommentLike(c)}
-                    disabled={likingComment === c.id}
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: myComLike ? '#C84B4B' : 'var(--rt-t3)' }}
-                  >
-                    <HeartIcon filled={!!myComLike} size={12} />
-                    {comLikeCount > 0 && (
-                      <span style={{ fontSize: '0.7rem', color: myComLike ? '#C84B4B' : 'var(--rt-t3)' }}>{comLikeCount}</span>
+                  {/* Comment like + report row */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <button
+                      onClick={() => toggleCommentLike(c)}
+                      disabled={likingComment === c.id}
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: 'none', border: 'none', cursor: 'pointer', padding: 0, color: myComLike ? '#C84B4B' : 'var(--rt-t3)' }}
+                    >
+                      <HeartIcon filled={!!myComLike} size={12} />
+                      {comLikeCount > 0 && (
+                        <span style={{ fontSize: '0.7rem', color: myComLike ? '#C84B4B' : 'var(--rt-t3)' }}>{comLikeCount}</span>
+                      )}
+                    </button>
+                    {!isDeleted && !isMe && submitReport && (
+                      <button
+                        onClick={() => setReportTarget({ reportedUserId: c.user_id, contentType: 'comment', contentId: c.id })}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.68rem', color: 'var(--rt-t3)', padding: 0, marginLeft: 'auto' }}
+                      >Report</button>
                     )}
-                  </button>
+                  </div>
                 </div>
               </div>
             )
@@ -440,5 +461,6 @@ export default function ReviewThreadSheet({
         </button>
       </div>
     </ModalShell>
+    </>
   )
 }

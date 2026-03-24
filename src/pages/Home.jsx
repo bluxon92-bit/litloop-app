@@ -12,6 +12,7 @@ import BookSheet, { FinishModal } from '../components/books/BookSheet'
 import ReviewThreadSheet from '../components/ReviewThreadSheet'
 import { IcoOpenBook } from '../components/icons'
 import MomentComposer from '../components/MomentComposer'
+import ReportSheet from '../components/ReportSheet'
 
 // ── Engagement bar — likes + comments ─────────────────────────
 function SpoilerBody({ isSpoiler, isItalic, barCol = 'var(--rt-navy)', onClick, children }) {
@@ -100,7 +101,7 @@ function FeedEngagementBar({ entryId, user, onOpenThread }) {
 export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile, onAddFriend, pendingReviewOpen }) {
   const { user } = useAuthContext()
   const { books, addBook, updateBook, deleteBook, findDuplicate } = useBooksContext()
-  const { friends, feed, recs, loaded: socialLoaded, myDisplayName, myAvatarUrl, sendFriendRequest } = useSocialContext()
+  const { friends, feed, recs, loaded: socialLoaded, myDisplayName, myAvatarUrl, sendFriendRequest, submitReport, blockedIds } = useSocialContext()
   const { chats, totalUnread, startOrOpenChat } = useChatContext()
 
   const [goal, setGoal]                     = useState(loadGoal)
@@ -109,6 +110,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
   const [detailLocation, setDetailLocation] = useState(null)
   const [finishBook, setFinishBook]         = useState(null)
   const [editBook, setEditBook]             = useState(null)
+  const [reportTarget, setReportTarget]     = useState(null) // { userId, contentType, contentId }
   const [addModal, setAddModal]             = useState(false)
   const [crCarouselIdx, setCrCarouselIdx]   = useState(0)
   const [toast, setToast]                   = useState(null)
@@ -207,12 +209,14 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
 
   // Feed: moments pass through unfiltered; reviews deduplicate (prefer posted_review over finished)
   const reviewEvents = (() => {
+    const blocked = new Set(blockedIds || [])
     const moments = (feed || []).filter(ev =>
-      friendIds.has(ev.user_id) && ev.event_type === 'book_moment'
+      friendIds.has(ev.user_id) && ev.event_type === 'book_moment' && !blocked.has(ev.user_id)
     )
     const reviews = (feed || []).filter(ev =>
       friendIds.has(ev.user_id) &&
-      (ev.event_type === 'posted_review' || ev.event_type === 'finished')
+      (ev.event_type === 'posted_review' || ev.event_type === 'finished') &&
+      !blocked.has(ev.user_id)
     )
     const seen = new Map()
     for (const ev of reviews) {
@@ -236,6 +240,17 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
 
   return (
     <div className="rt-page" style={{ maxWidth: 760, margin: '0 auto' }}>
+
+      {/* ── Modals ── */}
+      <ReportSheet
+        open={!!reportTarget}
+        onClose={() => setReportTarget(null)}
+        title="Report content"
+        description="Help us understand what's wrong."
+        onSubmit={async (reason, note) => {
+          await submitReport({ ...reportTarget, reason, note })
+        }}
+      />
 
       {/* ── Welcome header ── */}
       <div style={{ marginBottom: '1.25rem' }}>
@@ -439,7 +454,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
                 const openThread = () => setActiveReview({ entryId: ev.moment_id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, olKey, reviewBody: ev.moment_body, rating: null, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })
                 return (
                   <div key={ev.id} style={cardStyle}>
-                    {/* Top row: badge · avatar username · date */}
+                    {/* Top row: badge · avatar username · date · report */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
                       <span style={{ background: badgeBg, color: badgeCol, borderRadius: 99, padding: '0.15em 0.55em', fontSize: '0.65rem', fontWeight: 700 }}>
                         {badgeTxt}{ev.page_ref ? ` · ${ev.page_ref}%` : ''}
@@ -448,6 +463,11 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
                       {avatarEl}
                       {usernameEl}
                       <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginLeft: 'auto' }}>{dateStr}</span>
+                      <button
+                        onClick={e => { e.stopPropagation(); setReportTarget({ reportedUserId: ev.user_id, contentType: 'feed_event', contentId: ev.id }) }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rt-t3)', fontSize: '1rem', padding: '0 0.1rem', lineHeight: 1 }}
+                        title="Report"
+                      >⋯</button>
                     </div>
                     {/* Book row: cover centred with meta */}
                     <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: '0.6rem' }}>
@@ -480,7 +500,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
 
               return (
                 <div key={ev.id} style={cardStyle}>
-                  {/* Top row: stars/dnf · avatar username · date */}
+                  {/* Top row: stars/dnf · avatar username · date · report */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
                     {isDnfEvent
                       ? <span style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', background: '#fee2e2', color: '#991b1b', borderRadius: 4, padding: '0.15em 0.5em' }}>Did not finish</span>
@@ -490,6 +510,11 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
                     {avatarEl}
                     {usernameEl}
                     <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginLeft: 'auto' }}>{dateStr}</span>
+                    <button
+                      onClick={e => { e.stopPropagation(); setReportTarget({ reportedUserId: ev.user_id, contentType: 'feed_event', contentId: ev.id }) }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rt-t3)', fontSize: '1rem', padding: '0 0.1rem', lineHeight: 1 }}
+                      title="Report"
+                    >⋯</button>
                   </div>
                   {/* Book row: cover centred with meta */}
                   <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: reviewText ? '0.6rem' : 0 }}
@@ -557,6 +582,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
           }}
           onViewProfile={f => { setActiveReview(null); onViewFriendProfile?.(f) }}
           onAddFriend={f => sendFriendRequest(f.username || f.userId)}
+          submitReport={submitReport}
         />
       )}
       {detailBook && (

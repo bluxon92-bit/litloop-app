@@ -207,6 +207,149 @@ function NotificationSettings({ user, notificationPrefs, setNotificationPrefs })
   )
 }
 
+// ── Delete Account Card ───────────────────────────────────────
+const CONFIRM_PHRASE = 'delete my account'
+
+function DeleteAccountCard({ user, signOut }) {
+  const [open, setOpen]           = useState(false)
+  const [confirmText, setConfirm] = useState('')
+  const [deleting, setDeleting]   = useState(false)
+  const [error, setError]         = useState(null)
+
+  const confirmed = confirmText.trim().toLowerCase() === CONFIRM_PHRASE
+
+  async function handleDelete() {
+    if (!confirmed || deleting) return
+    setDeleting(true)
+    setError(null)
+    try {
+      const { data: { session } } = await sb.auth.getSession()
+      const res = await fetch(
+        `${import.meta.env.SUPABASE_URL}/functions/v1/delete-account`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+        }
+      )
+      const json = await res.json()
+      if (!res.ok || json.error) {
+        setError(json.error || 'Something went wrong. Please try again or contact help@litloop.co.')
+        setDeleting(false)
+        return
+      }
+      // Auth user is gone — sign out locally to clear session state
+      await signOut()
+    } catch (err) {
+      setError('Network error — please check your connection and try again.')
+      setDeleting(false)
+    }
+  }
+
+  return (
+    <>
+      {/* Collapsed state — just a link */}
+      <div style={{ padding: '0.75rem 0 1.5rem', textAlign: 'center' }}>
+        <button
+          onClick={() => setOpen(true)}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--rt-t3)', textDecoration: 'underline', textUnderlineOffset: 3 }}
+        >
+          Delete account
+        </button>
+      </div>
+
+      {/* Confirmation sheet */}
+      {open && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.45)',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        }}
+          onClick={e => { if (e.target === e.currentTarget && !deleting) setOpen(false) }}
+        >
+          <div style={{
+            background: 'var(--rt-bg)',
+            borderRadius: '1.25rem 1.25rem 0 0',
+            padding: '1.75rem 1.5rem 2.5rem',
+            width: '100%', maxWidth: 480,
+            boxShadow: '0 -4px 32px rgba(0,0,0,0.15)',
+          }}>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <div>
+                <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: '#991b1b', marginBottom: '0.25rem' }}>
+                  Delete account
+                </div>
+                <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)' }}>This cannot be undone.</div>
+              </div>
+              {!deleting && (
+                <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.25rem', color: 'var(--rt-t3)', lineHeight: 1, padding: '0 0 0 1rem' }}>×</button>
+              )}
+            </div>
+
+            {/* What gets deleted */}
+            <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--rt-r3)', padding: '0.85rem 1rem', marginBottom: '1.25rem' }}>
+              <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#991b1b', marginBottom: '0.4rem' }}>The following will be permanently deleted:</div>
+              <ul style={{ margin: 0, paddingLeft: '1.1rem', fontSize: '0.76rem', color: '#7f1d1d', lineHeight: 1.7 }}>
+                <li>Your profile, username, and bio</li>
+                <li>Your entire reading list and progress</li>
+                <li>All your reviews and ratings</li>
+                <li>All friendships and friend requests</li>
+                <li>Book recommendations sent and received</li>
+                <li>Your notification settings and devices</li>
+              </ul>
+            </div>
+
+            {/* Confirmation input */}
+            <div style={{ marginBottom: '1rem' }}>
+              <label style={{ display: 'block', fontSize: '0.78rem', color: 'var(--rt-t2)', marginBottom: '0.4rem' }}>
+                Type <strong>delete my account</strong> to confirm:
+              </label>
+              <input
+                className="rt-input"
+                style={{ width: '100%' }}
+                placeholder="delete my account"
+                value={confirmText}
+                onChange={e => setConfirm(e.target.value)}
+                disabled={deleting}
+                autoCapitalize="none"
+                autoCorrect="off"
+              />
+            </div>
+
+            {error && (
+              <div style={{ fontSize: '0.78rem', color: '#991b1b', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '0.5rem 0.75rem', marginBottom: '0.85rem' }}>
+                {error}
+              </div>
+            )}
+
+            <button
+              onClick={handleDelete}
+              disabled={!confirmed || deleting}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                borderRadius: 'var(--rt-r3)',
+                border: 'none',
+                fontWeight: 700,
+                fontSize: '0.9rem',
+                cursor: confirmed && !deleting ? 'pointer' : 'not-allowed',
+                background: confirmed && !deleting ? '#dc2626' : 'var(--rt-border-md)',
+                color: confirmed && !deleting ? '#fff' : 'var(--rt-t3)',
+                transition: 'background 0.2s',
+              }}
+            >
+              {deleting ? 'Deleting your account…' : 'Permanently delete my account'}
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 export default function AccountSettings({ onNavigate }) {
   const { user, signOut } = useAuthContext()
   const { myUsername, myFirstName, myLastName, myBio, saveProfile, notificationPrefs, setNotificationPrefs } = useSocialContext()
@@ -398,6 +541,9 @@ export default function AccountSettings({ onNavigate }) {
           Sign out
         </button>
       </div>
+
+      {/* Delete account */}
+      <DeleteAccountCard user={user} signOut={signOut} />
     </div>
   )
 }

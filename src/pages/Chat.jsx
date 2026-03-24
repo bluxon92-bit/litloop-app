@@ -12,6 +12,7 @@ import FriendProfilePage from '../pages/FriendProfilePage'
 import Clubs from '../pages/Clubs'
 import AddBookModal from '../components/books/AddBookModal'
 import { IcoOpenBook, IcoChat, IcoDoorExit, IcoUsers } from '../components/icons'
+import ReportSheet from '../components/ReportSheet'
 
 // ── Colours ───────────────────────────────────────────────────
 const MY_BUBBLE    = { bg: '#DEF0FF', color: '#1a2744' }   // pale blue
@@ -132,7 +133,7 @@ function AddParticipantsModal({ chat, friends, currentParticipantIds, onAdd, onC
 }
 
 // ── Chat Thread Modal ─────────────────────────────────────────
-export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend, onLoadEarlier, onDeleteMessage, loadParticipants, updateChatName, addParticipants, findExistingChat, onLeaveChat, onDeleteChat }) {
+export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend, onLoadEarlier, onDeleteMessage, loadParticipants, updateChatName, addParticipants, findExistingChat, onLeaveChat, onDeleteChat, onReport }) {
   const [msgInput, setMsgInput]         = useState('')
   const [participants, setParticipants] = useState([])
   const [participantsLoaded, setParticipantsLoaded] = useState(false)
@@ -297,6 +298,13 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
                     style={{ width: '100%', padding: '0.75rem 1rem', background: 'none', border: 'none', textAlign: 'left', fontSize: '0.85rem', color: 'var(--rt-navy)', fontWeight: 600, cursor: 'pointer', borderBottom: '1px solid var(--rt-border)' }}>
                     + Add members
                   </button>
+                  {onReport && participants.filter(p => p.userId !== user?.id).map(p => (
+                    <button key={p.userId}
+                      onClick={() => { onReport({ reportedUserId: p.userId, contentType: 'user', contentId: null }); setShowMenu(false) }}
+                      style={{ width: '100%', padding: '0.75rem 1rem', background: 'none', border: 'none', textAlign: 'left', fontSize: '0.85rem', color: 'var(--rt-t2)', fontWeight: 500, cursor: 'pointer', borderBottom: '1px solid var(--rt-border)' }}>
+                      Report {p.displayName.split(' ')[0]}
+                    </button>
+                  ))}
                   <button onClick={() => { setMenuAction('leave'); setShowMenu(false) }}
                     style={{ width: '100%', padding: '0.75rem 1rem', background: 'none', border: 'none', textAlign: 'left', fontSize: '0.85rem', color: '#dc2626', fontWeight: 600, cursor: 'pointer' }}>
                     <IcoDoorExit size={14} color="#dc2626" style={{ marginRight: '0.35rem', verticalAlign: 'middle' }} /> Leave chat
@@ -470,7 +478,8 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend, in
   const {
     friends = [], pending = [], outgoingPending = [], feed,
     sendFriendRequest, acceptFriendRequest, declineFriendRequest,
-    removeFriend, acceptRecToTBR, generateInviteLink, loaded: socialLoaded
+    removeFriend, acceptRecToTBR, generateInviteLink, loaded: socialLoaded,
+    submitReport,
   }                                              = useSocialContext()
   const {
     chats = [], messages,
@@ -490,9 +499,10 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend, in
   const friendSearchTimer                     = useRef(null)
   const [dismissedAccepted, setDismissedAccepted] = useState(new Set())
   const [friendSheet, setFriendSheet]         = useState(null)
-  const [friendProfileFriend, setFriendProfileFriend] = useState(initialFriendProfile) // friend to view full profile
+  const [friendProfileFriend, setFriendProfileFriend] = useState(initialFriendProfile)
   const [addModal, setAddModal]               = useState(false)
   const [activeChatModal, setActiveChatModal] = useState(null)
+  const [reportTarget, setReportTarget]       = useState(null)
 
   function openChatModal(chat) {
     openThread(chat.id)
@@ -566,13 +576,24 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend, in
           } 
         }}
         onAddToTBR={({ title, author, olKey, coverId }) => addBook({ title, author, status: 'tbr', olKey, coverId })}
-        onAddFriend={f => sendFriendRequest(f.username || f.userId)}
+        onAddFriend={async f => {
+          const result = await sendFriendRequest(f.username || f.userId)
+          return result
+        }}
       />
     )
   }
 
   return (
     <div className="rt-page" style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 100px)' }}>
+      <ReportSheet
+        open={!!reportTarget}
+        onClose={() => setReportTarget(null)}
+        title="Report"
+        onSubmit={async (reason, note) => {
+          await submitReport?.({ ...reportTarget, reason, note })
+        }}
+      />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 1.25rem' }}>
         <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: 0 }}>Chat</h2>
         <button onClick={onAddFriend} style={{ background: 'var(--rt-amber-pale)', border: 'none', borderRadius: 99, padding: '0.25rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--rt-amber)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
@@ -868,6 +889,7 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend, in
           addParticipants={addParticipants}
           findExistingChat={findExistingChat}
           onLeaveChat={leaveChat}
+          onReport={(target) => setReportTarget(target)}
         />
       )}
 
