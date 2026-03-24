@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { sb } from '../lib/supabase'
 import { avatarColour, avatarInitial, fmtDate } from '../lib/utils'
 import CoverImage from '../components/books/CoverImage'
@@ -293,8 +294,8 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
         }}
       />
 
-      {blockConfirm && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}
+      {blockConfirm && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}
           onClick={e => { if (e.target === e.currentTarget) setBlockConfirm(false) }}>
           <div style={{ background: 'var(--rt-bg)', borderRadius: 16, padding: '1.5rem', width: '100%', maxWidth: 360, boxShadow: '0 16px 48px rgba(0,0,0,0.25)' }}>
             <div style={{ fontFamily: 'var(--rt-font-display)', fontWeight: 700, fontSize: '1rem', color: 'var(--rt-navy)', marginBottom: '0.5rem' }}>
@@ -320,7 +321,8 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: '3rem' }} onClick={() => setShowHeroMenu(false)}>
