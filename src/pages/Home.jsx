@@ -239,6 +239,16 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
   const showGenreBlock = genreEntries.length > 0
 
   return (
+    <>
+    <ReportSheet
+        open={!!reportTarget}
+        onClose={() => setReportTarget(null)}
+        title="Report content"
+        description="Help us understand what's wrong."
+        onSubmit={async (reason, note) => {
+          await submitReport({ ...reportTarget, reason, note })
+        }}
+      />
     <div className="rt-page" style={{ maxWidth: 760, margin: '0 auto' }}>
 
       {/* ── Welcome header ── */}
@@ -537,15 +547,6 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
       )}
 
       {/* ── Modals ── */}
-      <ReportSheet
-        open={!!reportTarget}
-        onClose={() => setReportTarget(null)}
-        title="Report content"
-        description="Help us understand what's wrong."
-        onSubmit={async (reason, note) => {
-          await submitReport({ ...reportTarget, reason, note })
-        }}
-      />
       {activeReview && (
         <ReviewThreadSheet
           review={activeReview}
@@ -680,5 +681,6 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
         />
       )}
     </div>
+    </>
   )
 }

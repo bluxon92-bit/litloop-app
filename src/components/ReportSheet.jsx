@@ -9,7 +9,6 @@
 //   description   — optional string shown below title
 
 import { useState } from 'react'
-import { createPortal } from 'react-dom'
 
 const REASONS = [
   { value: 'harassment',    label: 'Harassment or bullying' },
@@ -39,7 +38,7 @@ export default function ReportSheet({ open, onClose, onSubmit, title = 'Report',
     onClose()
   }
 
-  return createPortal(
+  return (
     <>
       <style>{`
         .rt-report-backdrop { position:fixed; inset:0; z-index:1300; background:rgba(0,0,0,0.5); display:flex; align-items:flex-end; justify-content:center; }
@@ -140,7 +139,6 @@ export default function ReportSheet({ open, onClose, onSubmit, title = 'Report',
           )}
         </div>
       </div>
-    </>,
-    document.body
+    </>
   )
 }
