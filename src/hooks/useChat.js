@@ -10,6 +10,8 @@ export function useChat(user) {
   const channelRef                  = useRef(null)  // active thread subscription
   const listChannelRef              = useRef(null)  // new-thread realtime subscription
 
+  const recentlyReadRef = useRef({}) // chatId -> timestamp of markChatRead call
+
   useEffect(() => {
     if (user) {
       loadChatList()
@@ -67,21 +69,26 @@ export function useChat(user) {
 
       const mapped = (participations || [])
         .filter(p => p.chat)
-        .map(p => ({
-          id:                 p.chat.id,
-          bookOlKey:          p.chat.book_ol_key,
-          bookTitle:          p.chat.book_title  || p.chat.book_ol_key || 'Unknown book',
-          bookAuthor:         p.chat.book_author || '',
-          coverId:            p.chat.cover_id,
-          coverIdRaw:         p.chat.cover_id,
-          chatName:           p.chat.chat_name   || null,
-          lastMessagePreview: p.chat.last_message_preview,
-          lastMessageAt:      p.chat.last_message_at,
-          lastUserId:         p.chat.last_message_user_id,
-          unread:             unreadMap[p.chat.id] || 0,
-          participantIds:     (p.chat.participants || []).map(pp => pp.user_id),
-          participants:       [], // will be enriched below
-        }))
+        .map(p => {
+          // If we marked this chat read within the last 5 seconds, preserve zero
+          const recentRead = recentlyReadRef.current[p.chat.id]
+          const preserveZero = recentRead && (Date.now() - recentRead < 5000)
+          return {
+            id:                 p.chat.id,
+            bookOlKey:          p.chat.book_ol_key,
+            bookTitle:          p.chat.book_title  || p.chat.book_ol_key || 'Unknown book',
+            bookAuthor:         p.chat.book_author || '',
+            coverId:            p.chat.cover_id,
+            coverIdRaw:         p.chat.cover_id,
+            chatName:           p.chat.chat_name   || null,
+            lastMessagePreview: p.chat.last_message_preview,
+            lastMessageAt:      p.chat.last_message_at,
+            lastUserId:         p.chat.last_message_user_id,
+            unread:             preserveZero ? 0 : (unreadMap[p.chat.id] || 0),
+            participantIds:     (p.chat.participants || []).map(pp => pp.user_id),
+            participants:       [],
+          }
+        })
         .sort((a, b) => {
           if (!a.lastMessageAt && !b.lastMessageAt) return 0
           if (!a.lastMessageAt) return 1
@@ -185,6 +192,7 @@ export function useChat(user) {
   }
 
   async function markChatRead(chatId) {
+    recentlyReadRef.current[chatId] = Date.now()
     await sb.from('chat_participants')
       .update({ last_read_at: new Date().toISOString() })
       .eq('chat_id', chatId)
