@@ -269,15 +269,18 @@ export function useChat(user) {
         })
         if (existing) return existing.id
       }
-      const { data: nc, error } = await sb
-        .from('book_chats')
-        .insert({ book_ol_key: olKey, book_title: title, book_author: author, cover_id: coverId, chat_name: chatName || null })
-        .select('id').single()
+      const { data: chatId, error } = await sb
+        .rpc('start_or_join_chat', {
+          p_ol_key:     olKey,
+          p_title:      title      || null,
+          p_author:     author     || null,
+          p_cover_id:   coverId    || null,
+          p_friend_ids: friendIds  || [],
+        })
       if (error) throw error
-      const chatId = nc.id
-      await sb.from('chat_participants').insert(
-        [user.id, ...friendIds].map(uid => ({ chat_id: chatId, user_id: uid }))
-      )
+      if (chatName) {
+        await sb.from('book_chats').update({ chat_name: chatName }).eq('id', chatId)
+      }
       if (firstMessage) {
         await sb.from('chat_messages').insert({ chat_id: chatId, user_id: user.id, body: firstMessage })
       }
