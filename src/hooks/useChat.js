@@ -131,7 +131,8 @@ export function useChat(user) {
     if (channelRef.current) { sb.removeChannel(channelRef.current); channelRef.current = null }
     setActiveChat(null)
     setMessages([])
-    loadChatList()
+    // Delay reload to avoid race with markChatRead write
+    setTimeout(() => loadChatList(), 600)
   }
 
   async function fetchMessages(chatId, prepend) {
