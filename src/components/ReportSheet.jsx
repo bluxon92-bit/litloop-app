@@ -40,25 +40,6 @@ export default function ReportSheet({ open, onClose, onSubmit, title = 'Report',
 
   return (
     <>
-      <style>{`
-        .rt-report-backdrop {
-          position: fixed; inset: 0;
-          background: rgba(0,0,0,0.5);
-          z-index: 400;
-          display: flex; align-items: flex-end; justify-content: center;
-        }
-        .rt-report-sheet {
-          background: var(--rt-bg);
-          border-radius: 1.25rem 1.25rem 0 0;
-          padding: 1.75rem 1.5rem 2.5rem;
-          width: 100%; max-width: 480px;
-          box-shadow: 0 -4px 32px rgba(0,0,0,0.2);
-        }
-        @media (min-width: 640px) {
-          .rt-report-backdrop { align-items: center; }
-          .rt-report-sheet { border-radius: 1rem; box-shadow: 0 8px 48px rgba(0,0,0,0.25); }
-        }
-      `}</style>
       <div className="rt-report-backdrop" onClick={e => { if (e.target === e.currentTarget) handleClose() }}>
         <div className="rt-report-sheet">
 

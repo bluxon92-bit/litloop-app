@@ -295,15 +295,6 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
 
       {blockConfirm && (
         <>
-          <style>{`
-            .rt-block-backdrop {
-              position: fixed; inset: 0;
-              z-index: 400;
-              background: rgba(0,0,0,0.5);
-              display: flex; align-items: center; justify-content: center;
-              padding: 1.5rem;
-            }
-          `}</style>
           <div className="rt-block-backdrop"
             onClick={e => { if (e.target === e.currentTarget) setBlockConfirm(false) }}>
           <div style={{ background: 'var(--rt-bg)', borderRadius: 16, padding: '1.5rem', width: '100%', maxWidth: 360, boxShadow: '0 16px 48px rgba(0,0,0,0.25)' }}>
