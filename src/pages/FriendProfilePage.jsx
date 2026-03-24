@@ -132,6 +132,11 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
   const [blockConfirm, setBlockConfirm] = useState(false)
   const [blocked, setBlocked]           = useState(false)
 
+  // Scroll to top when profile mounts
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  }, [])
+
   // Sync blocked state from context
   useEffect(() => {
     setBlocked(blockedIds?.includes(friend?.userId) || false)
