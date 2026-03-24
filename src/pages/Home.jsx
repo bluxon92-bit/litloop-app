@@ -12,6 +12,7 @@ import BookSheet, { FinishModal } from '../components/books/BookSheet'
 import ReviewThreadSheet from '../components/ReviewThreadSheet'
 import { IcoOpenBook } from '../components/icons'
 import MomentComposer from '../components/MomentComposer'
+import ReportSheet from '../components/ReportSheet'
 
 // ── Engagement bar — likes + comments ─────────────────────────
 function SpoilerBody({ isSpoiler, isItalic, barCol = 'var(--rt-navy)', onClick, children }) {
@@ -97,10 +98,10 @@ function FeedEngagementBar({ entryId, user, onOpenThread }) {
   )
 }
 
-export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile, onAddFriend, pendingReviewOpen, pendingReviewTrigger }) {
+export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile, onAddFriend, pendingReviewOpen }) {
   const { user } = useAuthContext()
   const { books, addBook, updateBook, deleteBook, findDuplicate } = useBooksContext()
-  const { friends, feed, recs, loaded: socialLoaded, myDisplayName, myAvatarUrl, sendFriendRequest } = useSocialContext()
+  const { friends, feed, recs, loaded: socialLoaded, myDisplayName, myAvatarUrl, sendFriendRequest, submitReport, blockedIds } = useSocialContext()
   const { chats, totalUnread, startOrOpenChat } = useChatContext()
 
   const [goal, setGoal]                     = useState(loadGoal)
@@ -109,6 +110,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
   const [detailLocation, setDetailLocation] = useState(null)
   const [finishBook, setFinishBook]         = useState(null)
   const [editBook, setEditBook]             = useState(null)
+  const [reportTarget, setReportTarget]     = useState(null) // { userId, contentType, contentId }
   const [addModal, setAddModal]             = useState(false)
   const [crCarouselIdx, setCrCarouselIdx]   = useState(0)
   const [toast, setToast]                   = useState(null)
@@ -129,23 +131,14 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
     if (!pendingReviewOpen?.current) return
     const pending = pendingReviewOpen.current
     pendingReviewOpen.current = null
-
-    // Try feed_events by id first (reviews), then by moment_id (moments)
+    // Fetch the feed_events row so we have all the data needed for the sheet
     sb.from('feed_events')
       .select('id, user_id, event_type, book_ol_key, book_title, book_author, cover_id, review_body, rating, created_at, moment_id, moment_body')
       .eq('id', pending.entryId)
       .maybeSingle()
-      .then(async ({ data: ev }) => {
-        // If not found by id, it might be a moment_id
+      .then(({ data: ev }) => {
         if (!ev) {
-          const { data: momentEv } = await sb.from('feed_events')
-            .select('id, user_id, event_type, book_ol_key, book_title, book_author, cover_id, review_body, rating, created_at, moment_id, moment_body')
-            .eq('moment_id', pending.entryId)
-            .maybeSingle()
-          if (momentEv) {
-            return buildAndOpenReview(momentEv, pending, true)
-          }
-          // Final fallback — open with just what the notification gave us
+          // Minimal fallback — open with just what we have from the notification
           setActiveReview({
             entryId:    pending.entryId,
             bookTitle:  pending.bookTitle || '',
@@ -158,36 +151,18 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
           })
           return
         }
-        buildAndOpenReview(ev, pending, ev.event_type === 'book_moment')
+        setActiveReview({
+          entryId:    ev.moment_id || ev.id,
+          bookTitle:  ev.book_title  || pending.bookTitle || '',
+          bookAuthor: ev.book_author || '',
+          coverId:    ev.cover_id    || null,
+          olKey:      ev.book_ol_key || null,
+          reviewBody: ev.moment_body || ev.review_body || '',
+          rating:     ev.rating      || null,
+          reviewer:   pending.reviewer || {},
+        })
       })
-
-    async function buildAndOpenReview(ev, pending, isMoment) {
-      // Fetch the review author's profile (user_id on the event = the reviewer)
-      let reviewer = pending.reviewer || {}
-      if (ev.user_id) {
-        const { data: profiles } = await sb.rpc('get_profiles_by_ids', { user_ids: [ev.user_id] })
-        const profile = profiles?.[0]
-        if (profile) {
-          reviewer = {
-            userId:      ev.user_id,
-            displayName: profile.display_name || profile.username || reviewer.displayName || 'Someone',
-            username:    profile.username || null,
-            avatarUrl:   profile.avatar_url || null,
-          }
-        }
-      }
-      setActiveReview({
-        entryId:    isMoment ? (ev.moment_id || ev.id) : ev.id,
-        bookTitle:  ev.book_title  || pending.bookTitle || '',
-        bookAuthor: ev.book_author || '',
-        coverId:    ev.cover_id    || null,
-        olKey:      ev.book_ol_key || null,
-        reviewBody: isMoment ? (ev.moment_body || '') : (ev.review_body || ''),
-        rating:     ev.rating      || null,
-        reviewer,
-      })
-    }
-  }, [pendingReviewTrigger]) // trigger increments on each notification click, firing this even when already on home tab
+  }) // runs every render — ref check makes it a no-op when nothing is pending
 
   // Infinite scroll — load more when sentinel comes into view
   useEffect(() => {
@@ -234,12 +209,14 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
 
   // Feed: moments pass through unfiltered; reviews deduplicate (prefer posted_review over finished)
   const reviewEvents = (() => {
+    const blocked = new Set(blockedIds || [])
     const moments = (feed || []).filter(ev =>
-      friendIds.has(ev.user_id) && ev.event_type === 'book_moment'
+      friendIds.has(ev.user_id) && ev.event_type === 'book_moment' && !blocked.has(ev.user_id)
     )
     const reviews = (feed || []).filter(ev =>
       friendIds.has(ev.user_id) &&
-      (ev.event_type === 'posted_review' || ev.event_type === 'finished')
+      (ev.event_type === 'posted_review' || ev.event_type === 'finished') &&
+      !blocked.has(ev.user_id)
     )
     const seen = new Map()
     for (const ev of reviews) {
@@ -466,7 +443,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
                 const openThread = () => setActiveReview({ entryId: ev.moment_id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, olKey, reviewBody: ev.moment_body, rating: null, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })
                 return (
                   <div key={ev.id} style={cardStyle}>
-                    {/* Top row: badge · avatar username · date */}
+                    {/* Top row: badge · avatar username · date · report */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
                       <span style={{ background: badgeBg, color: badgeCol, borderRadius: 99, padding: '0.15em 0.55em', fontSize: '0.65rem', fontWeight: 700 }}>
                         {badgeTxt}{ev.page_ref ? ` · ${ev.page_ref}%` : ''}
@@ -475,6 +452,11 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
                       {avatarEl}
                       {usernameEl}
                       <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginLeft: 'auto' }}>{dateStr}</span>
+                      <button
+                        onClick={e => { e.stopPropagation(); setReportTarget({ reportedUserId: ev.user_id, contentType: 'feed_event', contentId: ev.id }) }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rt-t3)', fontSize: '1rem', padding: '0 0.1rem', lineHeight: 1 }}
+                        title="Report"
+                      >⋯</button>
                     </div>
                     {/* Book row: cover centred with meta */}
                     <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: '0.6rem' }}>
@@ -507,7 +489,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
 
               return (
                 <div key={ev.id} style={cardStyle}>
-                  {/* Top row: stars/dnf · avatar username · date */}
+                  {/* Top row: stars/dnf · avatar username · date · report */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
                     {isDnfEvent
                       ? <span style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', background: '#fee2e2', color: '#991b1b', borderRadius: 4, padding: '0.15em 0.5em' }}>Did not finish</span>
@@ -517,6 +499,11 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
                     {avatarEl}
                     {usernameEl}
                     <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginLeft: 'auto' }}>{dateStr}</span>
+                    <button
+                      onClick={e => { e.stopPropagation(); setReportTarget({ reportedUserId: ev.user_id, contentType: 'feed_event', contentId: ev.id }) }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rt-t3)', fontSize: '1rem', padding: '0 0.1rem', lineHeight: 1 }}
+                      title="Report"
+                    >⋯</button>
                   </div>
                   {/* Book row: cover centred with meta */}
                   <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: reviewText ? '0.6rem' : 0 }}
@@ -550,6 +537,15 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
       )}
 
       {/* ── Modals ── */}
+      <ReportSheet
+        open={!!reportTarget}
+        onClose={() => setReportTarget(null)}
+        title="Report content"
+        description="Help us understand what's wrong."
+        onSubmit={async (reason, note) => {
+          await submitReport({ ...reportTarget, reason, note })
+        }}
+      />
       {activeReview && (
         <ReviewThreadSheet
           review={activeReview}
@@ -584,6 +580,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
           }}
           onViewProfile={f => { setActiveReview(null); onViewFriendProfile?.(f) }}
           onAddFriend={f => sendFriendRequest(f.username || f.userId)}
+          submitReport={submitReport}
         />
       )}
       {detailBook && (
