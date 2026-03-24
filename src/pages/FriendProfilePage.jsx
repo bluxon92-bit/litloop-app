@@ -4,6 +4,7 @@ import { avatarColour, avatarInitial, fmtDate } from '../lib/utils'
 import CoverImage from '../components/books/CoverImage'
 import BookDetailPanel from '../components/books/BookDetailPanel'
 import ReviewThreadSheet from '../components/ReviewThreadSheet'
+import ReportSheet from '../components/ReportSheet'
 import { IcoOpenBook } from '../components/icons'
 import { useSocialContext } from '../context/SocialContext'
 
@@ -115,7 +116,7 @@ function SpoilerBody({ isSpoiler, isItalic, barCol = 'var(--rt-navy)', onClick, 
 }
 
 export default function FriendProfilePage({ friend, onBack, onOpenChatModal, chats, user, books: myBooks, onStartChat, onViewChat, onAddToTBR, onViewProfile, onAddFriend, myAvatarUrl, myDisplayName }) {
-  const { friends } = useSocialContext()
+  const { friends, blockedIds, blockUser, unblockUser, submitReport } = useSocialContext()
   const [activeTab, setActiveTab]       = useState('reviews')
   const [moments, setMoments]           = useState(null)
   const [momentsLoading, setMomentsLoading] = useState(false)
@@ -126,6 +127,15 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
   const [error, setError]           = useState(null)
   const [detailBook, setDetailBook] = useState(null)
   const [activeReview, setActiveReview] = useState(null)
+  const [showHeroMenu, setShowHeroMenu] = useState(false)
+  const [showReport, setShowReport]     = useState(false)
+  const [blockConfirm, setBlockConfirm] = useState(false)
+  const [blocked, setBlocked]           = useState(false)
+
+  // Sync blocked state from context
+  useEffect(() => {
+    setBlocked(blockedIds?.includes(friend?.userId) || false)
+  }, [blockedIds, friend?.userId])
 
   useEffect(() => { if (friend?.userId) load() }, [friend?.userId])
 
@@ -247,7 +257,7 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
   }
 
   return (
-    <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: '3rem' }}>
+    <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: '3rem' }} onClick={() => setShowHeroMenu(false)}>
 
       {/* ReviewThreadSheet overlay */}
       {activeReview && (
@@ -264,7 +274,50 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
           onViewChat={chatId => { onViewChat?.(chatId); setActiveReview(null) }}
           onViewProfile={f => { setActiveReview(null); onViewProfile?.(f) }}
           onAddFriend={onAddFriend}
+          submitReport={submitReport}
         />
+      )}
+
+      {/* Report sheet */}
+      <ReportSheet
+        open={showReport}
+        onClose={() => setShowReport(false)}
+        title={`Report ${friend.displayName}`}
+        description="Help us understand what's wrong."
+        onSubmit={async (reason, note) => {
+          await submitReport({ reportedUserId: friend.userId, contentType: 'user', contentId: null, reason, note })
+        }}
+      />
+
+      {/* Block confirmation */}
+      {blockConfirm && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}
+          onClick={e => { if (e.target === e.currentTarget) setBlockConfirm(false) }}>
+          <div style={{ background: 'var(--rt-bg)', borderRadius: 16, padding: '1.5rem', width: '100%', maxWidth: 360 }}>
+            <div style={{ fontFamily: 'var(--rt-font-display)', fontWeight: 700, fontSize: '1rem', color: 'var(--rt-navy)', marginBottom: '0.5rem' }}>
+              {blocked ? `Unblock ${friend.displayName}?` : `Block ${friend.displayName}?`}
+            </div>
+            <div style={{ fontSize: '0.82rem', color: 'var(--rt-t3)', marginBottom: '1.25rem', lineHeight: 1.5 }}>
+              {blocked
+                ? 'They will be able to see your content and message you again.'
+                : "They won't be able to message you or see your content. They won't be notified."}
+            </div>
+            <div style={{ display: 'flex', gap: '0.65rem' }}>
+              <button onClick={() => setBlockConfirm(false)}
+                style={{ flex: 1, padding: '0.65rem', borderRadius: 'var(--rt-r3)', border: '1px solid var(--rt-border-md)', background: 'none', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--rt-t2)' }}>
+                Cancel
+              </button>
+              <button onClick={async () => {
+                  blocked ? await unblockUser(friend.userId) : await blockUser(friend.userId)
+                  setBlocked(v => !v)
+                  setBlockConfirm(false)
+                }}
+                style={{ flex: 1, padding: '0.65rem', borderRadius: 'var(--rt-r3)', border: 'none', background: blocked ? 'var(--rt-navy)' : '#dc2626', color: '#fff', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' }}>
+                {blocked ? 'Unblock' : 'Block'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* BookDetailPanel overlay */}
@@ -341,15 +394,44 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
           <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.65)', marginBottom: '0.75rem', lineHeight: 1.45 }}>{profile.bio}</div>
         )}
 
-        {/* Add friend button — shown when not already friends */}
-        {onAddFriend && !friends.some(f => f.userId === friend.userId) && (
-          <button
-            onClick={() => onAddFriend(friend)}
-            style={{ marginTop: '0.5rem', background: 'var(--rt-amber)', border: 'none', borderRadius: 99, padding: '0.4rem 1rem', fontSize: '0.78rem', fontWeight: 700, color: '#fff', cursor: 'pointer' }}
-          >
-            + Add friend
-          </button>
-        )}
+        {/* Action row: add friend + ⋯ menu */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginTop: '0.5rem' }}>
+          {onAddFriend && !friends.some(f => f.userId === friend.userId) && !blocked && (
+            <button
+              onClick={() => onAddFriend(friend)}
+              style={{ background: 'var(--rt-amber)', border: 'none', borderRadius: 99, padding: '0.4rem 1rem', fontSize: '0.78rem', fontWeight: 700, color: '#fff', cursor: 'pointer' }}
+            >
+              + Add friend
+            </button>
+          )}
+
+          {/* ⋯ overflow menu */}
+          <div style={{ position: 'relative', marginLeft: 'auto' }}>
+            <button
+              onClick={e => { e.stopPropagation(); setShowHeroMenu(v => !v) }}
+              style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '50%', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '1.1rem' }}
+            >⋯</button>
+            {showHeroMenu && (
+              <div
+                style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: 'var(--rt-white)', borderRadius: 'var(--rt-r3)', border: '1px solid var(--rt-border)', boxShadow: '0 8px 24px rgba(10,15,30,0.18)', zIndex: 50, minWidth: 170, overflow: 'hidden' }}
+                onClick={e => e.stopPropagation()}
+              >
+                <button
+                  onClick={() => { setShowHeroMenu(false); setShowReport(true) }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', background: 'none', border: 'none', textAlign: 'left', fontSize: '0.85rem', color: 'var(--rt-navy)', fontWeight: 500, cursor: 'pointer', borderBottom: '1px solid var(--rt-border)' }}
+                >
+                  Report {friend.displayName.split(' ')[0]}
+                </button>
+                <button
+                  onClick={() => { setShowHeroMenu(false); setBlockConfirm(true) }}
+                  style={{ width: '100%', padding: '0.75rem 1rem', background: 'none', border: 'none', textAlign: 'left', fontSize: '0.85rem', color: '#dc2626', fontWeight: 500, cursor: 'pointer' }}
+                >
+                  {blocked ? 'Unblock' : 'Block'} {friend.displayName.split(' ')[0]}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Stats */}
         {!loading && entries && (

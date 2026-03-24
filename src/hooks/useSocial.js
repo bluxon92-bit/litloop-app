@@ -22,6 +22,7 @@ export function useSocial(user) {
   const [notificationPrefs, setNotificationPrefs]   = useState({
     messages: true, friend_requests: true, recommendations: true, review_comments: true
   })
+  const [blockedIds, setBlockedIds] = useState([])
   const channelRef                          = useRef(null)
   const recsChannelRef                      = useRef(null)
   const notifChannelRef                     = useRef(null)
@@ -37,6 +38,7 @@ export function useSocial(user) {
     loadProfile()
     loadSocialData()
     loadNotifications()
+    loadBlocks()
     setupRealtime()
     handleInviteParam()
     return () => {
@@ -465,6 +467,46 @@ export function useSocial(user) {
     return { error: error?.message || null }
   }
 
+  // ── Block / Report ───────────────────────────────────────────
+  async function loadBlocks() {
+    const { data } = await sb
+      .from('blocks')
+      .select('blocked_id')
+      .eq('blocker_id', user.id)
+    setBlockedIds((data || []).map(b => b.blocked_id))
+  }
+
+  async function blockUser(targetId) {
+    if (!targetId || targetId === user.id) return { error: 'Invalid user' }
+    const { error } = await sb
+      .from('blocks')
+      .insert({ blocker_id: user.id, blocked_id: targetId })
+    if (!error) setBlockedIds(prev => [...new Set([...prev, targetId])])
+    return { error: error?.message || null }
+  }
+
+  async function unblockUser(targetId) {
+    const { error } = await sb
+      .from('blocks')
+      .delete()
+      .eq('blocker_id', user.id)
+      .eq('blocked_id', targetId)
+    if (!error) setBlockedIds(prev => prev.filter(id => id !== targetId))
+    return { error: error?.message || null }
+  }
+
+  async function submitReport({ reportedUserId, contentType, contentId, reason, note }) {
+    const { error } = await sb.from('reports').insert({
+      reporter_id:      user.id,
+      reported_user_id: reportedUserId || null,
+      content_type:     contentType    || null,
+      content_id:       contentId      || null,
+      reason,
+      note:             note           || null,
+    })
+    return { error: error?.message || null }
+  }
+
   return {
     friends, pending, outgoingPending, feed, recs, notifications, loaded,
     myUsername, myDisplayName, myFirstName, myLastName, myBio, myAvatarUrl, topBookIds, preferredMoods, setPreferredMoods, profileLoaded,
@@ -474,5 +516,6 @@ export function useSocial(user) {
     dismissRec, acceptRecToTBR, sendRec,
     saveProfile, completeOnboarding, onboardingComplete, saveFavBooks, uploadAvatar, generateInviteLink,
     loadNotifications, markNotificationsRead,
+    blockedIds, blockUser, unblockUser, submitReport,
   }
 }

@@ -6,6 +6,7 @@ import { useAuthContext } from '../context/AuthContext'
 import CoverImage from '../components/books/CoverImage'
 import { avatarColour, avatarInitial } from '../lib/utils'
 import { sb } from '../lib/supabase'
+import ReportSheet from '../components/ReportSheet'
 
 // ── Shared palette  ────────────────────────────────────────────
 const GRADIENTS = [
@@ -87,12 +88,13 @@ function ClubBookRow({ book, badge, badgeStyle, onOpenChat, isAdmin, onMarkDone 
 }
 
 // ── Settings sheet ────────────────────────────────────────────
-function SettingsSheet({ club, friends, onClose, onUpdate, onAssignBook, onMarkDone, onAddMember, onRemoveMember, onSetRole, onLeave, onDelete, onOpenChatModal, startOrOpenChat }) {
+function SettingsSheet({ club, friends, onClose, onUpdate, onAssignBook, onMarkDone, onAddMember, onRemoveMember, onSetRole, onLeave, onDelete, onOpenChatModal, startOrOpenChat, onReport }) {
   const { user: currentUser } = useAuthContext()
-  const [view, setView] = useState('main') // main | assign-current | assign-upcoming | add-member | edit-details
+  const [view, setView] = useState('main')
   const [bookSearch, setBookSearch] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [searching, setSearching] = useState(false)
+  const [reportTarget, setReportTarget] = useState(null)
   const [editForm, setEditForm] = useState(() => ({ name: club.name || '', meetingTime: club.meetingTime || '', meetingPlace: club.meetingPlace || '', pinnedMessage: club.pinnedMessage || '' }))
 
   async function searchOL(q) {
@@ -206,7 +208,16 @@ function SettingsSheet({ club, friends, onClose, onUpdate, onAssignBook, onMarkD
   const isAdmin = club.myRole === 'admin'
 
   return (
-    <div>
+    <>
+      <ReportSheet
+        open={!!reportTarget}
+        onClose={() => setReportTarget(null)}
+        title="Report member"
+        onSubmit={async (reason, note) => {
+          if (onReport) await onReport({ ...reportTarget, reason, note })
+        }}
+      />
+      <div>
       <div style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)', padding: '1rem 1rem 0' }}>{club.name}</div>
 
       {isAdmin && (
@@ -249,6 +260,12 @@ function SettingsSheet({ club, friends, onClose, onUpdate, onAssignBook, onMarkD
               <button onClick={() => { if (window.confirm(`Remove ${m.displayName}?`)) onRemoveMember(club.id, m.userId) }}
                 style={{ fontSize: '0.68rem', fontWeight: 600, color: '#b43a3a', background: 'none', border: 'none', cursor: 'pointer' }}>✕</button>
             )}
+            {m.userId !== currentUser?.id && (
+              <button
+                onClick={() => setReportTarget({ reportedUserId: m.userId, contentType: 'user', contentId: null })}
+                style={{ fontSize: '0.68rem', color: 'var(--rt-t3)', background: 'none', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >Report</button>
+            )}
           </div>
         ))}
         {isAdmin && (
@@ -286,11 +303,12 @@ function SettingsSheet({ club, friends, onClose, onUpdate, onAssignBook, onMarkD
 
 
     </div>
+    </>
   )
 }
 
 // ── Club card ─────────────────────────────────────────────────
-function ClubCard({ club, onOpenChat, onUpdate, onAssignBook, onMarkDone, onAddMember, onRemoveMember, onSetRole, onLeave, onDelete, friends, startOrOpenChat, onOpenChatModal }) {
+function ClubCard({ club, onOpenChat, onUpdate, onAssignBook, onMarkDone, onAddMember, onRemoveMember, onSetRole, onLeave, onDelete, friends, startOrOpenChat, onOpenChatModal, onReport }) {
   const [bodyOpen, setBodyOpen]       = useState(false)
   const [membersOpen, setMembersOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -455,6 +473,7 @@ function ClubCard({ club, onOpenChat, onUpdate, onAssignBook, onMarkDone, onAddM
               onAddMember={onAddMember} onRemoveMember={onRemoveMember} onSetRole={onSetRole}
               onLeave={onLeave} onDelete={onDelete}
               startOrOpenChat={startOrOpenChat} onOpenChatModal={onOpenChatModal}
+              onReport={onReport}
             />
             </div>
           </div>
@@ -657,7 +676,7 @@ function CreateClubFlow({ friends, onDone, onCancel, startOrOpenChat }) {
 // ── Main Clubs tab ────────────────────────────────────────────
 export default function Clubs({ onOpenChatModal }) {
   const { clubs, loaded, updateClub, assignBook, markCurrentDone, addMember, removeMember, setMemberRole, leaveClub, deleteClub } = useClubs()
-  const { friends } = useSocialContext()
+  const { friends, submitReport } = useSocialContext()
   const { startOrOpenChat } = useChatContext()
   const [creating, setCreating] = useState(false)
 
@@ -702,6 +721,9 @@ export default function Clubs({ onOpenChatModal }) {
             onSetRole={setMemberRole}
             onLeave={leaveClub}
             onDelete={deleteClub}
+            onReport={async ({ reportedUserId, contentType, contentId, reason, note }) => {
+              await submitReport({ reportedUserId, contentType, contentId, reason, note })
+            }}
           />
         ))
       )}
