@@ -576,7 +576,10 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend, in
           } 
         }}
         onAddToTBR={({ title, author, olKey, coverId }) => addBook({ title, author, status: 'tbr', olKey, coverId })}
-        onAddFriend={f => sendFriendRequest(f.username || f.userId)}
+        onAddFriend={async f => {
+          const result = await sendFriendRequest(f.username || f.userId)
+          return result
+        }}
       />
     )
   }

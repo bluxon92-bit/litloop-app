@@ -1000,6 +1000,7 @@ export default function AppShell() {
   // Pending deep-link actions set by notification clicks, consumed by page components
   const pendingReviewOpen = useRef(null) // { entryId, bookTitle, bookAuthor, coverId, olKey, reviewBody, rating, reviewer }
   const pendingRecOpen    = useRef(null) // { book_ol_key, book_title, book_author, cover_id, message, from_user_id }
+  const [pendingReviewTrigger, setPendingReviewTrigger] = useState(0)
   const [importBanner, setImportBanner]           = useState(() => {
     try { return JSON.parse(sessionStorage.getItem('litloop_import') || 'null') } catch { return null }
   })
@@ -1159,7 +1160,7 @@ export default function AppShell() {
           text   = `${actor} liked your review of ${book}`
           icon   = '\u2764\ufe0f'
           action = markAndDo(() => {
-            if (n.entry_id) pendingReviewOpen.current = { entryId: n.entry_id, bookTitle: n.bookTitle, reviewer: { displayName: actor } }
+            if (n.entry_id) { pendingReviewOpen.current = { entryId: n.entry_id, bookTitle: n.bookTitle, reviewer: { displayName: actor } }; setPendingReviewTrigger(v => v + 1) }
             setActiveTab('home')
           })
           break
@@ -1168,7 +1169,7 @@ export default function AppShell() {
           text   = `${actor} commented on your review of ${book}`
           icon   = '\ud83d\udcac'
           action = markAndDo(() => {
-            if (n.entry_id) pendingReviewOpen.current = { entryId: n.entry_id, bookTitle: n.bookTitle, reviewer: { displayName: actor } }
+            if (n.entry_id) { pendingReviewOpen.current = { entryId: n.entry_id, bookTitle: n.bookTitle, reviewer: { displayName: actor } }; setPendingReviewTrigger(v => v + 1) }
             setActiveTab('home')
           })
           break
@@ -1176,7 +1177,7 @@ export default function AppShell() {
           text   = `${actor} liked your comment`
           icon   = '\u2764\ufe0f'
           action = markAndDo(() => {
-            if (n.entry_id) pendingReviewOpen.current = { entryId: n.entry_id, bookTitle: n.bookTitle, reviewer: { displayName: actor } }
+            if (n.entry_id) { pendingReviewOpen.current = { entryId: n.entry_id, bookTitle: n.bookTitle, reviewer: { displayName: actor } }; setPendingReviewTrigger(v => v + 1) }
             setActiveTab('home')
           })
           break
@@ -1184,7 +1185,7 @@ export default function AppShell() {
           text   = `${actor} replied in a thread you're in`
           icon   = '\ud83d\udcac'
           action = markAndDo(() => {
-            if (n.entry_id) pendingReviewOpen.current = { entryId: n.entry_id, bookTitle: n.bookTitle, reviewer: { displayName: actor } }
+            if (n.entry_id) { pendingReviewOpen.current = { entryId: n.entry_id, bookTitle: n.bookTitle, reviewer: { displayName: actor } }; setPendingReviewTrigger(v => v + 1) }
             setActiveTab('home')
           })
           break
@@ -1228,7 +1229,7 @@ export default function AppShell() {
 
   function renderPage() {
     switch (activeTab) {
-      case 'home':     return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} onViewFriendProfile={f => { setActiveTab('chat'); setActiveFriendProfile(f) }} onAddFriend={() => setFabAction('friend')} pendingReviewOpen={pendingReviewOpen} />
+      case 'home':     return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} onViewFriendProfile={f => { setActiveTab('chat'); setActiveFriendProfile(f) }} onAddFriend={() => setFabAction('friend')} pendingReviewOpen={pendingReviewOpen} pendingReviewTrigger={pendingReviewTrigger} />
       case 'mylist':   return <MyList          onNavigate={onNavigate} onOpenChatModal={openChatModal} />
       case 'stats':    return <Stats           onNavigate={onNavigate} />
       case 'discover': return <Discover        onNavigate={onNavigate} onOpenChatModal={openChatModal} onRecommend={() => setFabAction('recommend')} pendingRecOpen={pendingRecOpen} />

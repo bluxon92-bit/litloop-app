@@ -236,11 +236,11 @@ export function useSocial(user) {
     // 2) UPDATEs where I'm the requester (my sent requests being accepted/declined)
     const ch = sb.channel(`friendships_${user.id}`)
       .on('postgres_changes', {
-        event: '*', schema: 'staging', table: 'friendships',
+        event: '*', schema: 'public', table: 'friendships',
         filter: `addressee_id=eq.${user.id}`
       }, () => loadSocialData())
       .on('postgres_changes', {
-        event: 'UPDATE', schema: 'staging', table: 'friendships',
+        event: 'UPDATE', schema: 'public', table: 'friendships',
         filter: `requester_id=eq.${user.id}`
       }, () => loadSocialData())
       .subscribe()
@@ -250,7 +250,7 @@ export function useSocial(user) {
     if (recsChannelRef.current) { sb.removeChannel(recsChannelRef.current); recsChannelRef.current = null }
     const recsCh = sb.channel(`recs_${user.id}`)
       .on('postgres_changes', {
-        event: 'INSERT', schema: 'staging', table: 'book_recommendations',
+        event: 'INSERT', schema: 'public', table: 'book_recommendations',
         filter: `to_user_id=eq.${user.id}`
       }, () => loadSocialData())
       .subscribe()
@@ -260,7 +260,7 @@ export function useSocial(user) {
     if (notifChannelRef.current) { sb.removeChannel(notifChannelRef.current); notifChannelRef.current = null }
     const notifCh = sb.channel(`notifications_${user.id}`)
       .on('postgres_changes', {
-        event: 'INSERT', schema: 'staging', table: 'notifications',
+        event: 'INSERT', schema: 'public', table: 'notifications',
         filter: `user_id=eq.${user.id}`
       }, () => loadNotifications())
       .subscribe()
@@ -273,15 +273,25 @@ export function useSocial(user) {
     if (_sendingRef.current) return { error: 'Already sending, please wait.' }
     _sendingRef.current = true
     try {
-      const lookup = raw.trim().replace(/^@/, '').toLowerCase()
+      const lookup = raw.trim().replace(/^@/, '')
       if (!lookup) return { error: 'Enter a username' }
 
-      const { data: targetId, error: rpcErr } = await sb.rpc('find_user_by_username', { p_username: lookup })
-      if (rpcErr) return { error: 'Search failed: ' + rpcErr.message }
-      if (!targetId) return { error: `No account found for "@${lookup}"` }
+      // UUID pattern — bypass username lookup, use id directly
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lookup)
+      let targetId
+
+      if (isUuid) {
+        targetId = lookup
+      } else {
+        const { data, error: rpcErr } = await sb.rpc('find_user_by_username', { p_username: lookup.toLowerCase() })
+        if (rpcErr) return { error: 'Search failed: ' + rpcErr.message }
+        if (!data) return { error: `No account found for "@${lookup}"` }
+        targetId = data
+      }
+
       if (targetId === user.id) return { error: "That's you! Try a friend's username." }
       if (friends.find(f => f.userId === targetId)) return { error: "You're already friends with this person." }
-      if (outgoingPending.find(f => f.userId === targetId)) return { error: 'Friend request already sent.' }
+      if (outgoingPending.find(f => f.addresseeId === targetId)) return { error: 'Friend request already sent.' }
 
       const { error } = await sb.from('friendships').insert({
         requester_id: user.id,
@@ -293,7 +303,7 @@ export function useSocial(user) {
         return { error: error.message }
       }
       await loadSocialData()
-      return { success: `✓ Friend request sent to @${lookup}!` }
+      return { success: `✓ Friend request sent!` }
     } finally {
       _sendingRef.current = false
     }

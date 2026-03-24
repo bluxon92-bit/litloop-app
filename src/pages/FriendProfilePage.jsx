@@ -257,9 +257,9 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
   }
 
   return (
-    <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: '3rem' }} onClick={() => setShowHeroMenu(false)}>
+    <>
+      {/* ── Portalled overlays — outside page div so they're never clipped ── */}
 
-      {/* ReviewThreadSheet overlay */}
       {activeReview && (
         <ReviewThreadSheet
           review={activeReview}
@@ -278,7 +278,6 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
         />
       )}
 
-      {/* Report sheet */}
       <ReportSheet
         open={showReport}
         onClose={() => setShowReport(false)}
@@ -289,11 +288,10 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
         }}
       />
 
-      {/* Block confirmation */}
       {blockConfirm && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}
+        <div style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.5rem' }}
           onClick={e => { if (e.target === e.currentTarget) setBlockConfirm(false) }}>
-          <div style={{ background: 'var(--rt-bg)', borderRadius: 16, padding: '1.5rem', width: '100%', maxWidth: 360 }}>
+          <div style={{ background: 'var(--rt-bg)', borderRadius: 16, padding: '1.5rem', width: '100%', maxWidth: 360, boxShadow: '0 16px 48px rgba(0,0,0,0.25)' }}>
             <div style={{ fontFamily: 'var(--rt-font-display)', fontWeight: 700, fontSize: '1rem', color: 'var(--rt-navy)', marginBottom: '0.5rem' }}>
               {blocked ? `Unblock ${friend.displayName}?` : `Block ${friend.displayName}?`}
             </div>
@@ -308,10 +306,10 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
                 Cancel
               </button>
               <button onClick={async () => {
-                  blocked ? await unblockUser(friend.userId) : await blockUser(friend.userId)
-                  setBlocked(v => !v)
-                  setBlockConfirm(false)
-                }}
+                blocked ? await unblockUser(friend.userId) : await blockUser(friend.userId)
+                setBlocked(v => !v)
+                setBlockConfirm(false)
+              }}
                 style={{ flex: 1, padding: '0.65rem', borderRadius: 'var(--rt-r3)', border: 'none', background: blocked ? 'var(--rt-navy)' : '#dc2626', color: '#fff', fontSize: '0.85rem', fontWeight: 700, cursor: 'pointer' }}>
                 {blocked ? 'Unblock' : 'Block'}
               </button>
@@ -319,6 +317,8 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
           </div>
         </div>
       )}
+
+    <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: '3rem' }} onClick={() => setShowHeroMenu(false)}>
 
       {/* BookDetailPanel overlay */}
       {detailBook && (
@@ -366,8 +366,8 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
         borderRadius: 20,
         marginBottom: '1.25rem',
       }}>
-        {/* Avatar + name row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', marginBottom: '0.75rem' }}>
+        {/* Avatar + name row with ⋯ and add friend top-right */}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.9rem', marginBottom: '0.75rem' }}>
           <div style={{
             width: 64, height: 64, borderRadius: '50%', background: colour,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -380,7 +380,7 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
               : init
             }
           </div>
-          <div>
+          <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.15rem', fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>
               {friend.displayName}
             </div>
@@ -388,48 +388,35 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
               <div style={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.5)', marginTop: '0.15rem' }}>@{friend.username || profile?.username}</div>
             )}
           </div>
-        </div>
-
-        {profile?.bio && (
-          <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.65)', marginBottom: '0.75rem', lineHeight: 1.45 }}>{profile.bio}</div>
-        )}
-
-        {/* Action row: add friend + ⋯ menu */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', marginTop: '0.5rem' }}>
-          {onAddFriend && !friends.some(f => f.userId === friend.userId) && !blocked && (
-            <button
-              onClick={() => onAddFriend(friend)}
-              style={{ background: 'var(--rt-amber)', border: 'none', borderRadius: 99, padding: '0.4rem 1rem', fontSize: '0.78rem', fontWeight: 700, color: '#fff', cursor: 'pointer' }}
-            >
-              + Add friend
-            </button>
-          )}
-
-          {/* ⋯ overflow menu */}
-          <div style={{ position: 'relative', marginLeft: 'auto' }}>
-            <button
-              onClick={e => { e.stopPropagation(); setShowHeroMenu(v => !v) }}
-              style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '50%', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '1.1rem' }}
-            >⋯</button>
-            {showHeroMenu && (
-              <div
-                style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: 'var(--rt-white)', borderRadius: 'var(--rt-r3)', border: '1px solid var(--rt-border)', boxShadow: '0 8px 24px rgba(10,15,30,0.18)', zIndex: 50, minWidth: 170, overflow: 'hidden' }}
-                onClick={e => e.stopPropagation()}
-              >
-                <button
-                  onClick={() => { setShowHeroMenu(false); setShowReport(true) }}
-                  style={{ width: '100%', padding: '0.75rem 1rem', background: 'none', border: 'none', textAlign: 'left', fontSize: '0.85rem', color: 'var(--rt-navy)', fontWeight: 500, cursor: 'pointer', borderBottom: '1px solid var(--rt-border)' }}
-                >
-                  Report {friend.displayName.split(' ')[0]}
-                </button>
-                <button
-                  onClick={() => { setShowHeroMenu(false); setBlockConfirm(true) }}
-                  style={{ width: '100%', padding: '0.75rem 1rem', background: 'none', border: 'none', textAlign: 'left', fontSize: '0.85rem', color: '#dc2626', fontWeight: 500, cursor: 'pointer' }}
-                >
-                  {blocked ? 'Unblock' : 'Block'} {friend.displayName.split(' ')[0]}
-                </button>
-              </div>
+          {/* Top-right actions */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+            {onAddFriend && !friends.some(f => f.userId === friend.userId) && !blocked && (
+              <button
+                onClick={e => { e.stopPropagation(); onAddFriend(friend) }}
+                style={{ background: 'var(--rt-amber)', border: 'none', borderRadius: 99, padding: '0.35rem 0.85rem', fontSize: '0.75rem', fontWeight: 700, color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >+ Add</button>
             )}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={e => { e.stopPropagation(); setShowHeroMenu(v => !v) }}
+                style={{ background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: '50%', width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#fff', fontSize: '1.1rem' }}
+              >⋯</button>
+              {showHeroMenu && (
+                <div
+                  style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, background: 'var(--rt-white)', borderRadius: 'var(--rt-r3)', border: '1px solid var(--rt-border)', boxShadow: '0 8px 24px rgba(10,15,30,0.18)', zIndex: 50, minWidth: 170, overflow: 'hidden' }}
+                  onClick={e => e.stopPropagation()}
+                >
+                  <button
+                    onClick={() => { setShowHeroMenu(false); setShowReport(true) }}
+                    style={{ width: '100%', padding: '0.75rem 1rem', background: 'none', border: 'none', textAlign: 'left', fontSize: '0.85rem', color: 'var(--rt-navy)', fontWeight: 500, cursor: 'pointer', borderBottom: '1px solid var(--rt-border)' }}
+                  >Report {friend.displayName.split(' ')[0]}</button>
+                  <button
+                    onClick={() => { setShowHeroMenu(false); setBlockConfirm(true) }}
+                    style={{ width: '100%', padding: '0.75rem 1rem', background: 'none', border: 'none', textAlign: 'left', fontSize: '0.85rem', color: '#dc2626', fontWeight: 500, cursor: 'pointer' }}
+                  >{blocked ? 'Unblock' : 'Block'} {friend.displayName.split(' ')[0]}</button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -611,5 +598,6 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
         </>
       )}
     </div>
+    </>
   )
 }
