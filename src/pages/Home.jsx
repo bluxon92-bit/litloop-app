@@ -239,8 +239,10 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
   const showGenreBlock = genreEntries.length > 0
 
   return (
-    <>
-    <ReportSheet
+    <div className="rt-page" style={{ maxWidth: 760, margin: '0 auto' }}>
+
+      {/* ── Modals ── */}
+      <ReportSheet
         open={!!reportTarget}
         onClose={() => setReportTarget(null)}
         title="Report content"
@@ -249,7 +251,6 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
           await submitReport({ ...reportTarget, reason, note })
         }}
       />
-    <div className="rt-page" style={{ maxWidth: 760, margin: '0 auto' }}>
 
       {/* ── Welcome header ── */}
       <div style={{ marginBottom: '1.25rem' }}>
@@ -681,6 +682,5 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
         />
       )}
     </div>
-    </>
   )
 }
