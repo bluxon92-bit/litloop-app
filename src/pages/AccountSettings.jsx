@@ -215,6 +215,13 @@ function DeleteAccountCard({ user, signOut }) {
   const [confirmText, setConfirm] = useState('')
   const [deleting, setDeleting]   = useState(false)
   const [error, setError]         = useState(null)
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 640)
+
+  useEffect(() => {
+    const handler = () => setIsDesktop(window.innerWidth >= 640)
+    window.addEventListener('resize', handler)
+    return () => window.removeEventListener('resize', handler)
+  }, [])
 
   const confirmed = confirmText.trim().toLowerCase() === CONFIRM_PHRASE
 
@@ -223,20 +230,9 @@ function DeleteAccountCard({ user, signOut }) {
     setDeleting(true)
     setError(null)
     try {
-      const { data: { session } } = await sb.auth.getSession()
-      const res = await fetch(
-        `${import.meta.env.SUPABASE_URL}/functions/v1/delete-account`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      )
-      const json = await res.json()
-      if (!res.ok || json.error) {
-        setError(json.error || 'Something went wrong. Please try again or contact help@litloop.co.')
+      const { error: fnError } = await sb.functions.invoke('delete-account')
+      if (fnError) {
+        setError('Something went wrong. Please try again or contact help@litloop.co.')
         setDeleting(false)
         return
       }
@@ -260,21 +256,24 @@ function DeleteAccountCard({ user, signOut }) {
         </button>
       </div>
 
-      {/* Confirmation sheet */}
+      {/* Confirmation sheet / modal */}
       {open && (
         <div style={{
           position: 'fixed', inset: 0, zIndex: 1000,
           background: 'rgba(0,0,0,0.45)',
-          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+          display: 'flex',
+          alignItems: isDesktop ? 'center' : 'flex-end',
+          justifyContent: 'center',
         }}
           onClick={e => { if (e.target === e.currentTarget && !deleting) setOpen(false) }}
         >
           <div style={{
-            background: 'var(--rt-bg)',
-            borderRadius: '1.25rem 1.25rem 0 0',
-            padding: '1.75rem 1.5rem 2.5rem',
-            width: '100%', maxWidth: 480,
-            boxShadow: '0 -4px 32px rgba(0,0,0,0.15)',
+            background: '#ffffff',
+            borderRadius: isDesktop ? '1.25rem' : '1.25rem 1.25rem 0 0',
+            padding: isDesktop ? '2rem' : '1.75rem 1.5rem 2.5rem',
+            width: isDesktop ? '90%' : '100%',
+            maxWidth: 480,
+            boxShadow: isDesktop ? '0 8px 40px rgba(0,0,0,0.18)' : '0 -4px 32px rgba(0,0,0,0.15)',
           }}>
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem' }}>
