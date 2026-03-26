@@ -1,31 +1,33 @@
 import { useState, useEffect } from 'react'
 import { sb } from '../lib/supabase'
+import { uploadCoverToSupabase } from '../lib/coverCache'
+
+const SUPABASE_URL  = 'https://danknyhumorgkvidrdve.supabase.co'
+const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRhbmtueWh1bW9yZ2t2aWRyZHZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3OTMzMzksImV4cCI6MjA4ODM2OTMzOX0.uTbNT_MBipxNCJckFI2JFACvftdtSy3M-YRQuJVDziU'
 
 async function callRecsAPI(prompt) {
-  // Derive URL and key from the existing Supabase client to avoid env var issues
-  const supabaseUrl  = sb.supabaseUrl
-  const supabaseKey  = sb.supabaseKey
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 20000)
   try {
-    const res = await fetch(`${supabaseUrl}/functions/v1/recommendations`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/recommendations`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${supabaseKey}`,
+        'Authorization': `Bearer ${SUPABASE_ANON}`,
       },
       body: JSON.stringify({ prompt }),
       signal: controller.signal,
     })
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}))
-      throw new Error(errData?.error || errData?.message || `HTTP ${res.status}`)
-    }
     const data = await res.json()
+    if (res.status === 429) {
+      // Rate limited — throw with the human-readable message from the server
+      throw new Error(data.error || 'Too many requests — please try again later.')
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const text = data.text || ''
     if (!text) throw new Error('Empty response from AI')
     const clean = text.replace(/```json|```/g, '').trim()
-    return JSON.parse(clean)
+    return { recs: JSON.parse(clean), refreshCount: data.refreshCount ?? null }
   } catch (e) {
     if (e.name === 'AbortError') throw new Error('Request timed out — please try again.')
     throw e
@@ -60,11 +62,13 @@ export function useAiPicks(user, books) {
   const [error, setError]       = useState(null)
   const [loaded, setLoaded]     = useState(false)
 
+  const [refreshCount, setRefreshCount] = useState(0)
+
   // Load persisted picks from Supabase on login
   useEffect(() => {
     if (!user) {
       setState('idle'); setRecs([]); setDismissed(new Set()); setAdded(new Set())
-      setLoaded(false); return
+      setRefreshCount(0); setLoaded(false); return
     }
     loadFromDB()
   }, [user?.id])
@@ -80,18 +84,20 @@ export function useAiPicks(user, books) {
       setRecs(p.recs || [])
       setDismissed(new Set(p.dismissed || []))
       setAdded(new Set(p.added || []))
+      setRefreshCount(p.refreshCount ?? 0)
       setState(p.recs?.length ? 'done' : 'idle')
     }
     setLoaded(true)
   }
 
-  async function saveToDB(newRecs, newDismissed, newAdded) {
+  async function saveToDB(newRecs, newDismissed, newAdded, refreshCount) {
     if (!user) return
     await sb.from('profiles').update({
       ai_picks: {
         recs: newRecs,
         dismissed: [...newDismissed],
         added: [...newAdded],
+        refreshCount: refreshCount ?? 0,
         savedAt: new Date().toISOString(),
       }
     }).eq('id', user.id)
@@ -118,10 +124,9 @@ export function useAiPicks(user, books) {
     }
     setState('loading'); setError(null)
     try {
-      const result = await callRecsAPI(buildPrompt())
+      const { recs: result, refreshCount } = await callRecsAPI(buildPrompt())
       if (!Array.isArray(result) || !result.length) throw new Error('No recommendations returned.')
 
-      // Enrich with OL covers sequentially to avoid rate limiting
       const enriched = [...result]
       const newRecs = result.map(r => ({ ...r, coverId: null, olKey: null }))
       setRecs(newRecs)
@@ -130,22 +135,25 @@ export function useAiPicks(user, books) {
       const newAdded = new Set()
       setDismissed(newDismissed)
       setAdded(newAdded)
-      await saveToDB(newRecs, newDismissed, newAdded);
+      await saveToDB(newRecs, newDismissed, newAdded, refreshCount)
 
-      // Fetch covers in background
+      // Fetch covers and upload to Storage in background
       ;(async () => {
         for (let i = 0; i < enriched.length; i++) {
           const { coverId, olKey } = await searchOLCover(enriched[i].title, enriched[i].author)
-          enriched[i] = { ...enriched[i], coverId, olKey }
+          let coverUrl = null
+          if (coverId && olKey) {
+            coverUrl = await uploadCoverToSupabase(coverId, olKey)
+          }
+          enriched[i] = { ...enriched[i], coverId, olKey, coverUrl }
           setRecs(prev => {
             const updated = [...prev]
-            updated[i] = { ...updated[i], coverId, olKey }
+            updated[i] = { ...updated[i], coverId, olKey, coverUrl }
             return updated
           })
           await new Promise(r => setTimeout(r, 300))
         }
-        // Save with covers filled in
-        await saveToDB(enriched, newDismissed, newAdded)
+        await saveToDB(enriched, newDismissed, newAdded, refreshCount)
       })()
 
     } catch (err) {
@@ -157,7 +165,7 @@ export function useAiPicks(user, books) {
     setDismissed(prev => {
       const next = new Set(prev)
       next.add(index)
-      saveToDB(recs, next, added)
+      saveToDB(recs, next, added, refreshCount)
       return next
     })
   }
@@ -166,7 +174,7 @@ export function useAiPicks(user, books) {
     setAdded(prev => {
       const next = new Set(prev)
       next.add(index)
-      saveToDB(recs, dismissed, next)
+      saveToDB(recs, dismissed, next, refreshCount)
       return next
     })
   }
@@ -174,7 +182,7 @@ export function useAiPicks(user, books) {
   function refresh() {
     setRecs([]); setDismissed(new Set()); setAdded(new Set())
     setState('idle'); setError(null)
-    saveToDB([], new Set(), new Set())
+    saveToDB([], new Set(), new Set(), refreshCount)
   }
 
   // Visible = not dismissed. Empty state when all dismissed or added

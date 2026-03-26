@@ -34,11 +34,11 @@ async function searchOL(title, author, fields = 'cover_i,key') {
 }
 
 // ── Small book card for carousels ────────────────────────────────
-function BookCard({ title, author, coverId, olKey, onClick, moodLabel, onDismiss }) {
+function BookCard({ title, author, coverId, olKey, coverUrl, onClick, moodLabel, onDismiss }) {
   return (
     <div style={{ flexShrink: 0, width: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative' }}>
       <div onClick={onClick} style={{ cursor: 'pointer', width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-        <CoverImage coverId={coverId} olKey={olKey} title={title} size="L"
+        <CoverImage coverId={coverId} olKey={olKey} coverUrl={coverUrl} title={title} size="L"
           style={{ width: 76, height: 110, borderRadius: 8, boxShadow: '0 3px 10px rgba(26,39,68,0.15)' }} />
         <div style={{ marginTop: '0.4rem', width: '100%', textAlign: 'center' }}>
           <div style={{ fontSize: '0.7rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</div>
@@ -69,7 +69,7 @@ function Carousel({ children }) {
 }
 
 // ── LitLoop Picks section ─────────────────────────────────────────
-function LitLoopPicksSection({ feed, loading, moods, activeMood, setActiveMood, shuffleFeed, getCoverForBook, onSelect, onDismiss, addedKeys }) {
+function LitLoopPicksSection({ feed, loading, moods, activeMood, setActiveMood, shuffleFeed, getCoverForBook, getCoverUrlForBook, onSelect, onDismiss, addedKeys }) {
   const [filterOpen, setFilterOpen] = useState(false)
   return (
     <div style={{ marginBottom: '1.5rem' }}>
@@ -125,6 +125,7 @@ function LitLoopPicksSection({ feed, loading, moods, activeMood, setActiveMood, 
                   <BookCard
                     title={book.title} author={book.author}
                     coverId={getCoverForBook(book)} olKey={book.ol_key}
+                    coverUrl={getCoverUrlForBook(book)}
                     onClick={() => onSelect(book)}
                     moodLabel={moods.find(m => m.id === book.mood_id)?.label}
                   />
@@ -206,7 +207,7 @@ function BookModal({ book, added, dupMsg, onReread, onClose, onAddToTBR, onRecom
       <style>{`@media (min-width: 768px) { .rt-modal-backdrop { align-items: center !important; } .rt-modal-sheet { border-radius: 16px !important; max-height: 80vh !important; } }`}</style>
       <div className="rt-modal-sheet" style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }} onClick={e => e.stopPropagation()}>
         <div style={{ background: 'linear-gradient(160deg, #111C35 0%, var(--rt-navy) 100%)', padding: '1.25rem', display: 'flex', gap: '1rem', alignItems: 'flex-start', flexShrink: 0 }}>
-          <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="L"
+          <CoverImage coverId={book.coverId} olKey={book.olKey} coverUrl={book.coverUrl} title={book.title} size="L"
             style={{ width: 72, height: 104, borderRadius: 8, boxShadow: '0 3px 12px rgba(0,0,0,0.3)', flexShrink: 0 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: '#fff', lineHeight: 1.25, marginBottom: '0.25rem' }}>{book.title}</div>
@@ -470,7 +471,7 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
 
   const {
     feed: editorialFeed, loading: editorialLoading, moods,
-    activeMood, setActiveMood, dismissBook, shuffleFeed, getCoverForBook, getOlKeyForBook,
+    activeMood, setActiveMood, dismissBook, shuffleFeed, getCoverForBook, getCoverUrlForBook, getOlKeyForBook,
   } = useLitLoopPicks({ userId: user?.id, books, preferredMoods })
 
   const aiPicks = useAiPicks(user, books)
@@ -642,13 +643,15 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
         feed={editorialFeed} loading={editorialLoading} moods={moods}
         activeMood={activeMood} setActiveMood={setActiveMood}
         shuffleFeed={shuffleFeed} getCoverForBook={getCoverForBook}
+        getCoverUrlForBook={getCoverUrlForBook}
         onSelect={book => {
           setShowRecommend(false); setShowChatPicker(false)
           const cover = getCoverForBook(book)
           const confirmedOlKey = getOlKeyForBook(book)
           setSelectedBook({
             title: book.title, author: book.author, coverId: cover || null,
-            olKey: confirmedOlKey || null, editorNote: book.editor_note,
+            olKey: confirmedOlKey || null, coverUrl: getCoverUrlForBook(book) || null,
+            editorNote: book.editor_note,
             _key: `ll-${book.ol_key}`, _dbOlKey: book.ol_key,
             _editorial: true, _moodId: book.mood_id,
             _moodLabel: moods.find(m => m.id === book.mood_id)?.label || null,
@@ -773,11 +776,13 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
                     author={rec.author}
                     coverId={rec.coverId || null}
                     olKey={rec.olKey || null}
+                    coverUrl={rec.coverUrl || null}
                     onClick={() => {
                       setShowRecommend(false)
                       setSelectedBook({
                         title: rec.title, author: rec.author,
                         coverId: rec.coverId || null, olKey: rec.olKey || null,
+                        coverUrl: rec.coverUrl || null,
                         why: rec.why, desc: rec.desc,
                         _key: `ai-${rec._index}`,
                         _aiPick: true,

@@ -318,7 +318,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
                     alignItems: 'center', cursor: 'pointer', boxSizing: 'border-box'
                   }}>
                   <div style={{ width: 64, height: 92, borderRadius: 6, overflow: 'hidden', flexShrink: 0, boxShadow: '0 2px 8px rgba(26,39,68,0.15)' }}>
-                    <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <CoverImage coverId={book.coverId} olKey={book.olKey} coverUrl={book.coverUrl} title={book.title} size="M" priority={true} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="rt-reading-badge" style={{ marginBottom: '0.3rem' }}>Currently reading</div>
@@ -380,7 +380,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
               .map(book => (
                 <div key={book.id} onClick={() => openDetail(book, 'mylist-history')} style={{ cursor: 'pointer', flexShrink: 0, width: 80 }}>
                   <div style={{ width: 80, height: 116, borderRadius: 6, overflow: 'hidden', boxShadow: '0 2px 8px rgba(26,39,68,0.13)' }}>
-                    <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="L" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <CoverImage coverId={book.coverId} olKey={book.olKey} coverUrl={book.coverUrl} title={book.title} size="L" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   </div>
                   <div style={{ fontSize: '0.6rem', color: 'var(--rt-t2)', marginTop: '0.35rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 80, lineHeight: 1.3, fontWeight: 500 }}>{book.title}</div>
                 </div>

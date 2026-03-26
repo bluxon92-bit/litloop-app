@@ -13,7 +13,7 @@ function FavCover({ book }) {
   return (
     <div style={{ flexShrink: 0, width: 76, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
       <div style={{ width: 76, height: 110, borderRadius: 8, overflow: 'hidden', background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.15)' }}>
-        <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="M"
+        <CoverImage coverId={book.coverId} olKey={book.olKey} coverUrl={book.coverUrl} title={book.title} size="M"
           style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
       </div>
       <div style={{ marginTop: '0.35rem', width: '100%', textAlign: 'center', fontSize: '0.65rem', fontWeight: 600, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{book.title}</div>
@@ -209,6 +209,7 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
           title:       e.books?.title    || e.title_manual  || '',
           author:      e.books?.author   || e.author_manual || '',
           coverId:     e.books?.cover_id || null,
+          coverUrl:    e.books?.cover_url || null,
           olKey,
           status:      e.status,
           rating:      enriched?.rating      || e.rating      || null,
@@ -222,7 +223,7 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
       if (topIds.length > 0) {
         const { data: favEntries } = await sb
           .from('reading_entries')
-          .select('id, status, books(title, author, cover_id, ol_key)')
+          .select('id, status, books(title, author, cover_id, ol_key, cover_url)')
           .in('id', topIds)
           .eq('user_id', friend.userId)
         if (favEntries?.length) {
@@ -233,11 +234,12 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
               .map(id => byId[id])
               .filter(Boolean)
               .map(e => ({
-                id:      e.id,
-                title:   e.books?.title  || '',
-                author:  e.books?.author || '',
-                coverId: e.books?.cover_id || null,
-                olKey:   e.books?.ol_key   || null,
+                id:       e.id,
+                title:    e.books?.title  || '',
+                author:   e.books?.author || '',
+                coverId:  e.books?.cover_id  || null,
+                coverUrl: e.books?.cover_url || null,
+                olKey:    e.books?.ol_key    || null,
               }))
           )
         }
@@ -457,7 +459,7 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
                 const chat = existingChat(b.olKey)
                 return (
                   <div key={i} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', padding: i > 0 ? '0.6rem 0 0' : '0' }}>
-                    <CoverImage coverId={b.coverId} olKey={b.olKey} title={b.title} size="M" />
+                    <CoverImage coverId={b.coverId} olKey={b.olKey} coverUrl={b.coverUrl} title={b.title} size="M" />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.title}</div>
                       {b.author && <div style={{ fontSize: '0.75rem', color: 'var(--rt-t3)' }}>{b.author}</div>}
@@ -524,7 +526,7 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
                     {/* Book row: cover centred with meta */}
                     <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: '0.6rem' }}>
                       <div style={{ width: 80, height: 116, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.13)' }}>
-                        <CoverImage coverId={b.coverId} olKey={b.olKey} title={b.title} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <CoverImage coverId={b.coverId} olKey={b.olKey} coverUrl={b.coverUrl} title={b.title} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.15rem' }}>{b.title}</div>

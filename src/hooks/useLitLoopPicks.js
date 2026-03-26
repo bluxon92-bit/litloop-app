@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { sb } from '../lib/supabase'
+import { uploadCoverToSupabase } from '../lib/coverCache'
 
 const MOODS = [
   { id: 'unputdownable',  label: 'Unputdownable' },
@@ -241,8 +242,21 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
         if (doc) { coverId = doc.cover_i || null; olKey = doc.key || null }
         if (coverId) break
       }
-      // Store both coverId and confirmed OL key (may differ from editorial ol_key)
-      const entry = { coverId, olKey }
+
+      // Upload to Supabase Storage and persist cover_url back to editorial_books
+      let coverUrl = null
+      const uploadKey = olKey || book.ol_key
+      if (coverId && uploadKey) {
+        coverUrl = await uploadCoverToSupabase(coverId, uploadKey)
+        if (coverUrl) {
+          // Write cover_url back to editorial_books so future loads skip this whole path
+          await sb.from('editorial_books')
+            .update({ cover_url: coverUrl })
+            .eq('ol_key', book.ol_key)
+        }
+      }
+
+      const entry = { coverId, olKey, coverUrl }
       setCoverCache(prev => {
         const next = { ...prev, [book.ol_key]: entry }
         coverCacheRef.current = next
@@ -272,9 +286,16 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
 
   function getCoverForBook(book) {
     const cached = coverCache[book.ol_key]
-    // cached may be a plain coverId (old format) or {coverId, olKey} object (new format)
     const cachedCoverId = cached && typeof cached === 'object' ? cached.coverId : cached
     return book.cover_id || cachedCoverId || null
+  }
+
+  function getCoverUrlForBook(book) {
+    // Prefer cover_url stored directly on the editorial_books row (set after first upload)
+    if (book.cover_url) return book.cover_url
+    const cached = coverCache[book.ol_key]
+    if (cached && typeof cached === 'object') return cached.coverUrl || null
+    return null
   }
 
   // Returns the confirmed OL works key for a book (for description fetching)
@@ -308,6 +329,7 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
     dismissBook,
     shuffleFeed,
     getCoverForBook,
+    getCoverUrlForBook,
     getOlKeyForBook,
   }
 }

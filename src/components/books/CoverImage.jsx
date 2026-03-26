@@ -14,7 +14,7 @@ const gradients = [
 // Prevents re-uploading/re-fetching the same cover across components
 const resolvedUrlCache = {}
 
-export default function CoverImage({ coverId, olKey, coverUrl, title, size = 'M', style = {}, onCoverUrlResolved }) {
+export default function CoverImage({ coverId, olKey, coverUrl, title, size = 'M', style = {}, onCoverUrlResolved, priority = false, lazy = false }) {
   const sizes = { S: [38, 54], M: [56, 82], L: [80, 116] }
   const [w, h] = sizes[size] || sizes.M
 
@@ -102,6 +102,10 @@ export default function CoverImage({ coverId, olKey, coverUrl, title, size = 'M'
     <img
       src={resolvedUrl}
       alt={title}
+      width={w}
+      height={h}
+      fetchpriority={priority ? 'high' : 'auto'}
+      loading={lazy ? 'lazy' : 'eager'}
       style={{ ...baseStyle, objectFit: 'cover' }}
       onError={() => setFailed(true)}
     />

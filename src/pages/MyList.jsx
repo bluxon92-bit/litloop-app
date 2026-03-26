@@ -93,7 +93,7 @@ function TBRList({ tbr, updateBook, deleteBook, openDetail }) {
             <span/><span/><span/>
           </div>
           <span className="rt-tbr-num">{i + 1}</span>
-          <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="M" />
+          <CoverImage coverId={book.coverId} olKey={book.olKey} coverUrl={book.coverUrl} title={book.title} size="M" />
           <div className="rt-tbr-item-body">
             <div className="rt-book-title">{book.title}</div>
             {book.author && <div className="rt-book-author">{book.author}</div>}
@@ -219,7 +219,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
                 }}
               >
                 <div style={{ width: 64, height: 92, borderRadius: 6, overflow: 'hidden', flexShrink: 0, boxShadow: '0 2px 8px rgba(26,39,68,0.15)' }}>
-                  <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <CoverImage coverId={book.coverId} olKey={book.olKey} coverUrl={book.coverUrl} title={book.title} size="M" priority={true} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="rt-reading-badge" style={{ marginBottom: '0.3rem' }}>Currently reading</div>
@@ -311,7 +311,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
                 return (
                   <div key={book.id} className="rt-hist-card" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => openDetail(book, 'mylist-history')}>
                     <div className="rt-hist-card-inner">
-                      <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="M" />
+                      <CoverImage coverId={book.coverId} olKey={book.olKey} coverUrl={book.coverUrl} title={book.title} size="M" />
                       <div className="rt-hist-body">
                         <div className="rt-book-title">{book.title}</div>
                         {book.author && <div className="rt-book-author">{book.author}</div>}
@@ -349,7 +349,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
             dnf.map(book => (
               <div key={book.id} className="rt-hist-card rt-hist-card--dnf" style={{ cursor: 'pointer', position: 'relative' }} onClick={() => openDetail(book, 'mylist-dnf')}>
                 <div className="rt-hist-card-inner">
-                  <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="M" />
+                  <CoverImage coverId={book.coverId} olKey={book.olKey} coverUrl={book.coverUrl} title={book.title} size="M" />
                   <div className="rt-hist-body">
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                       <div className="rt-book-title">{book.title}</div>
