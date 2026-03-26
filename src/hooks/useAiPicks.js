@@ -18,12 +18,16 @@ async function callRecsAPI(prompt) {
       body: JSON.stringify({ prompt }),
       signal: controller.signal,
     })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const data = await res.json()
+    if (res.status === 429) {
+      // Rate limited — throw with the human-readable message from the server
+      throw new Error(data.error || 'Too many requests — please try again later.')
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
     const text = data.text || ''
     if (!text) throw new Error('Empty response from AI')
     const clean = text.replace(/```json|```/g, '').trim()
-    return JSON.parse(clean)
+    return { recs: JSON.parse(clean), refreshCount: data.refreshCount ?? null }
   } catch (e) {
     if (e.name === 'AbortError') throw new Error('Request timed out — please try again.')
     throw e
@@ -58,11 +62,13 @@ export function useAiPicks(user, books) {
   const [error, setError]       = useState(null)
   const [loaded, setLoaded]     = useState(false)
 
+  const [refreshCount, setRefreshCount] = useState(0)
+
   // Load persisted picks from Supabase on login
   useEffect(() => {
     if (!user) {
       setState('idle'); setRecs([]); setDismissed(new Set()); setAdded(new Set())
-      setLoaded(false); return
+      setRefreshCount(0); setLoaded(false); return
     }
     loadFromDB()
   }, [user?.id])
@@ -78,18 +84,20 @@ export function useAiPicks(user, books) {
       setRecs(p.recs || [])
       setDismissed(new Set(p.dismissed || []))
       setAdded(new Set(p.added || []))
+      setRefreshCount(p.refreshCount ?? 0)
       setState(p.recs?.length ? 'done' : 'idle')
     }
     setLoaded(true)
   }
 
-  async function saveToDB(newRecs, newDismissed, newAdded) {
+  async function saveToDB(newRecs, newDismissed, newAdded, refreshCount) {
     if (!user) return
     await sb.from('profiles').update({
       ai_picks: {
         recs: newRecs,
         dismissed: [...newDismissed],
         added: [...newAdded],
+        refreshCount: refreshCount ?? 0,
         savedAt: new Date().toISOString(),
       }
     }).eq('id', user.id)
@@ -116,10 +124,9 @@ export function useAiPicks(user, books) {
     }
     setState('loading'); setError(null)
     try {
-      const result = await callRecsAPI(buildPrompt())
+      const { recs: result, refreshCount } = await callRecsAPI(buildPrompt())
       if (!Array.isArray(result) || !result.length) throw new Error('No recommendations returned.')
 
-      // Enrich with OL covers sequentially to avoid rate limiting
       const enriched = [...result]
       const newRecs = result.map(r => ({ ...r, coverId: null, olKey: null }))
       setRecs(newRecs)
@@ -128,13 +135,12 @@ export function useAiPicks(user, books) {
       const newAdded = new Set()
       setDismissed(newDismissed)
       setAdded(newAdded)
-      await saveToDB(newRecs, newDismissed, newAdded);
+      await saveToDB(newRecs, newDismissed, newAdded, refreshCount)
 
       // Fetch covers and upload to Storage in background
       ;(async () => {
         for (let i = 0; i < enriched.length; i++) {
           const { coverId, olKey } = await searchOLCover(enriched[i].title, enriched[i].author)
-          // Upload to Supabase Storage so future loads are instant
           let coverUrl = null
           if (coverId && olKey) {
             coverUrl = await uploadCoverToSupabase(coverId, olKey)
@@ -147,8 +153,7 @@ export function useAiPicks(user, books) {
           })
           await new Promise(r => setTimeout(r, 300))
         }
-        // Save with covers and coverUrls filled in
-        await saveToDB(enriched, newDismissed, newAdded)
+        await saveToDB(enriched, newDismissed, newAdded, refreshCount)
       })()
 
     } catch (err) {
@@ -160,7 +165,7 @@ export function useAiPicks(user, books) {
     setDismissed(prev => {
       const next = new Set(prev)
       next.add(index)
-      saveToDB(recs, next, added)
+      saveToDB(recs, next, added, refreshCount)
       return next
     })
   }
@@ -169,7 +174,7 @@ export function useAiPicks(user, books) {
     setAdded(prev => {
       const next = new Set(prev)
       next.add(index)
-      saveToDB(recs, dismissed, next)
+      saveToDB(recs, dismissed, next, refreshCount)
       return next
     })
   }
@@ -177,7 +182,7 @@ export function useAiPicks(user, books) {
   function refresh() {
     setRecs([]); setDismissed(new Set()); setAdded(new Set())
     setState('idle'); setError(null)
-    saveToDB([], new Set(), new Set())
+    saveToDB([], new Set(), new Set(), refreshCount)
   }
 
   // Visible = not dismissed. Empty state when all dismissed or added
