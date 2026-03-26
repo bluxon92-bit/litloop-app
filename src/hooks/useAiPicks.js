@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { sb } from '../lib/supabase'
+import { uploadCoverToSupabase } from '../lib/coverCache'
 
 const SUPABASE_URL  = 'https://danknyhumorgkvidrdve.supabase.co'
 const SUPABASE_ANON = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRhbmtueWh1bW9yZ2t2aWRyZHZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3OTMzMzksImV4cCI6MjA4ODM2OTMzOX0.uTbNT_MBipxNCJckFI2JFACvftdtSy3M-YRQuJVDziU'
@@ -129,19 +130,24 @@ export function useAiPicks(user, books) {
       setAdded(newAdded)
       await saveToDB(newRecs, newDismissed, newAdded);
 
-      // Fetch covers in background
+      // Fetch covers and upload to Storage in background
       ;(async () => {
         for (let i = 0; i < enriched.length; i++) {
           const { coverId, olKey } = await searchOLCover(enriched[i].title, enriched[i].author)
-          enriched[i] = { ...enriched[i], coverId, olKey }
+          // Upload to Supabase Storage so future loads are instant
+          let coverUrl = null
+          if (coverId && olKey) {
+            coverUrl = await uploadCoverToSupabase(coverId, olKey)
+          }
+          enriched[i] = { ...enriched[i], coverId, olKey, coverUrl }
           setRecs(prev => {
             const updated = [...prev]
-            updated[i] = { ...updated[i], coverId, olKey }
+            updated[i] = { ...updated[i], coverId, olKey, coverUrl }
             return updated
           })
           await new Promise(r => setTimeout(r, 300))
         }
-        // Save with covers filled in
+        // Save with covers and coverUrls filled in
         await saveToDB(enriched, newDismissed, newAdded)
       })()
 
