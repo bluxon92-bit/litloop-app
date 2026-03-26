@@ -216,7 +216,7 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
   function BookCoverWithTitle({ book, onClick }) {
     return (
       <div onClick={onClick} style={{ cursor: 'pointer', textAlign: 'center', width: 62, flexShrink: 0 }}>
-        <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="M" />
+        <CoverImage coverId={book.coverId} olKey={book.olKey} coverUrl={book.coverUrl} title={book.title} size="M" />
         <div style={{ fontSize: '0.6rem', color: 'var(--rt-t2)', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 80, lineHeight: 1.2, fontWeight: 500 }}>{book.title}</div>
       </div>
     )
@@ -285,7 +285,7 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
             <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-teal)', marginBottom: '0.6rem' }}>Currently reading</div>
             <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', cursor: 'pointer' }}
               onClick={() => { setDetailBook(book); setDetailLocation('mylist-reading') }}>
-              <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="M" />
+              <CoverImage coverId={book.coverId} olKey={book.olKey} coverUrl={book.coverUrl} title={book.title} size="M" priority={true} />
               <div>
                 <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)' }}>{book.title}</div>
                 {book.author && <div style={{ fontSize: '0.75rem', color: 'var(--rt-t3)' }}>{book.author}</div>}
@@ -345,7 +345,7 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
                   <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: '0.6rem' }}
                     onClick={() => { setDetailBook(book); setDetailLocation('mylist-history') }} >
                     <div style={{ width: 80, height: 116, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.13)', cursor: 'pointer' }}>
-                      <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <CoverImage coverId={book.coverId} olKey={book.olKey} coverUrl={book.coverUrl} title={book.title} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
                       <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.15rem' }}>{book.title}</div>
@@ -496,7 +496,7 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
                   <div style={{ width: 20, height: 20, borderRadius: 4, border: '2px solid', borderColor: selected ? 'var(--rt-amber)' : 'var(--rt-border-md)', background: selected ? 'var(--rt-amber)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     {selected && <span style={{ color: '#fff', fontSize: '0.75rem', fontWeight: 700 }}>✓</span>}
                   </div>
-                  <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="S" />
+                  <CoverImage coverId={book.coverId} olKey={book.olKey} coverUrl={book.coverUrl} title={book.title} size="S" />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{book.title}</div>
                     {book.author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>{book.author}</div>}
