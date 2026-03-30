@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { sb } from '../lib/supabase'
+import { Capacitor } from '@capacitor/core'
 
 export function useAuth() {
-  const [user, setUser] = useState(null)
+  const [user, setUser]       = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -33,9 +34,10 @@ export function useAuth() {
   }
 
   async function resetPassword(email) {
-    const { error } = await sb.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin
-    })
+    const redirectTo = Capacitor.isNativePlatform()
+      ? 'litloop://login-callback'
+      : window.location.origin
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo })
     return { error }
   }
 

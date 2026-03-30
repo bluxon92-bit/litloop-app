@@ -8,8 +8,79 @@ import {
   subscribeToPush, unsubscribeFromPush, isSubscribed,
   saveNotificationPrefs,
 } from '../lib/pushManager'
+import { isNative, registerFcmToken } from '../lib/fcmManager'
 
-// ── Notification Settings Card ────────────────────────────────
+// ── Native Push Settings Card (Capacitor) ─────────────────────
+function NativePushSettings({ user, notificationPrefs, setNotificationPrefs }) {
+  const [status, setStatus]     = useState(null)
+  const [saving, setSaving]     = useState(false)
+
+  async function handleEnable() {
+    setStatus(null)
+    const { ok, reason } = await registerFcmToken(user.id)
+    if (ok) setStatus({ type: 'ok', text: '✓ Push notifications enabled!' })
+    else if (reason === 'permission_denied') setStatus({ type: 'err', text: 'Permission denied — enable notifications in your device Settings.' })
+    else setStatus({ type: 'err', text: `Something went wrong: ${reason}` })
+  }
+
+  async function handlePrefChange(key, value) {
+    const updated = { ...notificationPrefs, [key]: value }
+    setNotificationPrefs(updated)
+    setSaving(true)
+    await saveNotificationPrefs(user.id, updated)
+    setSaving(false)
+  }
+
+  const PREF_ITEMS = [
+    { key: 'review_comments', label: 'Review comments & likes',  desc: 'When someone comments on or likes your review' },
+    { key: 'friend_requests', label: 'Friend requests',          desc: 'When someone adds you or accepts your request' },
+    { key: 'recommendations', label: 'Book recommendations',     desc: 'When a friend recommends a book to you' },
+    { key: 'messages',        label: 'Chat messages',            desc: 'Direct messages and book club activity' },
+  ]
+
+  const labelStyle = { fontSize: '0.83rem', fontWeight: 600, color: 'var(--rt-navy)' }
+  const descStyle  = { fontSize: '0.72rem', color: 'var(--rt-t3)', marginTop: '0.1rem' }
+
+  return (
+    <div className="rt-card" style={{ marginBottom: '1rem' }}>
+      <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.75rem' }}>
+        Push notifications
+      </div>
+      <button
+        onClick={handleEnable}
+        style={{ background: 'var(--rt-navy)', color: '#fff', border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.6rem 1.25rem', fontSize: '0.83rem', fontWeight: 700, cursor: 'pointer', marginBottom: '0.75rem' }}
+      >
+        Enable push notifications
+      </button>
+      {status && (
+        <div style={{ fontSize: '0.78rem', color: status.type === 'ok' ? '#166534' : '#991b1b', background: status.type === 'ok' ? '#f0fdf4' : '#fef2f2', border: `1px solid ${status.type === 'ok' ? '#bbf7d0' : '#fecaca'}`, borderRadius: 8, padding: '0.45rem 0.7rem', marginBottom: '0.85rem' }}>
+          {status.text}
+        </div>
+      )}
+      <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>
+        Notify me about
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+        {PREF_ITEMS.map(item => (
+          <div key={item.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.6rem 0', borderBottom: '0.5px solid var(--rt-border)' }}>
+            <div>
+              <div style={labelStyle}>{item.label}</div>
+              <div style={descStyle}>{item.desc}</div>
+            </div>
+            <button
+              onClick={() => handlePrefChange(item.key, !notificationPrefs[item.key])}
+              disabled={saving}
+              style={{ flexShrink: 0, width: 40, height: 24, borderRadius: 12, background: notificationPrefs[item.key] !== false ? 'var(--rt-teal)' : 'var(--rt-border-md)', border: 'none', cursor: saving ? 'not-allowed' : 'pointer', position: 'relative', transition: 'background 0.2s', opacity: saving ? 0.6 : 1, marginLeft: '1rem' }}>
+              <span style={{ position: 'absolute', top: 2, left: notificationPrefs[item.key] !== false ? 18 : 2, width: 20, height: 20, borderRadius: '50%', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s' }} />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ── Notification Settings Card (PWA/web) ──────────────────────
 function NotificationSettings({ user, notificationPrefs, setNotificationPrefs }) {
   const [pushSupported, setPushSupported]   = useState(false)
   const [pwaInstalled, setPwaInstalled]     = useState(false)
@@ -509,11 +580,19 @@ export default function AccountSettings({ onNavigate }) {
       </div>
 
       {/* Notifications */}
-      <NotificationSettings
-        user={user}
-        notificationPrefs={notificationPrefs}
-        setNotificationPrefs={setNotificationPrefs}
-      />
+      {isNative() ? (
+        <NativePushSettings
+          user={user}
+          notificationPrefs={notificationPrefs}
+          setNotificationPrefs={setNotificationPrefs}
+        />
+      ) : (
+        <NotificationSettings
+          user={user}
+          notificationPrefs={notificationPrefs}
+          setNotificationPrefs={setNotificationPrefs}
+        />
+      )}
 
       {/* Image cache */}
       <div className="rt-card" style={{ marginBottom: '1rem' }}>
@@ -539,6 +618,37 @@ export default function AccountSettings({ onNavigate }) {
           style={{ background: 'none', border: '1px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)', padding: '0.55rem 1.25rem', fontSize: '0.83rem', color: 'var(--rt-t2)', cursor: 'pointer' }}>
           Sign out
         </button>
+      </div>
+
+      {/* Legal */}
+      <div className="rt-card" style={{ marginBottom: '1rem' }}>
+        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.75rem' }}>Legal</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.1rem' }}>
+          {[
+            { label: 'Privacy & Cookie Policy', href: 'https://www.litloop.co/cookie-policy/' },
+            { label: 'Terms & Conditions',      href: 'https://www.litloop.co/terms/' },
+          ].map(({ label, href }) => (
+            <a
+              key={href}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '0.55rem 0',
+                borderBottom: '0.5px solid var(--rt-border)',
+                fontSize: '0.83rem', color: 'var(--rt-navy)',
+                textDecoration: 'none',
+              }}
+            >
+              {label}
+              <span style={{ fontSize: '0.75rem', color: 'var(--rt-t3)' }}>↗</span>
+            </a>
+          ))}
+        </div>
+        <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginTop: '0.6rem' }}>
+          Questions? <a href="mailto:help@litloop.co" style={{ color: 'var(--rt-navy)', textDecoration: 'underline', textUnderlineOffset: 2 }}>help@litloop.co</a>
+        </div>
       </div>
 
       {/* Delete account */}

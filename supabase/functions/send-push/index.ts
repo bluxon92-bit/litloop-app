@@ -1,236 +1,226 @@
 // supabase/functions/send-push/index.ts
 //
-// Deploy with:
-//   supabase functions deploy send-push
+// Sends FCM push notifications to native iOS/Android devices.
+// Called from Postgres triggers via pg_net.
 //
-// Required secrets (set in Supabase Dashboard → Edge Functions → Secrets):
-//   VAPID_PUBLIC_KEY
-//   VAPID_PRIVATE_KEY
-//   SUPABASE_URL
-//   SUPABASE_SERVICE_ROLE_KEY
+// Required secrets (set via Supabase dashboard → Edge Functions → Secrets):
+//   FIREBASE_PROJECT_ID   — e.g. litloop-4840f
+//   FIREBASE_CLIENT_EMAIL — service account email
+//   FIREBASE_PRIVATE_KEY  — service account private key (with \n as literal newlines)
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
-const VAPID_PUBLIC_KEY  = Deno.env.get('VAPID_PUBLIC_KEY')!
-const VAPID_PRIVATE_KEY = Deno.env.get('VAPID_PRIVATE_KEY')!
-const SUPABASE_URL      = Deno.env.get('SUPABASE_URL')!
-const SERVICE_ROLE_KEY  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const SUPABASE_URL        = Deno.env.get('SUPABASE_URL')!
+const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+const FIREBASE_PROJECT_ID  = Deno.env.get('FIREBASE_PROJECT_ID')!
+const FIREBASE_CLIENT_EMAIL = Deno.env.get('FIREBASE_CLIENT_EMAIL')!
+const FIREBASE_PRIVATE_KEY  = Deno.env.get('FIREBASE_PRIVATE_KEY')!.replace(/\\n/g, '\n')
 
-// ── VAPID JWT signing (Web Push spec) ────────────────────────
-async function buildVapidAuthHeader(endpoint: string): Promise<string> {
-  const origin = new URL(endpoint).origin
-  const exp    = Math.floor(Date.now() / 1000) + 12 * 3600 // 12h
+const sb = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
 
-  const header  = { typ: 'JWT', alg: 'ES256' }
-  const payload = { aud: origin, exp, sub: 'mailto:hello@litloop.app' }
+// ── JWT for FCM HTTP v1 ───────────────────────────────────────
 
-  const enc = (obj: object) =>
+async function getAccessToken(): Promise<string> {
+  const now   = Math.floor(Date.now() / 1000)
+  const claim = {
+    iss:   FIREBASE_CLIENT_EMAIL,
+    scope: 'https://www.googleapis.com/auth/firebase.messaging',
+    aud:   'https://oauth2.googleapis.com/token',
+    exp:   now + 3600,
+    iat:   now,
+  }
+
+  // Encode JWT header + claim
+  const encode = (obj: object) =>
     btoa(JSON.stringify(obj)).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
 
-  const unsigned = `${enc(header)}.${enc(payload)}`
+  const header    = encode({ alg: 'RS256', typ: 'JWT' })
+  const payload   = encode(claim)
+  const unsigned  = `${header}.${payload}`
 
-  // Import the VAPID private key (base64url-encoded raw EC private key)
-  const rawKey = Uint8Array.from(
-    atob(VAPID_PRIVATE_KEY.replace(/-/g, '+').replace(/_/g, '/')),
-    c => c.charCodeAt(0)
-  )
+  // Import private key
+  const keyData = FIREBASE_PRIVATE_KEY
+    .replace('-----BEGIN PRIVATE KEY-----', '')
+    .replace('-----END PRIVATE KEY-----', '')
+    .replace(/\s/g, '')
 
+  const binaryKey = Uint8Array.from(atob(keyData), c => c.charCodeAt(0))
   const cryptoKey = await crypto.subtle.importKey(
-    'raw', rawKey,
-    { name: 'ECDSA', namedCurve: 'P-256' },
-    false, ['sign']
+    'pkcs8',
+    binaryKey,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+    false,
+    ['sign']
   )
 
-  const sig = await crypto.subtle.sign(
-    { name: 'ECDSA', hash: 'SHA-256' },
-    cryptoKey,
-    new TextEncoder().encode(unsigned)
-  )
-
-  const sigB64 = btoa(String.fromCharCode(...new Uint8Array(sig)))
+  // Sign
+  const encoder   = new TextEncoder()
+  const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, encoder.encode(unsigned))
+  const sigB64    = btoa(String.fromCharCode(...new Uint8Array(signature)))
     .replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_')
 
-  return `vapid t=${unsigned}.${sigB64},k=${VAPID_PUBLIC_KEY}`
-}
+  const jwt = `${unsigned}.${sigB64}`
 
-// ── Build notification content from type ─────────────────────
-interface NotifPayload {
-  userId:     string
-  type:       string
-  bookTitle?: string
-  entryId?:   string
-  commentId?: string
-  actorId?:   string
-  actorName?: string
-}
-
-function buildNotificationContent(p: NotifPayload): { title: string; body: string; url: string } {
-  const book   = p.bookTitle ? `"${p.bookTitle}"` : 'a book'
-  const actor  = p.actorName || 'Someone'
-
-  switch (p.type) {
-    case 'review_comment':
-    case 'review_commented':
-      return { title: 'New comment', body: `${actor} commented on your review of ${book}`, url: '/' }
-    case 'review_like':
-    case 'review_liked':
-      return { title: 'Review liked', body: `${actor} liked your review of ${book}`, url: '/' }
-    case 'comment_liked':
-      return { title: 'Comment liked', body: `${actor} liked your comment`, url: '/' }
-    case 'thread_activity':
-      return { title: 'New reply', body: `${actor} replied in a thread you're in`, url: '/' }
-    case 'friend_request':
-      return { title: 'Friend request', body: `${actor} wants to be friends`, url: '/chat' }  // renamed below
-    case 'friend_accepted':
-      return { title: 'New friend!', body: `${actor} accepted your friend request`, url: '/' }
-    case 'book_recommendation':
-      return { title: 'Book recommendation', body: `${actor} recommended ${book}`, url: '/discover' }
-    case 'co_reading_started':
-    case 'co_reading_joined':
-      return { title: 'Reading buddy', body: `${actor} is also reading ${book}`, url: '/' }
-    default:
-      return { title: 'LitLoop', body: 'You have a new notification', url: '/' }
-  }
-}
-
-// ── Map type → pref key ───────────────────────────────────────
-function prefKeyForType(type: string): string {
-  if (['review_comment','review_commented','review_like','review_liked',
-       'comment_liked','thread_activity'].includes(type)) return 'review_comments'
-  if (['friend_request','friend_accepted'].includes(type))  return 'friend_requests'
-  if (['book_recommendation'].includes(type))               return 'recommendations'
-  return 'messages'
-}
-
-// ── Send a single push message ────────────────────────────────
-async function sendPush(
-  subscription: { endpoint: string; p256dh: string; auth: string },
-  payload: string
-): Promise<{ ok: boolean; status?: number; expired?: boolean }> {
-  const vapid = await buildVapidAuthHeader(subscription.endpoint)
-
-  // Encode payload
-  const encoder  = new TextEncoder()
-  const bodyBytes = encoder.encode(payload)
-
-  const res = await fetch(subscription.endpoint, {
+  // Exchange for access token
+  const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
-    headers: {
-      'Authorization': vapid,
-      'Content-Type':  'application/octet-stream',
-      'Content-Encoding': 'aes128gcm',
-      'TTL': '86400',
-    },
-    body: bodyBytes,
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`,
   })
+  const data = await res.json()
+  return data.access_token
+}
 
-  // 410 Gone / 404 = subscription expired, should be deleted
-  const expired = res.status === 410 || res.status === 404
-  return { ok: res.ok, status: res.status, expired }
+// ── Send a single FCM message ─────────────────────────────────
+
+async function sendFcmMessage(token: string, title: string, body: string, data: Record<string, string>) {
+  const accessToken = await getAccessToken()
+
+  const message = {
+    message: {
+      token,
+      notification: { title, body },
+      data,
+      apns: {
+        payload: { aps: { sound: 'default', badge: 1 } },
+      },
+      android: {
+        priority: 'high',
+        notification: { sound: 'default' },
+      },
+    },
+  }
+
+  const res = await fetch(
+    `https://fcm.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/messages:send`,
+    {
+      method:  'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type':  'application/json',
+      },
+      body: JSON.stringify(message),
+    }
+  )
+
+  if (!res.ok) {
+    const err = await res.text()
+    console.error('FCM send error:', err)
+    return { ok: false, error: err }
+  }
+  return { ok: true }
+}
+
+// ── Get FCM tokens for a user ─────────────────────────────────
+
+async function getTokensForUser(userId: string): Promise<string[]> {
+  const { data } = await sb
+    .from('fcm_tokens')
+    .select('token')
+    .eq('user_id', userId)
+  return (data || []).map((r: { token: string }) => r.token)
 }
 
 // ── Main handler ──────────────────────────────────────────────
+
 Deno.serve(async (req) => {
-  if (req.method !== 'POST') {
-    return new Response('Method not allowed', { status: 405 })
-  }
-
-  let body: NotifPayload
   try {
-    body = await req.json()
-  } catch {
-    return new Response('Bad JSON', { status: 400 })
-  }
+    const payload = await req.json()
+    const {
+      type,           // 'chat' | 'comment' | 'like' | 'friend_request' | 'friend_accepted' | 'recommendation'
+      recipient_id,   // user to notify
+      actor_name,     // display name of person who triggered the action
+      chat_id,
+      entry_id,
+      book_title,
+      book_author,
+      book_ol_key,
+      cover_id,
+      message,
+      from_user_id,
+    } = payload
 
-  const { userId, type } = body
-  if (!userId || !type) {
-    return new Response('Missing userId or type', { status: 400 })
-  }
+    if (!recipient_id || !type) {
+      return new Response(JSON.stringify({ error: 'Missing recipient_id or type' }), { status: 400 })
+    }
 
-  const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY)
-
-  // ── 1. Fetch actor name if we have actorId ────────────────
-  let actorName = body.actorName || null
-  if (body.actorId && !actorName) {
+    // Check notification preferences
     const { data: profile } = await sb
       .from('profiles')
-      .select('display_name, username')
-      .eq('id', body.actorId)
+      .select('notification_prefs')
+      .eq('id', recipient_id)
       .single()
-    actorName = profile?.display_name || profile?.username || null
-  }
 
-  // ── 2. Check user's notification prefs ───────────────────
-  const { data: profile } = await sb
-    .from('profiles')
-    .select('notification_prefs')
-    .eq('id', userId)
-    .single()
+    const prefs = profile?.notification_prefs || {}
 
-  const prefs: Record<string, boolean> = profile?.notification_prefs ?? {
-    messages: true, friend_requests: true, recommendations: true, review_comments: true
-  }
-
-  const prefKey = prefKeyForType(type)
-  if (prefs[prefKey] === false) {
-    return new Response(JSON.stringify({ skipped: true, reason: 'user pref off' }), {
-      headers: { 'Content-Type': 'application/json' }
-    })
-  }
-
-  // ── 3. Fetch all subscriptions for this user ──────────────
-  const { data: subscriptions } = await sb
-    .from('push_subscriptions')
-    .select('id, endpoint, p256dh, auth')
-    .eq('user_id', userId)
-
-  if (!subscriptions?.length) {
-    return new Response(JSON.stringify({ skipped: true, reason: 'no subscriptions' }), {
-      headers: { 'Content-Type': 'application/json' }
-    })
-  }
-
-  // ── 4. Build notification payload ────────────────────────
-  const content   = buildNotificationContent({ ...body, actorName: actorName || undefined })
-  const pushPayload = JSON.stringify({
-    title: content.title,
-    body:  content.body,
-    url:   content.url,
-    icon:  '/litloop-icon-192.png',
-    badge: '/litloop-icon-192.png',
-    tag:   type,              // groups same-type notifications on Android
-    data:  {
-      url:       content.url,
-      type,
-      entryId:   body.entryId   || null,
-      commentId: body.commentId || null,
+    // Map type to pref key
+    const prefMap: Record<string, string> = {
+      chat:            'messages',
+      comment:         'review_comments',
+      like:            'review_comments',
+      friend_request:  'friend_requests',
+      friend_accepted: 'friend_requests',
+      recommendation:  'recommendations',
     }
-  })
-
-  // ── 5. Send to all devices, clean up expired ──────────────
-  const expiredIds: string[] = []
-  let sent = 0
-
-  await Promise.all(subscriptions.map(async (sub) => {
-    const result = await sendPush(sub, pushPayload)
-    if (result.expired) {
-      expiredIds.push(sub.id)
-    } else if (result.ok) {
-      sent++
-      // Update last_used_at
-      await sb.from('push_subscriptions')
-        .update({ last_used_at: new Date().toISOString() })
-        .eq('id', sub.id)
+    const prefKey = prefMap[type]
+    if (prefKey && prefs[prefKey] === false) {
+      return new Response(JSON.stringify({ skipped: 'user_preference' }), { status: 200 })
     }
-  }))
 
-  // Delete expired subscriptions
-  if (expiredIds.length) {
-    await sb.from('push_subscriptions').delete().in('id', expiredIds)
+    // Build notification content
+    let title = 'LitLoop'
+    let body  = ''
+    const data: Record<string, string> = { type }
+
+    if (type === 'chat') {
+      title = actor_name || 'New message'
+      body  = message || 'Sent you a message'
+      data.chatId = chat_id || ''
+    } else if (type === 'comment') {
+      title = actor_name || 'New comment'
+      body  = `Commented on your review of ${book_title || 'a book'}`
+      data.entryId   = entry_id || ''
+      data.bookTitle = book_title || ''
+      data.actorName = actor_name || ''
+    } else if (type === 'like') {
+      title = actor_name || 'New like'
+      body  = `Liked your review of ${book_title || 'a book'}`
+      data.entryId   = entry_id || ''
+      data.bookTitle = book_title || ''
+      data.actorName = actor_name || ''
+    } else if (type === 'friend_request') {
+      title = actor_name || 'Friend request'
+      body  = `${actor_name || 'Someone'} wants to be your reading friend`
+      data.actorName = actor_name || ''
+    } else if (type === 'friend_accepted') {
+      title = actor_name || 'Friend request accepted'
+      body  = `${actor_name || 'Someone'} accepted your friend request`
+      data.friendUserId = from_user_id || ''
+      data.actorName    = actor_name || ''
+    } else if (type === 'recommendation') {
+      title = actor_name || 'Book recommendation'
+      body  = `Recommended ${book_title || 'a book'} for you`
+      data.bookOlKey  = book_ol_key  || ''
+      data.bookTitle  = book_title   || ''
+      data.bookAuthor = book_author  || ''
+      data.coverId    = cover_id     || ''
+      data.message    = message      || ''
+      data.fromUserId = from_user_id || ''
+      data.actorName  = actor_name   || ''
+    }
+
+    // Get device tokens and send
+    const tokens = await getTokensForUser(recipient_id)
+    if (tokens.length === 0) {
+      return new Response(JSON.stringify({ skipped: 'no_tokens' }), { status: 200 })
+    }
+
+    const results = await Promise.all(tokens.map(token => sendFcmMessage(token, title, body, data)))
+    const sent    = results.filter(r => r.ok).length
+
+    return new Response(JSON.stringify({ sent, total: tokens.length }), { status: 200 })
+  } catch (err) {
+    console.error('send-push error:', err)
+    return new Response(JSON.stringify({ error: err.message }), { status: 500 })
   }
-
-  return new Response(
-    JSON.stringify({ sent, expired: expiredIds.length }),
-    { headers: { 'Content-Type': 'application/json' } }
-  )
 })

@@ -83,8 +83,8 @@
 }
 @media (max-width: 767px) {
   .rt-page {
-    padding-left: 0.5rem !important;
-    padding-right: 0.5rem !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
   }
 }
 
@@ -1505,7 +1505,6 @@
     position: fixed; bottom: 0; left: 0; right: 0;
     z-index: 100; background: var(--rt-white);
     border-top: 1px solid var(--rt-border);
-    height: calc(64px + env(safe-area-inset-bottom, 0px));
     padding-bottom: env(safe-area-inset-bottom, 0px);
     box-shadow: 0 -4px 20px rgba(26,39,68,0.1);
   }
@@ -1532,10 +1531,10 @@ html, body { overflow-x: hidden; max-width: 100%; }
 }
 /* ── FAB (floating action button) ──────────────────────────── */
 .rt-fab {
-  bottom: calc(64px + 1rem); /* above mobile tab bar */
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 1rem); /* above mobile tab bar */
 }
 .rt-fab-items {
-  bottom: calc(64px + 1rem + 52px + 0.75rem); /* above FAB */
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 1rem + 52px + 0.75rem); /* above FAB */
 }
 @media (min-width: 768px) {
   .rt-fab {

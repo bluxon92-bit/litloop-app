@@ -17,6 +17,7 @@ import { avatarColour, avatarInitial, timeAgo } from '../../lib/utils'
 import { sb } from '../../lib/supabase'
 import { IcoBook, IcoChat as IcoChatBubble, IcoUsers as IcoUsersGroup } from '../icons'
 import logo from '../../assets/Ltiloop-logo-b-w.png'
+import { isNative, registerFcmToken, removeFcmListeners, setupFcmListeners } from '../../lib/fcmManager'
 
 // ── SVG icons ─────────────────────────────────────────────────
 function IcoHome(active) {
@@ -1051,6 +1052,47 @@ export default function AppShell() {
     return () => navigator.serviceWorker.removeEventListener('message', handleSWMessage)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── FCM native push setup ──────────────────────────────────
+  useEffect(() => {
+    if (!isNative() || !user?.id) return
+
+    function handlePushRoute(data) {
+      const type = data.type
+      if (type === 'chat' && data.chatId) {
+        openChatModal(data.chatId)
+      } else if ((type === 'comment' || type === 'like') && data.entryId) {
+        pendingReviewOpen.current = {
+          entryId:   data.entryId,
+          bookTitle: data.bookTitle || '',
+          reviewer:  { displayName: data.actorName || '' },
+        }
+        setPendingReviewTrigger(v => v + 1)
+        setActiveTab('home')
+      } else if (type === 'recommendation' && data.bookOlKey) {
+        pendingRecOpen.current = {
+          book_ol_key:  data.bookOlKey,
+          book_title:   data.bookTitle   || '',
+          book_author:  data.bookAuthor  || '',
+          cover_id:     data.coverId     || null,
+          message:      data.message     || '',
+          from_user_id: data.fromUserId  || null,
+        }
+        setActiveTab('discover')
+      } else if (type === 'friend_request') {
+        // Banner appears automatically — just open the app
+        setActiveTab('home')
+      } else if (type === 'friend_accepted' && data.friendUserId) {
+        setActiveTab('chat')
+        setActiveFriendProfile({ id: data.friendUserId, display_name: data.actorName || '' })
+      }
+    }
+
+    registerFcmToken(user.id)
+    setupFcmListeners(user.id, handlePushRoute)
+
+    return () => removeFcmListeners()
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   async function openChatModal(chatIdOrObj, book) {
     // If a full chat object is passed, use it directly
     let chat = typeof chatIdOrObj === 'object' && chatIdOrObj?.id ? chatIdOrObj : null
@@ -1326,7 +1368,9 @@ export default function AppShell() {
         background: 'var(--rt-white)', borderBottom: '1px solid var(--rt-border)',
         display: 'grid', gridTemplateColumns: '1fr auto 1fr',
         alignItems: 'center',
-        padding: '0.65rem 1rem', zIndex: 100, boxShadow: '0 1px 6px rgba(26,39,68,0.06)'
+        paddingTop: 'max(0.65rem, env(safe-area-inset-top, 0.65rem))',
+        paddingBottom: '0.65rem', paddingLeft: '1rem', paddingRight: '1rem',
+        zIndex: 100, boxShadow: '0 1px 6px rgba(26,39,68,0.06)'
       }}>
         {/* Left: profile avatar */}
         <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -1417,7 +1461,7 @@ export default function AppShell() {
       </header>
 
       {/* Mobile page content */}
-      <main className="rt-main-mobile" style={{ flex: 1, paddingTop: 56, paddingBottom: 64, width: '100%' }}>
+      <main className="rt-main-mobile" style={{ flex: 1, paddingTop: 'calc(56px + max(0px, env(safe-area-inset-top, 0px)))', paddingBottom: 64, width: '100%' }}>
         {renderPage()}
       </main>
 

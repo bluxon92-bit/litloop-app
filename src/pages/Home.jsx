@@ -350,24 +350,6 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
         )}
       </div>
       
-            {/* ── Notification strips ── */}
-      {user && (
-        <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.25rem' }}>
-          <button onClick={() => onNavigate('chat')} className="rt-notif-strip-btn">
-            <div className="rt-notif-strip-label">Messages</div>
-            <div className="rt-notif-strip-val" style={{ color: totalUnread > 0 ? 'var(--rt-amber)' : 'var(--rt-t2)' }}>
-              {totalUnread > 0 ? `${totalUnread} unread` : 'No new messages'}
-            </div>
-          </button>
-          <button onClick={() => onNavigate('discover')} className="rt-notif-strip-btn">
-            <div className="rt-notif-strip-label">Recommendations</div>
-            <div className="rt-notif-strip-val" style={{ color: pendingRecs.length > 0 ? 'var(--rt-amber)' : 'var(--rt-t2)' }}>
-              {pendingRecs.length > 0 ? `${pendingRecs.length} new` : 'Discover books'}
-            </div>
-          </button>
-        </div>
-      )}
-
       {/* ── Recently Read carousel ── */}
       {read.length > 0 && (
         <>

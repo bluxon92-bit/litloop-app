@@ -160,6 +160,14 @@ export default function AuthForms() {
       <button type="submit" disabled={loading} style={{ ...submitStyle, opacity: loading ? 0.7 : 1, cursor: loading ? 'default' : 'pointer' }}>
         {loading ? 'Creating account…' : 'Create account'}
       </button>
+      {mode === 'signup' && (
+        <p style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', textAlign: 'center', marginTop: '0.75rem', lineHeight: 1.5 }}>
+          By creating an account you agree to our{' '}
+          <a href="https://www.litloop.co/terms/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--rt-t3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Terms</a>
+          {' '}and{' '}
+          <a href="https://www.litloop.co/cookie-policy/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--rt-t3)', textDecoration: 'underline', textUnderlineOffset: 2 }}>Privacy Policy</a>.
+        </p>
+      )}
     </form>
   )
 

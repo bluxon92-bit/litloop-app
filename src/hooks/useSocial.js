@@ -9,8 +9,8 @@ export function useSocial(user) {
   const [recs, setRecs]                     = useState([])
   const [notifications, setNotifications]   = useState([])
   const [loaded, setLoaded]                 = useState(false)
-  const [myUsername, setMyUsername]         = useState('')
-  const [myDisplayName, setMyDisplayName]   = useState('')
+  const [myUsername, setMyUsername]         = useState(() => { try { return localStorage.getItem('ll_username') || '' } catch { return '' } })
+  const [myDisplayName, setMyDisplayName]   = useState(() => { try { return localStorage.getItem('ll_display_name') || '' } catch { return '' } })
   const [myFirstName, setMyFirstName]       = useState('')
   const [myLastName, setMyLastName]         = useState('')
   const [myBio, setMyBio]                   = useState('')
@@ -33,6 +33,7 @@ export function useSocial(user) {
       setFeed([]); setRecs([])
       setLoaded(false); setMyUsername(''); setMyDisplayName(''); setMyBio('')
       setMyAvatarUrl(null)
+      try { localStorage.removeItem('ll_display_name'); localStorage.removeItem('ll_username') } catch {}
       return
     }
     loadProfile()
@@ -64,6 +65,8 @@ export function useSocial(user) {
         ? `${firstName}${lastName.charAt(0)}`
         : firstName || data.display_name || data.username || ''
       setMyDisplayName(autoDisplay)
+      try { localStorage.setItem('ll_display_name', autoDisplay) } catch {}
+      try { localStorage.setItem('ll_username', data.username || '') } catch {}
       setMyBio(data.bio || '')
       setTopBookIds(data.top_book_ids || [])
       setPreferredMoods(data.preferred_moods || [])
@@ -396,6 +399,7 @@ export function useSocial(user) {
       setMyLastName(lastName.trim())
       setMyDisplayName(autoDisplay)
       setMyBio(bio.trim())
+      try { localStorage.setItem('ll_display_name', autoDisplay); localStorage.setItem('ll_username', cleanHandle) } catch {}
     }
     return { error }
   }

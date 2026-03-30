@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "294433708189",
+    "project_id": "litloop-4840f",
+    "storage_bucket": "litloop-4840f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:294433708189:android:ee26e336af5470ea839c74",
+        "android_client_info": {
+          "package_name": "co.litloop.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDE-sh0V2CmCrBl3TS0rjMvlh2jWrbiU0c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

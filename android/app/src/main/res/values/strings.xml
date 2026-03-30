@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">LitLoop</string>
+    <string name="title_activity_main">LitLoop</string>
+    <string name="package_name">co.litloop.app</string>
+    <string name="custom_url_scheme">co.litloop.app</string>
+</resources>
