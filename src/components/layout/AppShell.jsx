@@ -983,7 +983,7 @@ export default function AppShell() {
   const { totalUnread, chats, openThread, closeThread, markChatRead, messages,
           sendMessage, deleteMessage, loadEarlier, startOrOpenChat,
           loadParticipants, updateChatName, addParticipants,
-          leaveChat } = useChatContext()
+          leaveChat, loaded: chatsLoaded } = useChatContext()
   const { pending, outgoingPending, feed, recs, friends, sendRecommendation, generateInviteLink, sendFriendRequest,
           acceptFriendRequest, declineFriendRequest,
           myUsername, saveProfile, completeOnboarding, onboardingComplete, setPreferredMoods, profileLoaded,
@@ -1001,6 +1001,7 @@ export default function AppShell() {
   // Pending deep-link actions set by notification clicks, consumed by page components
   const pendingReviewOpen = useRef(null) // { entryId, bookTitle, bookAuthor, coverId, olKey, reviewBody, rating, reviewer }
   const pendingRecOpen    = useRef(null) // { book_ol_key, book_title, book_author, cover_id, message, from_user_id }
+  const pendingChatId     = useRef(null) // chat ID from notification tap — open once chats are loaded
   const [pendingReviewTrigger, setPendingReviewTrigger] = useState(0)
   const [importBanner, setImportBanner]           = useState(() => {
     try { return JSON.parse(sessionStorage.getItem('litloop_import') || 'null') } catch { return null }
@@ -1059,7 +1060,13 @@ export default function AppShell() {
     function handlePushRoute(data) {
       const type = data.type
       if (type === 'chat' && data.chatId) {
-        openChatModal(data.chatId)
+        // Find full chat object if available, otherwise store ID for later
+        const fullChat = chats.find(c => c.id === data.chatId)
+        if (fullChat) {
+          openChatModal(fullChat)
+        } else {
+          pendingChatId.current = data.chatId
+        }
       } else if ((type === 'comment' || type === 'like') && data.entryId) {
         pendingReviewOpen.current = {
           entryId:   data.entryId,
@@ -1079,7 +1086,6 @@ export default function AppShell() {
         }
         setActiveTab('discover')
       } else if (type === 'friend_request') {
-        // Banner appears automatically — just open the app
         setActiveTab('home')
       } else if (type === 'friend_accepted' && data.friendUserId) {
         setActiveTab('chat')
@@ -1088,10 +1094,26 @@ export default function AppShell() {
     }
 
     registerFcmToken(user.id)
-    setupFcmListeners(user.id, handlePushRoute)
+    setupFcmListeners(user.id, handlePushRoute, () => chatsLoaded)
 
     return () => removeFcmListeners()
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Route cold-start notification once chats are loaded ────
+  useEffect(() => {
+    if (!chatsLoaded) return
+    // fcmManager polls isReady — nothing extra needed here
+  }, [chatsLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Open pending chat from notification tap once chats load ──
+  useEffect(() => {
+    if (!pendingChatId.current || !chats.length) return
+    const chat = chats.find(c => c.id === pendingChatId.current)
+    if (chat) {
+      pendingChatId.current = null
+      openChatModal(chat)
+    }
+  }, [chats]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function openChatModal(chatIdOrObj, book) {
     // If a full chat object is passed, use it directly

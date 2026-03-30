@@ -1,15 +1,3 @@
-// ─────────────────────────────────────────────────────────────
-// src/lib/fcmManager.js
-//
-// Handles FCM push notification lifecycle for the native app:
-//   - Requesting permission
-//   - Registering FCM token with Supabase
-//   - Routing notification taps to the correct screen
-//
-// Handles both foreground taps and cold-start taps (app opened
-// from a closed state via notification).
-// ─────────────────────────────────────────────────────────────
-
 import { Capacitor } from '@capacitor/core'
 import { PushNotifications } from '@capacitor/push-notifications'
 import { sb } from './supabase'
@@ -18,36 +6,29 @@ export function isNative() {
   return Capacitor.isNativePlatform()
 }
 
-// ── Pending launch notification ───────────────────────────────
-// When the app is opened from closed state by tapping a notification,
-// the tap event fires before React is ready. We store it here and
-// consume it once setupFcmListeners is called.
-
+// Store cold-start notification tap before React is ready
 let pendingLaunchNotification = null
+let onRouteCallback = null
 
-// Call this as early as possible — before React mounts — to catch
-// cold-start notification taps.
 export function initFcmEarly() {
   if (!isNative()) return
-
   PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => {
     const data = notification.data || {}
-    if (pendingLaunchNotification === null) {
+    if (onRouteCallback) {
+      // Listeners already set up — route immediately
+      onRouteCallback(data)
+    } else {
+      // Store for later consumption
       pendingLaunchNotification = data
     }
   })
 }
 
-// ── Token registration ────────────────────────────────────────
-
 export async function registerFcmToken(userId) {
   if (!isNative()) return { ok: false, reason: 'not_native' }
-
   try {
     const permResult = await PushNotifications.requestPermissions()
-    if (permResult.receive !== 'granted') {
-      return { ok: false, reason: 'permission_denied' }
-    }
+    if (permResult.receive !== 'granted') return { ok: false, reason: 'permission_denied' }
     await PushNotifications.register()
     return { ok: true }
   } catch (err) {
@@ -58,12 +39,7 @@ export async function registerFcmToken(userId) {
 async function saveFcmToken(userId, token) {
   const platform = Capacitor.getPlatform()
   await sb.from('fcm_tokens').upsert(
-    {
-      user_id:    userId,
-      token,
-      platform,
-      updated_at: new Date().toISOString(),
-    },
+    { user_id: userId, token, platform, updated_at: new Date().toISOString() },
     { onConflict: 'user_id,platform' }
   )
 }
@@ -71,19 +47,17 @@ async function saveFcmToken(userId, token) {
 export async function unregisterFcmToken(userId) {
   if (!isNative()) return
   const platform = Capacitor.getPlatform()
-  await sb.from('fcm_tokens')
-    .delete()
-    .eq('user_id', userId)
-    .eq('platform', platform)
+  await sb.from('fcm_tokens').delete().eq('user_id', userId).eq('platform', platform)
 }
-
-// ── Listener setup ────────────────────────────────────────────
 
 let listenersAdded = false
 
-export function setupFcmListeners(userId, onRoute) {
+// isReady: optional function that returns true when app data is loaded
+// Used to delay cold-start routing until chats/data are available
+export function setupFcmListeners(userId, onRoute, isReady) {
   if (!isNative() || listenersAdded) return
   listenersAdded = true
+  onRouteCallback = onRoute
 
   PushNotifications.addListener('registration', async ({ value: token }) => {
     await saveFcmToken(userId, token)
@@ -97,16 +71,30 @@ export function setupFcmListeners(userId, onRoute) {
     console.log('FCM foreground notification:', notification.title)
   })
 
+  // Background tap (app was open in background)
   PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => {
     const data = notification.data || {}
     if (onRoute) onRoute(data)
   })
 
-  // Consume any cold-start notification that arrived before we were ready
+  // Cold-start tap — wait until app is ready before routing
   if (pendingLaunchNotification) {
     const data = pendingLaunchNotification
     pendingLaunchNotification = null
-    setTimeout(() => { if (onRoute) onRoute(data) }, 500)
+
+    if (isReady && !isReady()) {
+      // Poll until ready, max 5 seconds
+      let attempts = 0
+      const poll = setInterval(() => {
+        attempts++
+        if (isReady() || attempts > 20) {
+          clearInterval(poll)
+          if (onRoute) onRoute(data)
+        }
+      }, 250)
+    } else {
+      setTimeout(() => { if (onRoute) onRoute(data) }, 300)
+    }
   }
 }
 
@@ -114,5 +102,6 @@ export function removeFcmListeners() {
   if (!isNative()) return
   PushNotifications.removeAllListeners()
   listenersAdded = false
+  onRouteCallback = null
   pendingLaunchNotification = null
 }
