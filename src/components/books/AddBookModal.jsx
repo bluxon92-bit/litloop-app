@@ -4,6 +4,14 @@ import { GENRES } from '../../lib/utils'
 import { ModalShell } from './BookSheet'
 import { startBackgroundImport } from '../../lib/importManager'
 
+// Decode HTML entities from Google Books API responses (e.g. Mi&#233;ville, &amp;)
+function decodeHtml(str) {
+  if (!str) return str
+  const txt = document.createElement('textarea')
+  txt.innerHTML = str
+  return txt.value
+}
+
 function Stars({ value, onChange }) {
   const [hover, setHover] = useState(0)
   return (
@@ -94,10 +102,10 @@ async function searchBooks(q) {
           : null
         return {
           key: item.id,
-          title: info.title || '',
-          author_name: info.authors || [],
+          title: decodeHtml(info.title || ''),
+          author_name: (info.authors || []).map(decodeHtml),
           first_publish_year: info.publishedDate ? parseInt(info.publishedDate) : null,
-          description: info.description ? info.description.slice(0, 500) : null,
+          description: info.description ? decodeHtml(info.description.slice(0, 500)) : null,
           cover_i: null,
           _coverUrl: coverUrl,
           _isbn: isbn,
@@ -162,10 +170,9 @@ async function searchBooks(q) {
         status,
         rating:       status === 'read' ? (rating || null) : null,
         genre:        genre || null,
-        notes:        notes.trim() || null,
+        notes:        (showPrivateNotes && notes.trim()) ? notes.trim() : null,
         reviewBody:   review.trim() || null,
         reviewPublic: !!review.trim(),
-        notes:        (showPrivateNotes && notes.trim()) ? notes.trim() : null,
         dateRead:     status === 'read' ? (date || null) : null,
         dateStarted:  status === 'reading' ? new Date().toISOString().split('T')[0] : null,
         olKey:         olKey        || null,
