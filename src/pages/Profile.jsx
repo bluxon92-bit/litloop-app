@@ -227,7 +227,6 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
     flex: 1, padding: '0.65rem 0', textAlign: 'center',
     fontSize: '0.82rem', fontWeight: 600,
     color: active ? 'var(--rt-navy)' : 'var(--rt-t3)',
-    borderBottom: active ? '2px solid var(--rt-amber)' : '2px solid transparent',
     background: 'none', border: 'none',
     borderBottom: active ? '2px solid var(--rt-amber)' : '2px solid transparent',
     cursor: 'pointer', transition: 'color 0.15s',
