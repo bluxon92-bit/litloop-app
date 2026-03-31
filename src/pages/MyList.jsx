@@ -301,9 +301,10 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
             </select>
           </div>
           {history.length === 0 ? (
-            <div className="rt-empty-state">
-              <div className="rt-empty-icon">✓</div>
-              <p>No finished books yet.</p>
+            <div className="rt-card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
+              <div style={{ marginBottom: '0.5rem', fontSize: '1.5rem' }}>✓</div>
+              <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.25rem' }}>No finished books yet</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)' }}>Books you finish will appear here.</div>
             </div>
           ) : (
             <>
@@ -342,9 +343,10 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
       {tab === 'dnf' && (
         <div>
           {dnf.length === 0 ? (
-            <div className="rt-empty-state">
-              <div className="rt-empty-icon">🚫</div>
-              <p>No DNF books yet.</p>
+            <div className="rt-card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
+              <div style={{ marginBottom: '0.5rem', fontSize: '1.5rem' }}>🚫</div>
+              <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.25rem' }}>No DNF books yet</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)' }}>Books you didn't finish will appear here.</div>
             </div>
           ) : (
             dnf.map(book => (
