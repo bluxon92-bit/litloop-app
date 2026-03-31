@@ -700,10 +700,10 @@ export default function Clubs({ onOpenChatModal }) {
   return (
     <div>
       {clubs.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
-          <div style={{ fontSize: '2rem', marginBottom: '0.75rem' }}>📚</div>
-          <div style={{ fontSize: '0.95rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.4rem' }}>No book clubs yet</div>
-          <div style={{ fontSize: '0.82rem', color: 'var(--rt-t3)', marginBottom: '1.25rem' }}>Create a club to read together and track your reading history as a group.</div>
+        <div className="rt-card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem', marginBottom: '1rem' }}>
+          <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📚</div>
+          <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.25rem' }}>No book clubs yet</div>
+          <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)' }}>Create a club to read together and track your reading history as a group.</div>
         </div>
       ) : (
         clubs.map(club => (

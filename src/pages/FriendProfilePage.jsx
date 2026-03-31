@@ -553,9 +553,10 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
             momentsLoading ? (
               <div style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>Loading…</div>
             ) : !moments || moments.length === 0 ? (
-              <div className="rt-card" style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>
-                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>✨</div>
-                {friend.displayName.split(' ')[0]} hasn't shared any moments yet.
+              <div className="rt-card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
+                <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>✨</div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.25rem' }}>No moments yet</div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)' }}>{friend.displayName.split(' ')[0]} hasn't shared any moments yet.</div>
               </div>
             ) : (
               moments.map(ev => {
@@ -599,9 +600,10 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
 
           {/* Empty state — only show on reviews tab when nothing at all */}
           {activeTab === 'reviews' && readingBooks.length === 0 && reviews.length === 0 && favBooks.length === 0 && (
-            <div className="rt-card" style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>
-              <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📚</div>
-              {friend.displayName} hasn't logged any books yet.
+            <div className="rt-card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
+              <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📚</div>
+              <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.25rem' }}>No activity yet</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)' }}>{friend.displayName} hasn't logged any books yet.</div>
             </div>
           )}
         </>

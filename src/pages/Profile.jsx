@@ -327,9 +327,10 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
         {/* ── Reviews tab ── */}
         {activeTab === 'reviews' && (
           reviews.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>
-              <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📖</div>
-              Your reviews will appear here once you finish a book and leave a review.
+            <div className="rt-card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
+              <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>📖</div>
+              <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.25rem' }}>No reviews yet</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)' }}>Finish a book and leave a review — it'll appear here.</div>
             </div>
           ) : (
             reviews.map(book => {
@@ -369,9 +370,10 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
           momentsLoading ? (
             <div style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>Loading…</div>
           ) : !moments || moments.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '2.5rem', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>
-              <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>✨</div>
-              Share a quote or reading update from any book — it'll appear here.
+            <div className="rt-card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
+              <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>✨</div>
+              <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.25rem' }}>No moments yet</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)' }}>Share a quote or reading update from any book.</div>
             </div>
           ) : (
             moments.map(ev => {

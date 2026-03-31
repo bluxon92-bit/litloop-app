@@ -379,16 +379,13 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
           {!socialLoaded ? (
             <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>Loading…</div>
           ) : reviewEvents.length === 0 ? (
-            <div className="rt-feed-empty">
-              <div className="rt-feed-empty-icon"><IcoOpenBook size={32} color="var(--rt-t3)" /></div>
-              {friends.length === 0 ? (
-                <p>
-                  <button onClick={() => onAddFriend?.()} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--rt-amber)', fontWeight: 700, fontSize: 'inherit', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>Add friends</button>
-                  {' '}to see their posts here.
-                </p>
-              ) : (
-                <p>Nothing from friends yet.</p>
-              )}
+            <div className="rt-card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
+              <div style={{ marginBottom: '0.5rem' }}><IcoOpenBook size={36} color="var(--rt-t3)" /></div>
+              <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.25rem' }}>No posts yet</div>
+              <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)' }}>
+                <button onClick={() => onAddFriend?.()} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--rt-amber)', fontWeight: 600, fontSize: 'inherit', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>Add friends</button>
+                {' '}to see their posts here.
+              </div>
             </div>
           ) : (
             <>
