@@ -254,7 +254,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
 
       {/* ── Welcome header ── */}
       <div style={{ marginBottom: '1.25rem' }}>
-        <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 0.1rem' }}>
+        <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.35rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 0.1rem' }}>
           Hi {myDisplayName || 'there'},
         </h2>
       </div>
