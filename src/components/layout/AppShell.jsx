@@ -1521,8 +1521,8 @@ export default function AppShell() {
       {/* ── Mobile bottom tab bar ──────────────────────── */}
       <nav className="rt-tabbar-mobile" style={{
         position: 'fixed', bottom: 0, left: 0, right: 0,
-        background: 'var(--rt-white)', borderTop: '1px solid var(--rt-border)',
-        display: 'flex', zIndex: 100, boxShadow: '0 -1px 8px rgba(26,39,68,0.06)'
+        background: 'var(--rt-white)',
+        display: 'flex', zIndex: 100, boxShadow: '0 -1px 0 rgba(26,39,68,0.10), 0 -4px 12px rgba(26,39,68,0.06)'
       }}>
         {MOBILE_TABS.map(tab => {
           const isActive = activeTab === tab.id || (tab.id === 'profile' && activeTab === 'account')
@@ -1535,7 +1535,7 @@ export default function AppShell() {
                 justifyContent: 'center',
                 gap: 0, padding: '0.55rem 0.25rem 0.5rem',
                 border: 'none', background: 'none', cursor: 'pointer', position: 'relative',
-                borderTop: isActive ? '2.5px solid var(--rt-amber)' : '2.5px solid transparent',
+                borderTop: isActive ? '3px solid var(--rt-amber)' : '3px solid transparent',
                 transition: 'border-color 0.15s',
               }}
             >
