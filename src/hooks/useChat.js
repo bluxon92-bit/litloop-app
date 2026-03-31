@@ -8,7 +8,8 @@ export function useChat(user) {
   const [loaded, setLoaded]         = useState(false)
   const cursorRef                   = useRef(null)
   const channelRef                  = useRef(null)  // active thread subscription
-  const listChannelRef              = useRef(null)  // new-thread realtime subscription
+  const listChannelRef              = useRef(null)  // new-thread + message realtime subscription
+  const chatIdsRef                  = useRef(new Set())  // set of chat IDs I'm in, for fast membership check
 
   const recentlyReadRef = useRef({}) // chatId -> timestamp of markChatRead call
 
@@ -22,7 +23,9 @@ export function useChat(user) {
     }
   }, [user?.id])
 
-  // Watch for new chat_participants rows where I'm added — refreshes chat list live
+  // Watch for:
+  // 1) new chat_participants rows where I'm added (new chat invited to)
+  // 2) new chat_messages in any of my chats (unread badge updates while app is open)
   function setupListRealtime() {
     if (listChannelRef.current) { sb.removeChannel(listChannelRef.current); listChannelRef.current = null }
     if (!user) return
@@ -31,6 +34,17 @@ export function useChat(user) {
         event: 'INSERT', schema: 'public', table: 'chat_participants',
         filter: `user_id=eq.${user.id}`
       }, () => loadChatList())
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'chat_messages',
+      }, payload => {
+        // Only reload if this message is in a chat we're a participant of,
+        // and it wasn't sent by us (we already handle our own messages optimistically)
+        const { chat_id, user_id } = payload.new || {}
+        if (!chat_id || user_id === user.id) return
+        if (chatIdsRef.current.has(chat_id)) {
+          loadChatList()
+        }
+      })
       .subscribe()
     listChannelRef.current = ch
   }
@@ -115,6 +129,7 @@ export function useChat(user) {
       }
 
       setChats(mapped)
+      chatIdsRef.current = new Set(mapped.map(c => c.id))
       setLoaded(true)
     } catch(e) {
       console.error('[Chat] loadChatList:', e)

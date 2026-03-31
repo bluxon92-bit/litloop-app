@@ -923,6 +923,36 @@ function OnboardingFlow({ user, onComplete }) {
 }
 
 
+// ── In-app notification toast ─────────────────────────────────────────────
+// Appears at the top of the screen when a realtime notification arrives.
+// Auto-dismisses after 3s; key prop ensures timer resets on each new toast.
+function InAppToast({ toast, onDismiss }) {
+  useEffect(() => {
+    const t = setTimeout(onDismiss, 3000)
+    return () => clearTimeout(t)
+  }, [])
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 'max(0.75rem, env(safe-area-inset-top, 0.75rem))',
+      left: '50%', transform: 'translateX(-50%)',
+      zIndex: 1300, width: 'min(96vw, 380px)',
+      background: 'var(--rt-navy)', color: '#fff',
+      borderRadius: 12, padding: '0.65rem 0.85rem',
+      display: 'flex', alignItems: 'center', gap: '0.55rem',
+      boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+      animation: 'toastSlideIn 0.2s ease',
+    }}>
+      <span style={{ fontSize: '1rem', flexShrink: 0 }}>{toast.icon}</span>
+      <span style={{ flex: 1, fontSize: '0.82rem', lineHeight: 1.4 }}>{toast.text}</span>
+      <button
+        onClick={onDismiss}
+        style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: '1rem', cursor: 'pointer', padding: 0, lineHeight: 1, flexShrink: 0 }}
+      >×</button>
+    </div>
+  )
+}
+
 // ── Global Friend Request Banner (Side B — receiver) ──────────────────────
 function GlobalFriendBanner({ pending, acceptFriendRequest, declineFriendRequest, dismissedRequests, setDismissedRequests }) {
   const [actioned, setActioned] = useState(new Set()) // friendshipIds in-flight
@@ -988,7 +1018,8 @@ export default function AppShell() {
           acceptFriendRequest, declineFriendRequest,
           myUsername, saveProfile, completeOnboarding, onboardingComplete, setPreferredMoods, profileLoaded,
           notifications: socialNotifs, markNotificationsRead, loadSocialData,
-          myDisplayName, myAvatarUrl } = useSocialContext()
+          myDisplayName, myAvatarUrl,
+          inAppToast, clearInAppToast } = useSocialContext()
   const { books, addBook } = useBooksContext()
   const [activeTab, setActiveTab]         = useState('home')
   const showOnboarding = profileLoaded && onboardingComplete === false
@@ -1539,6 +1570,10 @@ export default function AppShell() {
           from { opacity: 0; transform: translateY(12px) scale(0.85); }
           to   { opacity: 1; transform: translateY(0)    scale(1); }
         }
+        @keyframes toastSlideIn {
+          from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+          to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+        }
         .fab-item { animation: fabItemIn 0.18s ease forwards; }
         .fab-item:nth-child(1) { animation-delay: 0.00s; }
         .fab-item:nth-child(2) { animation-delay: 0.04s; }
@@ -1685,6 +1720,13 @@ export default function AppShell() {
             style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.7)', fontSize: '1rem', cursor: 'pointer', padding: 0, lineHeight: 1, flexShrink: 0 }}
           >×</button>
         </div>
+      )}
+      {inAppToast && (
+        <InAppToast
+          key={inAppToast.id}
+          toast={inAppToast}
+          onDismiss={clearInAppToast}
+        />
       )}
       <GlobalFriendBanner
         pending={pending}

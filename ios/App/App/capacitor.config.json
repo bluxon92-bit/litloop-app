@@ -1,0 +1,17 @@
+{
+	"appId": "co.litloop.app",
+	"appName": "LitLoop",
+	"webDir": "dist",
+	"server": {
+		"androidScheme": "https"
+	},
+	"plugins": {
+		"CapacitorHttp": {
+			"enabled": true
+		}
+	},
+	"packageClassList": [
+		"AppPlugin",
+		"PushNotificationsPlugin"
+	]
+}

@@ -23,6 +23,7 @@ export function useSocial(user) {
     messages: true, friend_requests: true, recommendations: true, review_comments: true
   })
   const [blockedIds, setBlockedIds] = useState([])
+  const [inAppToast, setInAppToast] = useState(null) // { text, icon, id } — auto-dismissed by AppShell
   const channelRef                          = useRef(null)
   const recsChannelRef                      = useRef(null)
   const notifChannelRef                     = useRef(null)
@@ -255,7 +256,18 @@ export function useSocial(user) {
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'book_recommendations',
         filter: `to_user_id=eq.${user.id}`
-      }, () => loadSocialData())
+      }, async (payload) => {
+        await loadSocialData()
+        const n = payload.new
+        if (!n) return
+        let senderName = 'Someone'
+        if (n.from_user_id) {
+          const { data: profiles } = await sb.rpc('get_profiles_by_ids', { user_ids: [n.from_user_id] })
+          senderName = profiles?.[0]?.display_name || profiles?.[0]?.username || 'Someone'
+        }
+        const bookLabel = n.book_title ? `"${n.book_title}"` : 'a book'
+        setInAppToast({ icon: '📖', text: `${senderName} recommended ${bookLabel}`, id: 'rec_' + Date.now() })
+      })
       .subscribe()
     recsChannelRef.current = recsCh
 
@@ -265,7 +277,34 @@ export function useSocial(user) {
       .on('postgres_changes', {
         event: 'INSERT', schema: 'public', table: 'notifications',
         filter: `user_id=eq.${user.id}`
-      }, () => loadNotifications())
+      }, async (payload) => {
+        await loadNotifications()
+        // Build an in-app toast from the raw payload row
+        const n = payload.new
+        if (!n) return
+        // Fetch actor name quickly
+        let actorName = 'Someone'
+        if (n.actor_id) {
+          const { data: profiles } = await sb.rpc('get_profiles_by_ids', { user_ids: [n.actor_id] })
+          actorName = profiles?.[0]?.display_name || profiles?.[0]?.username || 'Someone'
+        }
+        const book = n.book_title ? `"${n.book_title}"` : 'a book'
+        const toastMap = {
+          review_like:       { icon: '❤️', text: `${actorName} liked your review of ${book}` },
+          review_liked:      { icon: '❤️', text: `${actorName} liked your review of ${book}` },
+          review_comment:    { icon: '💬', text: `${actorName} commented on your review of ${book}` },
+          review_commented:  { icon: '💬', text: `${actorName} commented on your review of ${book}` },
+          comment_liked:     { icon: '❤️', text: `${actorName} liked your comment` },
+          thread_activity:   { icon: '💬', text: `${actorName} replied in a thread you're in` },
+          friend_request:    { icon: '👋', text: `${actorName} sent you a friend request` },
+          friend_accepted:   { icon: '✓',  text: `${actorName} accepted your friend request` },
+          book_recommendation: { icon: '📖', text: `${actorName} recommended ${book}` },
+        }
+        const toast = toastMap[n.type]
+        if (toast) {
+          setInAppToast({ ...toast, id: n.id + '_' + Date.now() })
+        }
+      })
       .subscribe()
     notifChannelRef.current = notifCh
   }
@@ -531,5 +570,6 @@ export function useSocial(user) {
     saveProfile, completeOnboarding, onboardingComplete, saveFavBooks, uploadAvatar, generateInviteLink,
     loadNotifications, markNotificationsRead,
     blockedIds, blockUser, unblockUser, submitReport,
+    inAppToast, clearInAppToast: () => setInAppToast(null),
   }
 }
