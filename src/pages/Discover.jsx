@@ -632,7 +632,7 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
     <div className="rt-page" style={{ maxWidth: 760, margin: '0 auto' }}>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 1.25rem' }}>
-        <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: 0 }}>Discover</h2>
+        <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.35rem', fontWeight: 700, color: 'var(--rt-navy)', margin: 0 }}>Discover</h2>
         <button onClick={onRecommend} style={{ background: 'var(--rt-amber-pale)', border: 'none', borderRadius: 99, padding: '0.25rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--rt-amber)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
           <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>+</span> Recommend
         </button>

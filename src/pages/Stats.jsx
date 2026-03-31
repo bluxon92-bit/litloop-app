@@ -60,7 +60,7 @@ export default function Stats() {
   return (
     <div className="rt-page" style={{ maxWidth: 720, margin: '0 auto' }}>
 
-      <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 1.25rem' }}>Stats</h2>
+      <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.35rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 1.25rem' }}>Stats</h2>
 
       {/* Reading goal card */}
       <div className="rt-card" style={{ background: 'linear-gradient(135deg, #111C35 0%, var(--rt-navy) 100%)', marginBottom: '0.6rem', padding: '1.5rem' }}>

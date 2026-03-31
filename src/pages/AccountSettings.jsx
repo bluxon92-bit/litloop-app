@@ -483,7 +483,7 @@ export default function AccountSettings({ onNavigate }) {
         ← Profile
       </button>
 
-      <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.4rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 1.5rem' }}>Account settings</h2>
+      <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.35rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 1.5rem' }}>Account settings</h2>
 
       {/* Profile card */}
       <div className="rt-card" style={{ marginBottom: '1rem' }}>
