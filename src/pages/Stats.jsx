@@ -68,12 +68,12 @@ export default function Stats() {
           Reading goal {year}
         </div>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.4rem', marginBottom: '0.75rem' }}>
-          <span style={{ fontFamily: 'var(--rt-font-display)', fontSize: '2.5rem', fontWeight: 700, color: 'var(--rt-amber-lt)', lineHeight: 1 }}>{thisYear.length}</span>
+          <span style={{ fontFamily: 'var(--rt-font-display)', fontSize: '2.25rem', fontWeight: 700, color: 'var(--rt-amber-lt)', lineHeight: 1 }}>{thisYear.length}</span>
           <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '1.2rem' }}>/</span>
           <input
             type="number" value={goal} min="1" max="365"
             onChange={handleGoalChange}
-            style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.5rem', fontWeight: 700, color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', outline: 'none', width: 48, padding: 0 }}
+            style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.35rem', fontWeight: 600, color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', outline: 'none', width: 48, padding: 0 }}
           />
           <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)' }}>books</span>
         </div>
@@ -112,7 +112,7 @@ export default function Stats() {
         ].map(({ label, value, sub }) => (
           <div key={label} style={{ background: 'var(--rt-white)', border: '0.5px solid var(--rt-border)', borderRadius: 12, padding: '0.9rem 1rem' }}>
             <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.09em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.25rem' }}>{label}</div>
-            <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.75rem', fontWeight: 700, color: 'var(--rt-navy)', lineHeight: 1 }}>{value}</div>
+            <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.75rem', fontWeight: 600, color: 'var(--rt-navy)', lineHeight: 1 }}>{value}</div>
             <div style={{ fontSize: '0.7rem', color: 'var(--rt-t3)', marginTop: '0.25rem' }}>{sub}</div>
           </div>
         ))}

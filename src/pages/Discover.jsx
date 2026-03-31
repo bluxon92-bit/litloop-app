@@ -74,7 +74,7 @@ function LitLoopPicksSection({ feed, loading, moods, activeMood, setActiveMood, 
   return (
     <div style={{ marginBottom: '1.5rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.65rem' }}>
-        <span style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)', flex: 1 }}>
+        <span style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.95rem', fontWeight: 600, color: 'var(--rt-navy)', flex: 1 }}>
           LitLoop Picks
           {activeMood && (
             <span style={{ marginLeft: '0.4rem', fontSize: '0.72rem', fontWeight: 600, color: 'var(--rt-amber)', background: 'var(--rt-amber-pale)', borderRadius: 99, padding: '0.1em 0.5em' }}>
@@ -333,7 +333,7 @@ function RecommendModal({ book, friends, user, recs, feed, sendRecommendation, o
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 300, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
       <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.25rem', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>Recommend to a friend</div>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 600, color: 'var(--rt-navy)' }}>Recommend to a friend</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--rt-t3)' }}>×</button>
         </div>
         <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)', marginBottom: '1rem' }}>{book.title}</div>
@@ -417,7 +417,7 @@ function DiscoverChatPicker({ book, friends, chats, startOrOpenChat, onOpenChatM
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 400, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
       <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.25rem', maxHeight: '75vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>Chat about this book</div>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 600, color: 'var(--rt-navy)' }}>Chat about this book</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--rt-t3)' }}>×</button>
         </div>
         {bookChats.length > 0 && (
@@ -665,7 +665,7 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
       {/* ── Block 2: Friends' Picks ── */}
       <div style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.65rem' }}>
-          <span style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>Friends' Picks</span>
+          <span style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.95rem', fontWeight: 600, color: 'var(--rt-navy)' }}>Friends' Picks</span>
           {pendingRecs.length > 0 && (
             <span style={{ background: 'var(--rt-amber)', color: '#fff', borderRadius: 99, fontSize: '0.62rem', fontWeight: 700, padding: '0.1em 0.5em' }}>{pendingRecs.length}</span>
           )}
@@ -745,7 +745,7 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
       {/* ── Block 3: AI Picks ── */}
       <div style={{ marginBottom: '1.5rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.65rem' }}>
-          <span style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>AI Picks</span>
+          <span style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.95rem', fontWeight: 600, color: 'var(--rt-navy)' }}>AI Picks</span>
         </div>
         <div style={{ background: 'var(--rt-white)', borderRadius: 'var(--rt-r3)', border: '1px solid var(--rt-border)', boxShadow: 'var(--rt-s1)', padding: '1rem' }}>
           {aiPicks.state === 'idle' ? (

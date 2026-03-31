@@ -300,7 +300,7 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
           <div className="rt-block-backdrop"
             onClick={e => { if (e.target === e.currentTarget) setBlockConfirm(false) }}>
           <div style={{ background: 'var(--rt-bg)', borderRadius: 16, padding: '1.5rem', width: '100%', maxWidth: 360, boxShadow: '0 16px 48px rgba(0,0,0,0.25)' }}>
-            <div style={{ fontFamily: 'var(--rt-font-display)', fontWeight: 700, fontSize: '1rem', color: 'var(--rt-navy)', marginBottom: '0.5rem' }}>
+            <div style={{ fontFamily: 'var(--rt-font-display)', fontWeight: 600, fontSize: '1rem', color: 'var(--rt-navy)', marginBottom: '0.5rem' }}>
               {blocked ? `Unblock ${friend.displayName}?` : `Block ${friend.displayName}?`}
             </div>
             <div style={{ fontSize: '0.82rem', color: 'var(--rt-t3)', marginBottom: '1.25rem', lineHeight: 1.5 }}>
@@ -380,7 +380,7 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
           <div style={{
             width: 64, height: 64, borderRadius: '50%', background: colour,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: 'var(--rt-font-display)', fontSize: '1.4rem', fontWeight: 700,
+            fontFamily: 'var(--rt-font-display)', fontSize: '1.25rem', fontWeight: 600,
             color: '#fff', border: '2.5px solid rgba(255,255,255,0.2)',
             overflow: 'hidden', flexShrink: 0,
           }}>
@@ -434,7 +434,7 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
           <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.9rem' }}>
             {[[readBooks.length, 'books read'], [readingBooks.length, 'reading now']].map(([n, l]) => (
               <div key={l}>
-                <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.2rem', fontWeight: 700, color: 'var(--rt-amber-lt)' }}>{n}</div>
+                <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 600, color: 'var(--rt-amber-lt)' }}>{n}</div>
                 <div style={{ fontSize: '0.57rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{l}</div>
               </div>
             ))}

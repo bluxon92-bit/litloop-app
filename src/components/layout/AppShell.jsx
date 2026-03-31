@@ -133,7 +133,7 @@ function FabFriendModal({ onClose, sendFriendRequest, generateInviteLink }) {
     <FabModal onClose={onClose}>
       <div style={{ padding: '1.5rem 1.25rem', paddingBottom: 'max(2rem, env(safe-area-inset-bottom, 2rem))' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.15rem', fontWeight: 700, color: 'var(--rt-navy)' }}>Add a friend</div>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 600, color: 'var(--rt-navy)' }}>Add a friend</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--rt-t3)' }}>×</button>
         </div>
 
@@ -628,7 +628,7 @@ function OnboardingFlow({ user, onComplete }) {
 
       {/* Header */}
       <div style={{ background: 'linear-gradient(160deg, #111C35 0%, var(--rt-navy) 100%)', padding: '1.75rem 1.5rem 1.5rem', flexShrink: 0 }}>
-        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.5rem', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>LitLoop</div>
+        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.3rem', fontWeight: 700, color: '#fff', letterSpacing: '-0.02em' }}>LitLoop</div>
         <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.78rem', marginTop: '0.2rem' }}>Step {step} of {TOTAL_STEPS}</div>
       </div>
 
@@ -638,7 +638,7 @@ function OnboardingFlow({ user, onComplete }) {
         {/* ── Step 1: Name + handle ── */}
         {step === 1 && (
           <div>
-            <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 0.5rem', lineHeight: 1.2 }}>
+            <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.35rem', fontWeight: 600, color: 'var(--rt-navy)', margin: '0 0 0.5rem', lineHeight: 1.2 }}>
               Let's set up your profile
             </h2>
             <p style={{ color: 'var(--rt-t3)', fontSize: '0.88rem', margin: '0 0 2rem', lineHeight: 1.5 }}>
@@ -713,7 +713,7 @@ function OnboardingFlow({ user, onComplete }) {
         {/* ── Step 2: Mood picker ── */}
         {step === 2 && (
           <div>
-            <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 0.5rem', lineHeight: 1.2 }}>
+            <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.35rem', fontWeight: 600, color: 'var(--rt-navy)', margin: '0 0 0.5rem', lineHeight: 1.2 }}>
               What kind of reader are you?
             </h2>
             <p style={{ color: 'var(--rt-t3)', fontSize: '0.88rem', margin: '0 0 1.75rem', lineHeight: 1.5 }}>
@@ -757,7 +757,7 @@ function OnboardingFlow({ user, onComplete }) {
         {/* ── Step 3: Currently reading + import ── */}
         {step === 3 && (
           <div>
-            <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 0.5rem', lineHeight: 1.2 }}>
+            <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.35rem', fontWeight: 600, color: 'var(--rt-navy)', margin: '0 0 0.5rem', lineHeight: 1.2 }}>
               What are you reading right now?
             </h2>
             <p style={{ color: 'var(--rt-t3)', fontSize: '0.88rem', margin: '0 0 1.75rem', lineHeight: 1.5 }}>
@@ -859,7 +859,7 @@ function OnboardingFlow({ user, onComplete }) {
         {/* ── Step 4: Add a friend ── */}
         {step === 4 && (
           <div>
-            <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', margin: '0 0 0.5rem', lineHeight: 1.2 }}>
+            <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.35rem', fontWeight: 600, color: 'var(--rt-navy)', margin: '0 0 0.5rem', lineHeight: 1.2 }}>
               Reading is better together
             </h2>
             <p style={{ color: 'var(--rt-t3)', fontSize: '0.88rem', margin: '0 0 1.75rem', lineHeight: 1.5 }}>
@@ -1522,8 +1522,11 @@ export default function AppShell() {
       <nav className="rt-tabbar-mobile" style={{
         position: 'fixed', bottom: 0, left: 0, right: 0,
         background: 'var(--rt-white)',
-        display: 'flex', zIndex: 100, boxShadow: '0 -1px 0 rgba(26,39,68,0.10), 0 -4px 12px rgba(26,39,68,0.06)'
+        display: 'flex', flexDirection: 'column', zIndex: 100,
+        boxShadow: '0 -1px 0 rgba(26,39,68,0.10), 0 -4px 12px rgba(26,39,68,0.06)',
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
       }}>
+        <div style={{ display: 'flex' }}>
         {MOBILE_TABS.map(tab => {
           const isActive = activeTab === tab.id || (tab.id === 'profile' && activeTab === 'account')
           return (
@@ -1546,6 +1549,7 @@ export default function AppShell() {
             </button>
           )
         })}
+        </div>
       </nav>
 
       {activeChatModal && (

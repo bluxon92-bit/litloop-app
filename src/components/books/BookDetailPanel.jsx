@@ -162,7 +162,7 @@ function RecommendModal({ book, friends, user, sendRecommendation, recs, onClose
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 400, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
       <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.25rem', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>Recommend to a friend</div>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 600, color: 'var(--rt-navy)' }}>Recommend to a friend</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--rt-t3)', lineHeight: 1 }}>×</button>
         </div>
         <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)', marginBottom: '1rem' }}>{book.title}</div>
@@ -329,7 +329,7 @@ function ChatFriendPicker({ book, friends, startOrOpenChat, onOpenChatModal, onC
     return (
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 400, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
         <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.25rem' }} onClick={e => e.stopPropagation()}>
-          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.4rem' }}>Chat already exists</div>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.4rem' }}>Chat already exists</div>
           <div style={{ fontSize: '0.82rem', color: 'var(--rt-t3)', marginBottom: '1.25rem' }}>
             You already have a chat about <strong>{book.title}</strong>{existingChat?.chatName ? ` called "${existingChat.chatName}"` : ''}. What would you like to do?
           </div>
@@ -351,7 +351,7 @@ function ChatFriendPicker({ book, friends, startOrOpenChat, onOpenChatModal, onC
     return (
       <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 400, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
         <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.25rem' }} onClick={e => e.stopPropagation()}>
-          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.4rem' }}>Name this chat</div>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.4rem' }}>Name this chat</div>
           <div style={{ fontSize: '0.82rem', color: 'var(--rt-t3)', marginBottom: '1rem' }}>Give this chat a name to tell it apart from your other {book.title} chats.</div>
           <input
             className="rt-input"
@@ -375,7 +375,7 @@ function ChatFriendPicker({ book, friends, startOrOpenChat, onOpenChatModal, onC
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 400, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={onClose}>
       <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480, padding: '1.25rem', maxHeight: '75vh', display: 'flex', flexDirection: 'column' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
-          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>Chat about this book</div>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 600, color: 'var(--rt-navy)' }}>Chat about this book</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--rt-t3)', lineHeight: 1 }}>×</button>
         </div>
         <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)', marginBottom: '1rem' }}>{book.title}</div>
@@ -742,7 +742,7 @@ export default function BookDetailPanel({
             }
           `}</style>
           <div className="rt-progress-modal" style={{ background: 'var(--rt-white)', borderRadius: '16px 16px 0 0', padding: '1.25rem 1.25rem 2rem', width: '100%', maxWidth: 480 }}>
-            <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.25rem' }}>Log progress</div>
+            <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.25rem' }}>Log progress</div>
             <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)', marginBottom: '1.1rem' }}>{book.title}</div>
 
             <div style={{ marginBottom: '1rem' }}>

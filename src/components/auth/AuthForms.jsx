@@ -211,7 +211,7 @@ export default function AuthForms() {
         </div>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3rem 2rem' }}>
           <div style={{ width: '100%', maxWidth: 360 }}>
-            <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.4rem' }}>{heading}</h2>
+            <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.35rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.4rem' }}>{heading}</h2>
             {subEl}
             {formEl}
             <div style={{ marginTop: '1.25rem' }}>{switchLinkEl}</div>
@@ -238,7 +238,7 @@ export default function AuthForms() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ width: '100%', maxWidth: 400, padding: '1.5rem 1.5rem 0', boxSizing: 'border-box' }}>
-            <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '2rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.4rem', textAlign: 'center' }}>
+            <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.35rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.4rem', textAlign: 'center' }}>
               {heading}
             </h2>
             {subEl}

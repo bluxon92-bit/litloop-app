@@ -165,7 +165,7 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
             <div style={{ display: 'flex', gap: '1.1rem', marginTop: '0.7rem' }}>
               {[[readBooks.length,'books read'],[readingBooks.length,'reading now'],[mutualBooks.length,'in common']].map(([n, l]) => (
                 <div key={l}>
-                  <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.15rem', fontWeight: 700, color: 'var(--rt-amber-lt)' }}>{n}</div>
+                  <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 600, color: 'var(--rt-amber-lt)' }}>{n}</div>
                   <div style={{ fontSize: '0.57rem', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{l}</div>
                 </div>
               ))}

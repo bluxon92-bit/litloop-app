@@ -286,7 +286,7 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
               onClick={() => { setDetailBook(book); setDetailLocation('mylist-reading') }}>
               <CoverImage coverId={book.coverId} olKey={book.olKey} coverUrl={book.coverUrl} title={book.title} size="M" priority={true} />
               <div>
-                <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)' }}>{book.title}</div>
+                <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)' }}>{book.title}</div>
                 {book.author && <div style={{ fontSize: '0.75rem', color: 'var(--rt-t3)' }}>{book.author}</div>}
                 {book.dateStarted && <div style={{ fontSize: '0.68rem', color: 'var(--rt-t3)', marginTop: 2 }}>Started {fmtDate(book.dateStarted)}</div>}
               </div>
@@ -298,7 +298,7 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
       {/* ── Favourite books ── */}
       <div className="rt-card" style={{ marginBottom: '1.1rem' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)' }}>Favourite books</div>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)' }}>Favourite books</div>
           <button onClick={openFavEditor} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--rt-amber)', fontWeight: 600 }}>Edit →</button>
         </div>
         {favBooks.length === 0 ? (
@@ -481,7 +481,7 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
         <ModalShell onClose={() => setFavEditorOpen(false)} maxWidth={560}>
           <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--rt-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
             <div>
-              <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>Choose favourites</div>
+              <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 600, color: 'var(--rt-navy)' }}>Choose favourites</div>
               <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>Pick up to 10 ({favSelected.length}/10)</div>
             </div>
             <button onClick={() => setFavEditorOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.3rem', color: 'var(--rt-t3)' }}>×</button>

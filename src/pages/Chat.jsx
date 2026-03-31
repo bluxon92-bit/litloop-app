@@ -101,7 +101,7 @@ function AddParticipantsModal({ chat, friends, currentParticipantIds, onAdd, onC
         overflow: 'hidden',
       }}>
         <div style={{ padding: '1rem 1.1rem', borderBottom: '1px solid var(--rt-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.95rem', fontWeight: 700, color: 'var(--rt-navy)' }}>Add to chat</div>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.95rem', fontWeight: 600, color: 'var(--rt-navy)' }}>Add to chat</div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.2rem', color: 'var(--rt-t3)' }}>×</button>
         </div>
         <div style={{ padding: '0.75rem 1.1rem', maxHeight: 280, overflowY: 'auto' }}>

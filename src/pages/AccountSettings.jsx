@@ -146,7 +146,7 @@ function NotificationSettings({ user, notificationPrefs, setNotificationPrefs })
 
   return (
     <div className="rt-card" style={{ marginBottom: '1rem' }}>
-      <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.5rem' }}>
+      <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.5rem' }}>
         Push notifications
       </div>
 
@@ -349,7 +349,7 @@ function DeleteAccountCard({ user, signOut }) {
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1rem' }}>
               <div>
-                <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: '#991b1b', marginBottom: '0.25rem' }}>
+                <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 600, color: '#991b1b', marginBottom: '0.25rem' }}>
                   Delete account
                 </div>
                 <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)' }}>This cannot be undone.</div>
@@ -596,7 +596,7 @@ export default function AccountSettings({ onNavigate }) {
 
       {/* Image cache */}
       <div className="rt-card" style={{ marginBottom: '1rem' }}>
-        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.4rem' }}>Image cache</div>
+        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.4rem' }}>Image cache</div>
         <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)', marginBottom: '0.85rem', lineHeight: 1.5 }}>
           Book covers are cached on your device for fast, offline access. Clear the cache if covers look outdated.
         </div>
@@ -611,7 +611,7 @@ export default function AccountSettings({ onNavigate }) {
 
       {/* Account */}
       <div className="rt-card" style={{ marginBottom: '1rem' }}>
-        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.5rem' }}>Account</div>
+        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.5rem' }}>Account</div>
         <div style={{ fontSize: '0.83rem', color: 'var(--rt-t3)', marginBottom: '0.85rem' }}>{user?.email}</div>
         <button
           onClick={signOut}
