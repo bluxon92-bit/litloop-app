@@ -50,9 +50,10 @@ function TBRList({ tbr, updateBook, deleteBook, openDetail }) {
 
   if (order.length === 0) {
     return (
-      <div className="rt-empty-state">
-        <div className="rt-empty-icon"><IcoBook size={40} color="var(--rt-t3)" /></div>
-        <p>Your reading list is empty — tap + to add a book.</p>
+      <div className="rt-card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
+        <div style={{ marginBottom: '0.5rem' }}><IcoBook size={36} color="var(--rt-t3)" /></div>
+        <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.35rem' }}>Your reading list is empty</div>
+        <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)' }}>Tap + to add your first book.</div>
       </div>
     )
   }
@@ -251,22 +252,22 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
       )}
 
       {/* ── Tabs ── */}
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--rt-border)', marginBottom: '1.25rem' }}>
+      <div style={{ display: 'flex', borderBottom: '2px solid var(--rt-border)', marginBottom: '1.25rem' }}>
         {TABS.map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
             style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              padding: '0.7rem 1.1rem 0.65rem',
-              fontFamily: 'var(--rt-font-display)',
-              fontSize: '0.95rem',
-              fontWeight: tab === t ? 700 : 500,
+              flex: 1, background: 'none', border: 'none', cursor: 'pointer',
+              padding: '0.6rem 0.5rem',
+              fontFamily: 'var(--rt-font-body)',
+              fontSize: '0.88rem',
+              fontWeight: tab === t ? 600 : 500,
               color: tab === t ? 'var(--rt-navy)' : 'var(--rt-t3)',
               borderBottom: `2.5px solid ${tab === t ? 'var(--rt-amber)' : 'transparent'}`,
-              marginBottom: '-1px',
+              marginBottom: '-2px',
               transition: 'color 0.15s',
-              display: 'flex', alignItems: 'center', gap: '0.35rem',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem',
             }}
           >
             {TAB_LABELS[t]}

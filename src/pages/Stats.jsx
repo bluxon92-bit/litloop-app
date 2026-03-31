@@ -120,11 +120,12 @@ export default function Stats() {
 
       {/* Genre pie */}
       <div className="rt-card" style={{ marginBottom: '0.85rem' }}>
-        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '1rem' }}>Genres</div>
+        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.95rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '1rem' }}>Genres</div>
         {genres.length === 0 ? (
-          <div className="rt-stats-empty">
-            <div className="rt-stats-empty-icon"><IcoBook size={36} color="var(--rt-t3)" /></div>
-            <p>Log books with genres to see your breakdown.</p>
+          <div style={{ textAlign: 'center', padding: '1.5rem 1rem' }}>
+            <div style={{ marginBottom: '0.5rem' }}><IcoBook size={36} color="var(--rt-t3)" /></div>
+            <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.25rem' }}>No genre data yet</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)' }}>Log books with genres to see your breakdown.</div>
           </div>
         ) : (
           <div className="rt-stats-pie-wrap">
@@ -149,11 +150,12 @@ export default function Stats() {
 
       {/* Authors bar chart */}
       <div className="rt-card">
-        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '1rem' }}>Top authors</div>
+        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.95rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '1rem' }}>Top authors</div>
         {authors.length === 0 ? (
-          <div className="rt-stats-empty">
-            <div className="rt-stats-empty-icon"><IcoPen size={36} color="var(--rt-t3)" /></div>
-            <p>Finish some books to see your favourite authors.</p>
+          <div style={{ textAlign: 'center', padding: '1.5rem 1rem' }}>
+            <div style={{ marginBottom: '0.5rem' }}><IcoPen size={36} color="var(--rt-t3)" /></div>
+            <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.25rem' }}>No author data yet</div>
+            <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)' }}>Finish some books to see your favourite authors.</div>
           </div>
         ) : (
           <div className="rt-stats-bar-list">

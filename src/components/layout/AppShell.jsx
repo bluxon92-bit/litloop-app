@@ -1533,8 +1533,10 @@ export default function AppShell() {
               style={{
                 flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
                 justifyContent: 'center',
-                gap: 0, padding: '0.65rem 0.25rem',
-                border: 'none', background: 'none', cursor: 'pointer', position: 'relative'
+                gap: 0, padding: '0.55rem 0.25rem 0.5rem',
+                border: 'none', background: 'none', cursor: 'pointer', position: 'relative',
+                borderTop: isActive ? '2.5px solid var(--rt-amber)' : '2.5px solid transparent',
+                transition: 'border-color 0.15s',
               }}
             >
               {tab.icon(isActive)}

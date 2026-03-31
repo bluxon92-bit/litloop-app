@@ -643,7 +643,7 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend, in
             onClick={() => setChatTab(id)}
             style={{
               flex: 1, fontFamily: 'var(--rt-font-body)', fontSize: '0.88rem',
-              fontWeight: chatTab === id ? 700 : 500,
+              fontWeight: chatTab === id ? 600 : 500,
               color: chatTab === id ? 'var(--rt-navy)' : 'var(--rt-t3)',
               background: 'none', border: 'none',
               borderBottom: `2.5px solid ${chatTab === id ? 'var(--rt-amber)' : 'transparent'}`,
