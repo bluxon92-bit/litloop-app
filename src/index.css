@@ -134,7 +134,7 @@
 .rt-section-heading {
   font-family: var(--rt-font-display);
   font-size: 0.95rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--rt-navy);
 }
 .rt-panel-sub {
@@ -290,16 +290,16 @@
 .rt-stat-goal .rt-stat-label { color: rgba(255,255,255,0.45); }
 .rt-stat-number {
   font-family: var(--rt-font-display); font-size: 1.6rem;
-  font-weight: 700; color: var(--rt-navy); line-height: 1;
+  font-weight: 600; color: var(--rt-navy); line-height: 1;
 }
 .rt-stat-sub { font-size: 0.68rem; color: var(--rt-t3); margin-top: 0.15rem; }
 
 /* Goal bar */
 .rt-goal-display { display: flex; align-items: baseline; gap: 0.3rem; margin-bottom: 0.5rem; }
-.rt-goal-current { font-family: var(--rt-font-display); font-size: 1.75rem; font-weight: 700; color: var(--rt-amber-lt); }
+.rt-goal-current { font-family: var(--rt-font-display); font-size: 1.75rem; font-weight: 600; color: var(--rt-amber-lt); }
 .rt-goal-sep { color: rgba(255,255,255,0.35); font-size: 1rem; }
 .rt-goal-input {
-  font-family: var(--rt-font-display); font-size: 1.2rem; font-weight: 700;
+  font-family: var(--rt-font-display); font-size: 1.2rem; font-weight: 600;
   color: rgba(255,255,255,0.55); background: none; border: none;
   border-bottom: 1.5px solid rgba(255,255,255,0.2);
   outline: none; width: 44px; padding: 0; text-align: center;
@@ -397,7 +397,7 @@
 }
 .rt-reading-title {
   font-family: var(--rt-font-display); font-size: 0.88rem;
-  font-weight: 700; color: var(--rt-navy);
+  font-weight: 600; color: var(--rt-navy);
 }
 .rt-reading-author { font-size: 0.78rem; color: var(--rt-t3); margin-top: 0.1rem; }
 .rt-reading-meta   { font-size: 0.72rem; color: var(--rt-t3); margin-top: 0.2rem; }
@@ -449,7 +449,7 @@
 /* ── BOOK TITLE / AUTHOR / META ────────────────────────────── */
 .rt-book-title {
   font-family: var(--rt-font-display); font-size: 0.85rem;
-  font-weight: 700; color: var(--rt-navy);
+  font-weight: 600; color: var(--rt-navy);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .rt-book-author { font-size: 0.75rem; color: var(--rt-t3); margin-top: 0.1rem; }
@@ -602,7 +602,7 @@
 }
 .rt-sheet-book-info { flex: 1; min-width: 0; }
 .rt-sheet-book-title {
-  font-family: var(--rt-font-display); font-size: 1rem; font-weight: 700;
+  font-family: var(--rt-font-display); font-size: 1rem; font-weight: 600;
   color: var(--rt-navy); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .rt-sheet-book-author { font-size: 0.75rem; color: var(--rt-t3); margin-top: 0.1rem; }
@@ -751,7 +751,7 @@
   font-size: 0.75rem; font-weight: 700; box-shadow: 0 2px 8px rgba(34,197,94,0.35);
 }
 .rt-done-title {
-  font-family: var(--rt-font-display); font-size: 0.95rem; font-weight: 700;
+  font-family: var(--rt-font-display); font-size: 0.95rem; font-weight: 600;
   color: var(--rt-navy); margin-bottom: 0.3rem; line-height: 1.25;
 }
 .rt-done-stars { font-size: 1.1rem; color: var(--rt-amber); letter-spacing: 1px; margin-bottom: 0.5rem; }
@@ -900,7 +900,7 @@
   text-transform: uppercase; color: var(--rt-amber-lt); margin-bottom: 0.4rem;
 }
 .rt-book-detail-title {
-  font-family: var(--rt-font-display); font-size: 1.05rem; font-weight: 700;
+  font-family: var(--rt-font-display); font-size: 1.05rem; font-weight: 600;
   color: #fff; line-height: 1.2; margin-bottom: 0.3rem;
 }
 .rt-book-detail-author { font-size: 0.82rem; color: rgba(255,255,255,0.55); margin-bottom: 0.5rem; }
@@ -1084,10 +1084,10 @@
   font-size: 1.3rem; font-weight: 700; color: #fff; margin-bottom: 0.75rem;
   border: 2px solid rgba(255,255,255,0.2);
 }
-.rt-friend-profile-name { font-family: var(--rt-font-display); font-size: 1.05rem; font-weight: 700; color: #fff; }
+.rt-friend-profile-name { font-family: var(--rt-font-display); font-size: 1.05rem; font-weight: 600; color: #fff; }
 .rt-friend-profile-username { font-size: 0.78rem; color: rgba(255,255,255,0.45); margin-top: 0.15rem; }
 .rt-friend-profile-stats { display: flex; gap: 1.25rem; margin-top: 0.85rem; }
-.rt-friend-profile-stat-n { font-family: var(--rt-font-display); font-size: 1.3rem; font-weight: 700; color: var(--rt-amber-lt); }
+.rt-friend-profile-stat-n { font-family: var(--rt-font-display); font-size: 1.3rem; font-weight: 600; color: var(--rt-amber-lt); }
 .rt-friend-profile-stat-l { font-size: 0.6rem; color: rgba(255,255,255,0.4); text-transform: uppercase; letter-spacing: 0.08em; }
 
 /* Mutual books carousel */
@@ -1173,7 +1173,7 @@
 }
 .rt-chat-list-body { flex: 1; min-width: 0; }
 .rt-chat-list-title {
-  font-family: var(--rt-font-display); font-size: 0.88rem; font-weight: 700;
+  font-family: var(--rt-font-display); font-size: 0.88rem; font-weight: 600;
   color: var(--rt-navy); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .rt-chat-list-preview {
@@ -1298,7 +1298,7 @@
   display: flex; align-items: center; justify-content: center; font-size: 1.2rem;
 }
 .rt-rec-why    { font-size: 0.62rem; font-weight: 700; color: var(--rt-amber-lt); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.3rem; }
-.rt-rec-title  { font-family: var(--rt-font-display); font-size: 0.95rem; font-weight: 700; color: #fff; margin-bottom: 0.2rem; line-height: 1.25; }
+.rt-rec-title  { font-family: var(--rt-font-display); font-size: 0.95rem; font-weight: 600; color: #fff; margin-bottom: 0.2rem; line-height: 1.25; }
 .rt-rec-author { font-size: 0.78rem; color: rgba(255,255,255,0.45); margin-bottom: 0.6rem; }
 .rt-rec-quote  { font-size: 0.78rem; color: rgba(255,255,255,0.35); font-style: italic; line-height: 1.5; }
 .rt-rec-card-body { padding: 1rem 1.25rem; }
@@ -1337,7 +1337,7 @@
   background: var(--rt-white); border-radius: var(--rt-r2);
   padding: 1.5rem; text-align: center; box-shadow: var(--rt-s1);
 }
-.rt-recs-done h3 { font-family: var(--rt-font-display); font-size: 1rem; font-weight: 700; color: var(--rt-navy); margin-bottom: 0.35rem; }
+.rt-recs-done h3 { font-family: var(--rt-font-display); font-size: 1rem; font-weight: 600; color: var(--rt-navy); margin-bottom: 0.35rem; }
 .rt-recs-done p  { font-size: 0.82rem; color: var(--rt-t3); line-height: 1.6; margin-bottom: 1rem; }
 
 /* ── STATS PAGE ────────────────────────────────────────────── */
@@ -1350,7 +1350,7 @@
 .rt-stats-kpi--accent { background: linear-gradient(135deg, var(--rt-navy), var(--rt-navy-mid)); color: #fff; }
 .rt-stats-kpi-label { font-size: 0.58rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--rt-t3); }
 .rt-stats-kpi--accent .rt-stats-kpi-label { color: rgba(255,255,255,0.45); }
-.rt-stats-kpi-value { font-family: var(--rt-font-display); font-size: 1.75rem; font-weight: 700; color: var(--rt-navy); line-height: 1.05; }
+.rt-stats-kpi-value { font-family: var(--rt-font-display); font-size: 1.75rem; font-weight: 600; color: var(--rt-navy); line-height: 1.05; }
 .rt-stats-kpi--accent .rt-stats-kpi-value { color: var(--rt-amber-lt); }
 .rt-stats-kpi-sub { font-size: 0.65rem; color: var(--rt-t3); }
 .rt-stats-kpi--accent .rt-stats-kpi-sub { color: rgba(255,255,255,0.35); }
@@ -1388,12 +1388,12 @@
   display: flex; align-items: center; justify-content: center;
 }
 .rt-profile-hero-info   { flex: 1; min-width: 0; }
-.rt-profile-hero-name   { font-family: var(--rt-font-display); font-size: 1rem; font-weight: 700; color: #fff; margin-bottom: 2px; }
+.rt-profile-hero-name   { font-family: var(--rt-font-display); font-size: 1rem; font-weight: 600; color: #fff; margin-bottom: 2px; }
 .rt-profile-hero-username { font-size: 0.8rem; color: rgba(255,255,255,0.55); }
 .rt-profile-hero-bio    { font-size: 0.82rem; color: rgba(255,255,255,0.7); margin-top: 0.4rem; line-height: 1.55; }
 .rt-profile-stats       { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; }
 .rt-profile-stat        { text-align: center; }
-.rt-profile-stat-n      { font-size: 1.4rem; font-weight: 700; color: #fff; line-height: 1; }
+.rt-profile-stat-n      { font-size: 1.4rem; font-weight: 600; color: #fff; line-height: 1; }
 .rt-profile-stat-l      { font-size: 0.65rem; color: rgba(255,255,255,0.5); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.06em; }
 
 .rt-fav-books-carousel { display: flex; gap: 0.75rem; overflow-x: auto; padding-bottom: 0.5rem; scrollbar-width: none; }
@@ -1435,7 +1435,7 @@
 }
 .rt-overlay-panel.open { transform: translateX(0); }
 .rt-overlay-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 1.1rem 1.25rem; border-bottom: 1px solid var(--rt-border); background: #fff; flex-shrink: 0; }
-.rt-overlay-panel-title { font-family: var(--rt-font-display); font-size: 1.05rem; font-weight: 700; color: var(--rt-navy); }
+.rt-overlay-panel-title { font-family: var(--rt-font-display); font-size: 1.05rem; font-weight: 600; color: var(--rt-navy); }
 .rt-overlay-panel-body  { flex: 1; overflow-y: auto; padding: 1.25rem; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 
 /* ── ICON BUTTONS ──────────────────────────────────────────── */
