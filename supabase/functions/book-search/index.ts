@@ -48,33 +48,39 @@ function decodeHtml(str: string | null | undefined): string {
 
 // Score a Google Books result — higher = more relevant
 // Fiction in English scores highest, everything else still included but lower
+// Note: Google Books search results don't include categories — we score on
+// language, title/description keywords, and presence of cover/description
 function scoreResult(item: any): number {
   const info = item.volumeInfo || {}
   let score = 0
 
-  // Language boost
+  // Language boost — English gets priority
   if (info.language === 'en') score += 10
 
-  // Fiction boost based on categories
+  // Check categories if present (full volume fetch only, but handle if available)
   const cats = (info.categories || []).map((c: string) => c.toLowerCase())
-  const isFiction = cats.some((c: string) =>
-    c.includes('fiction') && !c.includes('non-fiction') && !c.includes('nonfiction')
-  )
-  const isNonFiction = cats.some((c: string) =>
-    NON_FICTION_CATEGORIES.some(nf => c.includes(nf))
-  )
-  if (isFiction) score += 8
-  if (isNonFiction) score -= 5
+  if (cats.some((c: string) => c.includes('fiction') && !c.includes('non-fiction'))) score += 8
+  if (cats.some((c: string) => NON_FICTION_CATEGORIES.some(nf => c.includes(nf)))) score -= 5
 
-  // Has a cover
+  // Score on title/description text when categories absent
+  const titleLower = (info.title || '').toLowerCase()
+  const descLower  = (info.description || '').toLowerCase()
+
+  // Penalise obvious non-fiction/reference by title
+  const titlePenaltyWords = ['dictionary', 'encyclopedia', 'study guide', 'sparknotes', 'cliffsnotes',
+    'textbook', 'workbook', 'handbook', 'manual', 'proceedings', 'journal of',
+    'introduction to', 'principles of', 'theory of']
+  if (titlePenaltyWords.some(w => titleLower.includes(w))) score -= 8
+
+  // Boost if description mentions fiction genres
+  const fictionWords = ['novel', 'fiction', 'fantasy', 'thriller', 'mystery', 'romance',
+    'science fiction', 'horror', 'adventure', 'story', 'tale']
+  if (fictionWords.some(w => descLower.includes(w))) score += 5
+
+  // Quality signals
   if (info.imageLinks?.thumbnail) score += 3
-
-  // Has description
   if (info.description) score += 2
-
-  // Prefer books over other types
-  const type = (info.printType || '').toLowerCase()
-  if (type === 'book') score += 2
+  if ((info.pageCount || 0) > 100) score += 1
 
   return score
 }

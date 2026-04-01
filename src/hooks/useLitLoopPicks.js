@@ -85,18 +85,6 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
   // Track whether we have a valid session feed so we skip the rebuild on initial mount
   const hasFeedRef = useRef(_cached?.userId === userId && (_cached?.feed?.length > 0))
 
-  // After restoring from session cache, fetch covers for any books that are missing them
-  const coverFetchDoneRef = useRef(false)
-  useEffect(() => {
-    if (!hasFeedRef.current || coverFetchDoneRef.current || !feed.length) return
-    coverFetchDoneRef.current = true
-    const needsCovers = feed.filter(
-      book => !book.cover_id && book.ol_key && !coverCacheRef.current[book.ol_key]
-    )
-    if (needsCovers.length) fetchCoversSequentially(needsCovers)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [feed])
-
   // Stable ref to coverCache for use inside async functions without stale closure
   const coverCacheRef = useRef(coverCache)
   useEffect(() => { coverCacheRef.current = coverCache }, [coverCache])
@@ -200,12 +188,6 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
     const finalFeed = result.slice(0, mood ? result.length : 10)
     setFeed(finalFeed)
     writeFeedCache(userId, finalFeed, coverCacheRef.current, mood)
-
-    const needsCovers = finalFeed.filter(
-      book => !book.cover_id && book.ol_key && !coverCacheRef.current[book.ol_key]
-    )
-    if (needsCovers.length) fetchCoversSequentially(needsCovers)
-  // allBooks and dismissedKeys are stable references set from load; preferredMoods rarely changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allBooks, dismissedKeys, preferredMoods, userId])
 
@@ -214,6 +196,29 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
     if (allBooks.length) buildFeedFromState(undefined, false)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allBooks])
+
+  // Also rebuild when preferredMoods loads in (arrives async after allBooks)
+  const prevMoodsRef = useRef(preferredMoods)
+  useEffect(() => {
+    const prev = prevMoodsRef.current
+    prevMoodsRef.current = preferredMoods
+    // Only rebuild if moods actually changed from empty to populated, and we have books
+    if (!prev.length && preferredMoods.length && allBooks.length) {
+      buildFeedFromState(undefined, true)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preferredMoods])
+
+  // ── Public actions ────────────────────────────────────────────
+  async function dismissBook(olKey) {
+    if (!userId || !olKey) return
+    setDismissedKeys(prev => new Set([...prev, olKey]))
+    setFeed(prev => prev.filter(b => b.ol_key !== olKey))
+    // Invalidate data cache so dismissals are re-fetched next time
+    invalidateDataCache()
+    await sb.from('editorial_dismissals')
+      .upsert({ user_id: userId, book_ol_key: olKey, dismissed_at: new Date().toISOString() })
+  }
 
   // ── Cover fetching ────────────────────────────────────────────
   async function fetchCoversSequentially(bookList) {
@@ -225,11 +230,20 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
 
   async function fetchCover(book) {
     try {
-      // If cover_url is already stored in editorial_books, use it directly — no API call needed
+      // If cover_url is already stored in editorial_books, populate cache directly
+      // — no API call needed, but we still cache for offline/low-signal resilience
       if (book.cover_url) {
         setCoverCache(prev => {
           const next = { ...prev, [book.ol_key]: { coverId: book.cover_id || null, olKey: book.ol_key, coverUrl: book.cover_url } }
           coverCacheRef.current = next
+          try {
+            const raw = localStorage.getItem(FEED_CACHE_KEY)
+            if (raw) {
+              const cached = JSON.parse(raw)
+              cached.coverCache = next
+              localStorage.setItem(FEED_CACHE_KEY, JSON.stringify(cached))
+            }
+          } catch {}
           return next
         })
         return
@@ -253,18 +267,17 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
       )
       if (!match) return
 
-      const coverId = match.coverId || null
-      const olKey   = match.olKey   || null
-      let coverUrl  = match.coverUrl || null
-
+      const coverId  = match.coverId  || null
+      const olKey    = match.olKey    || null
+      let   coverUrl = match.coverUrl || null
 
       // Upload to Supabase Storage only if we don't already have a coverUrl
       const uploadKey = olKey || book.ol_key
       if (!coverUrl && coverId && uploadKey) {
+        const { uploadCoverToSupabase } = await import('../lib/coverCache')
         coverUrl = await uploadCoverToSupabase(coverId, uploadKey)
       }
       if (coverUrl) {
-        // Write cover_url back to editorial_books so future loads skip this whole path
         await sb.from('editorial_books')
           .update({ cover_url: coverUrl })
           .eq('ol_key', book.ol_key)
@@ -284,39 +297,25 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
         } catch {}
         return next
       })
-    } catch {}
-  }
-
-  // ── Public actions ────────────────────────────────────────────
-  async function dismissBook(olKey) {
-    if (!userId || !olKey) return
-    setDismissedKeys(prev => new Set([...prev, olKey]))
-    setFeed(prev => prev.filter(b => b.ol_key !== olKey))
-    // Invalidate data cache so dismissals are re-fetched next time
-    invalidateDataCache()
-    await sb.from('editorial_dismissals')
-      .upsert({ user_id: userId, book_ol_key: olKey, dismissed_at: new Date().toISOString() })
+    } catch (e) {
+      console.warn('[LitLoopPicks] fetchCover error:', e)
+    }
   }
 
   function getCoverForBook(book) {
-    const cached = coverCache[book.ol_key]
-    const cachedCoverId = cached && typeof cached === 'object' ? cached.coverId : cached
-    return book.cover_id || cachedCoverId || null
+    return book.cover_id || null
   }
 
   function getCoverUrlForBook(book) {
-    // Prefer cover_url stored directly on the editorial_books row (set after first upload)
-    if (book.cover_url) return book.cover_url
+    // Check cache first (populated by fetchCover, persists in localStorage via feed cache)
     const cached = coverCache[book.ol_key]
-    if (cached && typeof cached === 'object') return cached.coverUrl || null
-    return null
+    if (cached && typeof cached === 'object' && cached.coverUrl) return cached.coverUrl
+    // Fall back to cover_url stored directly in editorial_books
+    return book.cover_url || null
   }
 
-  // Returns the confirmed OL works key for a book (for description fetching)
   function getOlKeyForBook(book) {
-    const cached = coverCache[book.ol_key]
-    const cachedKey = cached && typeof cached === 'object' ? cached.olKey : null
-    return cachedKey || book.ol_key || null
+    return book.ol_key || null
   }
 
   function shuffleFeed() {

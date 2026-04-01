@@ -169,8 +169,12 @@ async function searchBooks(q) {
       reviewPublic: !!review.trim(),
       dateRead:     status === 'read' ? (date || null) : null,
       dateStarted:  status === 'reading' ? new Date().toISOString().split('T')[0] : null,
-      olKey:        olKey || null,
-      coverId:      coverId || null,
+      olKey:        olKey        || null,
+      coverId:      coverId      || null,
+      coverUrl:     coverUrl     || null,
+      isbn:         isbn         || null,
+      googleBooksId: googleBooksId || null,
+      description:  description  || null,
     })
   }
 
