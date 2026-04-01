@@ -101,7 +101,7 @@ export function useSocial(user) {
       let recsData = []
       const { data: recsFull, error: recsErr } = await sb
         .from('book_recommendations')
-        .select('id, created_at, from_user_id, book_ol_key, book_title, book_author, cover_id, message, status')
+        .select('id, created_at, from_user_id, book_ol_key, book_title, book_author, cover_id, cover_url, message, status')
         .eq('to_user_id', user.id)
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
@@ -374,13 +374,13 @@ export function useSocial(user) {
     setRecs(r => r.filter(x => x.id !== recId))
   }
 
-  async function acceptRecToTBR(recId, olKey, bookTitle, bookAuthor, coverId, addBook, books) {
+  async function acceptRecToTBR(recId, olKey, bookTitle, bookAuthor, coverId, addBook, books, coverUrl = null) {
     const already = books.find(b =>
       (olKey && b.olKey === olKey) ||
       (bookTitle && b.title?.toLowerCase() === bookTitle.toLowerCase())
     )
     if (!already) {
-      await addBook({ title: bookTitle, author: bookAuthor, status: 'tbr', olKey, coverId })
+      await addBook({ title: bookTitle, author: bookAuthor, status: 'tbr', olKey, coverId, coverUrl })
     }
     await sb.from('book_recommendations').update({ status: 'accepted' }).eq('id', recId)
     setRecs(r => r.filter(x => x.id !== recId))
@@ -506,6 +506,7 @@ export function useSocial(user) {
       book_title:   book.title   || null,
       book_author:  book.author  || null,
       cover_id:     book.coverId || null,
+      cover_url:    book.coverUrl || null,
       message:      note || null,
       status:       'pending'
     }))

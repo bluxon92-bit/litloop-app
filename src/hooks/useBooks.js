@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+ import { useState, useEffect } from 'react'
 import { sb } from '../lib/supabase'
 import { uploadGoogleCoverToSupabase } from '../lib/coverCache'
 
@@ -149,11 +149,11 @@ export function useBooks(user) {
           title:  bookData.title  || null,
           author: bookData.author || null,
         }
-        if (bookData.coverId)       bookRow.cover_id       = Number(bookData.coverId)
-        if (bookData.isbn)          bookRow.isbn           = bookData.isbn
-        if (bookData.description)   bookRow.description    = bookData.description
+        if (bookData.coverId)       bookRow.cover_id        = Number(bookData.coverId)
+        if (bookData.isbn)          bookRow.isbn            = bookData.isbn
+        if (bookData.description)   bookRow.description     = bookData.description
         if (bookData.googleBooksId) bookRow.google_books_id = bookData.googleBooksId
-        if (bookData.coverUrl)      bookRow.cover_url      = bookData.coverUrl
+        if (bookData.coverUrl)      bookRow.cover_url       = bookData.coverUrl
         const { data: upserted } = await sb
           .from('books')
           .upsert(bookRow, { onConflict: 'ol_key', ignoreDuplicates: false })

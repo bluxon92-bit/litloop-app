@@ -62,14 +62,21 @@ async function fetchOLDetail(book, onCoverFound) {
     } catch {}
   }
 
-  // Fire cover callback whenever we found one (regardless of whether olKey was pre-set)
+  // Fire cover callback whenever we found one
   if (foundCoverId || foundCoverUrl) {
     onCoverFound?.(foundCoverId, olKey, foundCoverUrl)
-    if (book?.olKey) {
-      const update = {}
-      if (foundCoverId) update.cover_id = foundCoverId
-      if (foundCoverUrl) update.cover_url = foundCoverUrl
-      sb.from('books').update(update).eq('ol_key', book.olKey).then(() => {})
+    // Write back using whichever key we have
+    const update = {}
+    if (foundCoverId) update.cover_id = foundCoverId
+    if (foundCoverUrl) update.cover_url = foundCoverUrl
+    if (olKey) update.ol_key = olKey
+    if (Object.keys(update).length) {
+      // Try ol_key first, fall back to google_books_id
+      if (book?.olKey) {
+        sb.from('books').update(update).eq('ol_key', book.olKey).then(() => {})
+      } else if (book?.googleBooksId) {
+        sb.from('books').update(update).eq('google_books_id', book.googleBooksId).then(() => {})
+      }
     }
   }
 
@@ -442,24 +449,38 @@ export default function BookDetailPanel({
   const [shareAsMoment, setShareAsMoment] = useState(false)
   const [savingProgress, setSavingProgress] = useState(false)
   const [coverIdLive, setCoverIdLive]     = useState(book?.coverId || null)
+  const [coverUrlLive, setCoverUrlLive]   = useState(book?.coverUrl || null)
   const [olKeyLive, setOlKeyLive]         = useState(book?.olKey || null)
 
   useEffect(() => { setCoverIdLive(book?.coverId || null) }, [book?.coverId])
+  useEffect(() => { setCoverUrlLive(book?.coverUrl || null) }, [book?.coverUrl])
   useEffect(() => { setOlKeyLive(book?.olKey || null) }, [book?.olKey])
 
   useEffect(() => {
-    setLoading(true); setOlData(null); setExpanded(false)
-    fetchOLDetail(book, (coverId, discoveredOlKey) => {
-      if (!coverId) return
+    setExpanded(false)
+
+    // If we already have both coverUrl and description, skip the OL fetch entirely
+    const hasCover = !!(book?.coverUrl || book?.coverId)
+    const hasDesc  = !!book?.description
+
+    if (hasCover && hasDesc) {
+      setLoading(false)
+      setOlData(null)
+      return
+    }
+
+    // Otherwise fetch from OL to get missing data
+    setLoading(true); setOlData(null)
+    fetchOLDetail(book, (coverId, discoveredOlKey, discoveredCoverUrl) => {
       // Update local display immediately
-      setCoverIdLive(coverId)
+      if (coverId) setCoverIdLive(coverId)
+      if (discoveredCoverUrl) setCoverUrlLive(discoveredCoverUrl)
       if (discoveredOlKey) setOlKeyLive(discoveredOlKey)
       // Update in-memory books state so list view shows cover without refetch
-      onCoverUpdate?.(book.id, coverId, discoveredOlKey)
-      // Write cover back to books table using the discovered olKey
-      // (book.olKey may be null for Goodreads imports — discoveredOlKey is always populated)
+      if (coverId) onCoverUpdate?.(book.id, coverId, discoveredOlKey)
+      // Write cover back to books table
       const writeKey = discoveredOlKey || book?.olKey
-      if (writeKey) {
+      if (writeKey && coverId) {
         sb.from('books')
           .update({ cover_id: coverId })
           .eq('ol_key', writeKey)
@@ -470,7 +491,8 @@ export default function BookDetailPanel({
       .catch(() => setLoading(false))
   }, [book?.id, book?.olKey])
 
-  const description = olData?.description || ''
+  // Use description from DB first (set at add time), fall back to OL fetch result
+  const description = book?.description || olData?.description || ''
   const LIMIT       = 400
   const truncated   = !expanded && description.length > LIMIT
   const shownDesc   = truncated ? description.slice(0, LIMIT) + '…' : description
@@ -499,9 +521,12 @@ export default function BookDetailPanel({
 
         <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start' }}>
           <div style={{ flexShrink: 0 }}>
-            {coverIdLive
-              ? <img src={`https://covers.openlibrary.org/b/id/${coverIdLive}-M.jpg`}
-                  style={{ width: 80, height: 116, borderRadius: 8, objectFit: 'cover', boxShadow: '0 4px 16px rgba(0,0,0,0.35)' }} alt={book.title} />
+            {(coverUrlLive || coverIdLive)
+              ? <img
+                  src={coverUrlLive || `https://covers.openlibrary.org/b/id/${coverIdLive}-M.jpg`}
+                  style={{ width: 80, height: 116, borderRadius: 8, objectFit: 'cover', boxShadow: '0 4px 16px rgba(0,0,0,0.35)' }}
+                  alt={book.title}
+                />
               : <div style={{ width: 80, height: 116, borderRadius: 8, background: 'rgba(255,255,255,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2rem', color: 'rgba(255,255,255,0.3)' }}>
                   {loading ? '…' : <IcoBook size={32} color="rgba(255,255,255,0.3)" />}
                 </div>

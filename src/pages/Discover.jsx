@@ -154,12 +154,21 @@ function LitLoopPicksSection({ feed, loading, moods, activeMood, setActiveMood, 
 
 // ── Book detail modal ─────────────────────────────────────────────
 function BookModal({ book, added, dupMsg, onReread, onClose, onAddToTBR, onRecommend, onChat, onDismiss }) {
-  const [desc, setDesc]               = useState('')
-  const [descLoading, setDescLoading] = useState(true)
+  // Use description already on the book object immediately (from DB — Google or OL)
+  const [desc, setDesc]               = useState(book?.description || '')
+  const [descLoading, setDescLoading] = useState(!book?.description)
   const [showFullDesc, setShowFullDesc] = useState(false)
 
   useEffect(() => {
-    setDesc(''); setDescLoading(true)
+    // Reset with whatever the book already has
+    setDesc(book?.description || '')
+    setShowFullDesc(false)
+
+    // If we already have a description, still try OL to get a longer/better one
+    // but don't show loading state — existing description shows immediately
+    if (book?.description) setDescLoading(false)
+    else setDescLoading(true)
+
     let cancelled = false
     async function fetchDesc(olKey) {
       try {
@@ -176,26 +185,30 @@ function BookModal({ book, added, dupMsg, onReread, onClose, onAddToTBR, onRecom
       try {
         const cacheKey = `litloop_desc_${book._key || book.title}`
         const cached = localStorage.getItem(cacheKey)
-        if (cached) { if (!cancelled) { setDesc(cached); setDescLoading(false) }; return }
+        if (cached) {
+          if (!cancelled) { setDesc(cached); setDescLoading(false) }
+          return
+        }
 
-        // 1. Try with provided olKey first
-        let description = ''
+        // Try OL with provided olKey
+        let olDescription = ''
         if (book.olKey) {
-          description = await fetchDesc(book.olKey)
+          olDescription = await fetchDesc(book.olKey)
         }
 
-        // 2. If that failed or returned nothing, search OL by title/author for a fresh key
-        if (!description) {
+        // If OL returned nothing, search by title
+        if (!olDescription) {
           const doc = await searchOL(book.title, book.author, 'key')
-          if (doc?.key) {
-            description = await fetchDesc(doc.key)
-          }
+          if (doc?.key) olDescription = await fetchDesc(doc.key)
         }
 
-        if (description) {
-          try { localStorage.setItem(cacheKey, description) } catch {}
+        if (olDescription) {
+          // Only replace existing description if OL version is longer/better
+          if (!cancelled) {
+            setDesc(prev => olDescription.length > (prev || '').length ? olDescription : prev)
+          }
+          try { localStorage.setItem(cacheKey, olDescription) } catch {}
         }
-        if (!cancelled) setDesc(description)
       } catch {}
       if (!cancelled) setDescLoading(false)
     }
@@ -491,11 +504,18 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
     pendingRecOpen.current = null
     setShowRecommend(false)
     setShowChatPicker(false)
+    // Enrich with local books data if available (has coverUrl, description from DB)
+    const localBook = books.find(b =>
+      (r.book_ol_key && b.olKey === r.book_ol_key) ||
+      (r.book_title && b.title?.toLowerCase() === r.book_title?.toLowerCase())
+    )
     setSelectedBook({
       title:        r.book_title  || '',
       author:       r.book_author || '',
-      coverId:      r.cover_id    || null,
-      olKey:        r.book_ol_key || null,
+      coverId:      localBook?.coverId  || r.cover_id    || null,
+      coverUrl:     localBook?.coverUrl || null,
+      description:  localBook?.description || null,
+      olKey:        localBook?.olKey || r.book_ol_key || null,
       fromFriend:   r.profiles?.display_name || r.profiles?.username || 'A friend',
       message:      r.message     || null,
       recommenders: [{ name: r.profiles?.display_name || r.profiles?.username || 'A friend', userId: r.from_user_id, message: r.message }],
@@ -606,7 +626,7 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
         setPendingReread({ book, key }); setDupMsgKey(key); return
       }
     }
-    addBook({ title: book.title, author: book.author, status: 'tbr', coverId: book.coverId || null, olKey: book.olKey || null })
+    addBook({ title: book.title, author: book.author, status: 'tbr', coverId: book.coverId || null, coverUrl: book.coverUrl || null, olKey: book.olKey || null, googleBooksId: book.googleBooksId || null, isbn: book.isbn || null, description: book.description || null })
     setAddedKeys(prev => new Set([...prev, key]))
     if (book._aiIndex !== undefined) aiPicks.markAdded(book._aiIndex)
     setTimeout(() => setSelectedBook(null), 900)
@@ -615,7 +635,7 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
   function confirmReread() {
     if (!pendingReread) return
     const { book, key } = pendingReread
-    addBook({ title: book.title, author: book.author, status: 'tbr', coverId: book.coverId || null, olKey: book.olKey || null })
+    addBook({ title: book.title, author: book.author, status: 'tbr', coverId: book.coverId || null, coverUrl: book.coverUrl || null, olKey: book.olKey || null, googleBooksId: book.googleBooksId || null, isbn: book.isbn || null, description: book.description || null })
     setPendingReread(null); setDupMsgKey(null)
     setAddedKeys(prev => new Set([...prev, key]))
     if (book._aiIndex !== undefined) aiPicks.markAdded(book._aiIndex)
@@ -624,7 +644,7 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
 
   async function acceptFriendRec(r) {
     const key = `fr-${r.id}`
-    await acceptRecToTBR(r.id, r.book_ol_key, r.book_title, r.book_author, r.cover_id, addBook, books)
+    await acceptRecToTBR(r.id, r.book_ol_key, r.book_title, r.book_author, r.cover_id, addBook, books, r.cover_url || null)
     setAddedKeys(prev => new Set([...prev, key]))
     setTimeout(() => setSelectedBook(null), 900)
   }
@@ -690,7 +710,11 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
                     if (isFriendBook) {
                       setSelectedBook({ title: g.title, author: g.author, coverId: g.coverId, olKey: g.olKey, friendReading: isReading ? g.friendName : null, _key: g._key })
                     } else {
-                      setSelectedBook({ title: g.book_title, author: g.book_author, coverId: g.cover_id, olKey: g.book_ol_key, fromFriend: g.recommenders[0]?.name, message: g.recommenders[0]?.message, recommenders: g.recommenders, _key: g._key, _recs: g._recs, _rec: g._recs[0] })
+                      const localBook = books.find(b =>
+                        (g.book_ol_key && b.olKey === g.book_ol_key) ||
+                        (g.book_title && b.title?.toLowerCase() === g.book_title?.toLowerCase())
+                      )
+                      setSelectedBook({ title: g.book_title, author: g.book_author, coverId: localBook?.coverId || g.cover_id, coverUrl: localBook?.coverUrl || g.cover_url || null, description: localBook?.description || null, olKey: localBook?.olKey || g.book_ol_key, fromFriend: g.recommenders[0]?.name, message: g.recommenders[0]?.message, recommenders: g.recommenders, _key: g._key, _recs: g._recs, _rec: g._recs[0] })
                     }
                   }}
                   style={{
@@ -706,6 +730,7 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
                   <CoverImage
                     coverId={isFriendBook ? g.coverId : g.cover_id}
                     olKey={isFriendBook ? g.olKey : g.book_ol_key}
+                    coverUrl={isFriendBook ? g.coverUrl : (g.cover_url || null)}
                     title={isFriendBook ? g.title : g.book_title}
                     size="M"
                   />
