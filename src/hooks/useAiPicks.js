@@ -38,20 +38,23 @@ async function callRecsAPI(prompt) {
 
 async function searchOLCover(title, author) {
   const cleanTitle = (title || '').replace(/\s*\([^)]*#\d[^)]*\)/g, '').replace(/[:\u2014\u2013].*/u, '').trim()
-  const cleanAuthor = author ? author.split(',')[0].split(' ').pop() : ''
-  const strategies = [
-    cleanAuthor ? `title=${encodeURIComponent(cleanTitle)}&author=${encodeURIComponent(cleanAuthor)}&type=work` : null,
-    `title=${encodeURIComponent(cleanTitle)}&type=work`,
-  ].filter(Boolean)
-  for (const params of strategies) {
-    try {
-      const res = await fetch(`https://openlibrary.org/search.json?${params}&fields=cover_i,key&limit=5`)
-      const data = await res.json()
-      const doc = (data.docs || []).find(d => d.cover_i)
-      if (doc?.cover_i) return { coverId: doc.cover_i, olKey: doc.key || null }
-    } catch {}
-  }
-  return { coverId: null, olKey: null }
+  if (!cleanTitle) return { coverId: null, olKey: null, coverUrl: null }
+  try {
+    const SUPABASE_URL  = import.meta.env.SUPABASE_URL  || 'https://afwvsrjbaxutfonmmxjd.supabase.co'
+    const SUPABASE_ANON = import.meta.env.SUPABASE_ANON || ''
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/book-search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
+      body: JSON.stringify({ q: cleanTitle }),
+    })
+    const data = await res.json()
+    const match = (data.results || []).find(r =>
+      r.title?.toLowerCase().includes(cleanTitle.toLowerCase()) ||
+      cleanTitle.toLowerCase().includes((r.title || '').toLowerCase())
+    )
+    if (match) return { coverId: match.coverId || null, olKey: match.olKey || null, coverUrl: match.coverUrl || null }
+  } catch {}
+  return { coverId: null, olKey: null, coverUrl: null }
 }
 
 export function useAiPicks(user, books) {
@@ -140,9 +143,9 @@ export function useAiPicks(user, books) {
       // Fetch covers and upload to Storage in background
       ;(async () => {
         for (let i = 0; i < enriched.length; i++) {
-          const { coverId, olKey } = await searchOLCover(enriched[i].title, enriched[i].author)
-          let coverUrl = null
-          if (coverId && olKey) {
+          const { coverId, olKey, coverUrl: foundCoverUrl } = await searchOLCover(enriched[i].title, enriched[i].author)
+          let coverUrl = foundCoverUrl || null
+          if (coverId && olKey && !coverUrl) {
             coverUrl = await uploadCoverToSupabase(coverId, olKey)
           }
           enriched[i] = { ...enriched[i], coverId, olKey, coverUrl }

@@ -248,7 +248,7 @@ function FabRecommendModal({ books, friends, user, recs, sendRecommendation, onC
               <div key={b.id} onClick={() => { setSelectedBook(b); setStep('friends') }}
                 style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0', borderBottom: '1px solid var(--rt-border)', cursor: 'pointer' }}>
                 <div style={{ width: 32, height: 46, borderRadius: 4, background: 'var(--rt-surface)', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {b.coverId ? <img src={`https://covers.openlibrary.org/b/id/${b.coverId}-S.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : <IcoBook size={18} color="var(--rt-t3)" />}
+                  {(b.coverUrl || b.coverId) ? <img src={b.coverUrl || `https://covers.openlibrary.org/b/id/${b.coverId}-S.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : <IcoBook size={18} color="var(--rt-t3)" />}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.title}</div>
@@ -357,7 +357,7 @@ function FabChatModal({ books, friends, chats, startOrOpenChat, onOpenChatModal,
               <div key={b.id} onClick={() => { setSelectedBook(b); setStep('friends') }}
                 style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.6rem 0', borderBottom: '1px solid var(--rt-border)', cursor: 'pointer' }}>
                 <div style={{ width: 32, height: 46, borderRadius: 4, background: 'var(--rt-surface)', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {b.coverId ? <img src={`https://covers.openlibrary.org/b/id/${b.coverId}-S.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : <IcoBook size={18} color="var(--rt-t3)" />}
+                  {(b.coverUrl || b.coverId) ? <img src={b.coverUrl || `https://covers.openlibrary.org/b/id/${b.coverId}-S.jpg`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" /> : <IcoBook size={18} color="var(--rt-t3)" />}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.title}</div>
@@ -510,17 +510,22 @@ function OnboardingFlow({ user, onComplete }) {
   // Book search
   useEffect(() => {
     clearTimeout(searchTimer.current)
-    if (!query.trim()) { setResults([]); return }
+    if (query.trim().length < 3) { setResults([]); return }
     setSearching(true)
     searchTimer.current = setTimeout(async () => {
       try {
-        const cleanQ = query.replace(/\s*\([^)]*#\d[^)]*\)/g, '').replace(/[:\u2014\u2013].*/u, '').trim()
-        const res = await fetch(`https://openlibrary.org/search.json?title=${encodeURIComponent(cleanQ)}&fields=key,title,author_name,cover_i&limit=5&type=work`)
+        const SUPABASE_URL  = import.meta.env.SUPABASE_URL  || 'https://afwvsrjbaxutfonmmxjd.supabase.co'
+        const SUPABASE_ANON = import.meta.env.SUPABASE_ANON || ''
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/book-search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
+          body: JSON.stringify({ q: query.trim() }),
+        })
         const data = await res.json()
-        setResults(data.docs || [])
+        setResults(data.results || [])
       } catch {}
       setSearching(false)
-    }, 400)
+    }, 500)
   }, [query])
 
   // Friend search — uses search_users RPC
@@ -566,9 +571,9 @@ function OnboardingFlow({ user, onComplete }) {
     if (currentBook) {
       await addBook({
         title: currentBook.title,
-        author: (currentBook.author_name || []).join(', '),
-        olKey: currentBook.key,
-        coverId: currentBook.cover_i || null,
+        author: currentBook.author || '',
+        olKey: currentBook.olKey || null,
+        coverId: currentBook.coverId || null,
         status: 'reading',
         dateStarted: new Date().toISOString().split('T')[0],
       })
@@ -766,14 +771,14 @@ function OnboardingFlow({ user, onComplete }) {
 
             {currentBook ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', background: 'var(--rt-white)', border: '1.5px solid var(--rt-navy)', borderRadius: 'var(--rt-r3)', padding: '0.85rem 1rem', marginBottom: '1.5rem' }}>
-                {currentBook.cover_i ? (
-                  <img src={`https://covers.openlibrary.org/b/id/${currentBook.cover_i}-S.jpg`} style={{ width: 44, height: 62, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} alt="" />
+                {currentBook.coverUrl || currentBook.coverId ? (
+                  <img src={currentBook.coverUrl || `https://covers.openlibrary.org/b/id/${currentBook.coverId}-S.jpg`} style={{ width: 44, height: 62, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} alt="" />
                 ) : (
                   <div style={{ width: 44, height: 62, borderRadius: 4, background: 'var(--rt-surface)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IcoBook size={22} color="var(--rt-t3)" /></div>
                 )}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentBook.title}</div>
-                  <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)', marginTop: '0.15rem' }}>{(currentBook.author_name || []).slice(0, 2).join(', ')}</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)', marginTop: '0.15rem' }}>{currentBook.author || ''}</div>
                 </div>
                 <button onClick={() => setCurrentBook(null)} style={{ background: 'none', border: 'none', color: 'var(--rt-t3)', cursor: 'pointer', fontSize: '1.1rem', padding: '0.25rem', flexShrink: 0 }}>×</button>
               </div>
@@ -802,14 +807,14 @@ function OnboardingFlow({ user, onComplete }) {
                     onMouseEnter={e => e.currentTarget.style.background = 'var(--rt-surface)'}
                     onMouseLeave={e => e.currentTarget.style.background = 'none'}
                   >
-                    {r.cover_i ? (
-                      <img src={`https://covers.openlibrary.org/b/id/${r.cover_i}-S.jpg`} style={{ width: 32, height: 46, borderRadius: 3, objectFit: 'cover', flexShrink: 0 }} alt="" />
+                    {r.coverUrl || r.coverId ? (
+                      <img src={r.coverUrl || `https://covers.openlibrary.org/b/id/${r.coverId}-S.jpg`} style={{ width: 32, height: 46, borderRadius: 3, objectFit: 'cover', flexShrink: 0 }} alt="" />
                     ) : (
                       <div style={{ width: 32, height: 46, borderRadius: 3, background: 'var(--rt-surface)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IcoBook size={18} color="var(--rt-t3)" /></div>
                     )}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</div>
-                      <div style={{ fontSize: '0.73rem', color: 'var(--rt-t3)', marginTop: '0.1rem' }}>{(r.author_name || []).slice(0, 2).join(', ')}</div>
+                      <div style={{ fontSize: '0.73rem', color: 'var(--rt-t3)', marginTop: '0.1rem' }}>{r.author || ''}</div>
                     </div>
                   </button>
                 ))}

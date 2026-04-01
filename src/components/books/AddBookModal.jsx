@@ -86,76 +86,42 @@ function cleanBookTitle(title) {
 }
 
 async function searchBooks(q) {
-    if (q.length < 2) { setOlDropdown([]); return }
+    if (q.length < 3) { setOlDropdown([]); return }
     try {
-      // Google Books primary — faster and better fuzzy matching
-      const url = `https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=8&printType=books&langRestrict=en`
-      const res = await fetch(url)
-      const data = await res.json()
-      const googleItems = (data.items || []).map(item => {
-        const info = item.volumeInfo || {}
-        const identifiers = info.industryIdentifiers || []
-        const isbn = identifiers.find(i => i.type === 'ISBN_13')?.identifier
-                  || identifiers.find(i => i.type === 'ISBN_10')?.identifier || null
-        const coverUrl = info.imageLinks?.thumbnail
-          ? info.imageLinks.thumbnail.replace('zoom=1', 'zoom=2').replace('http://', 'https://')
-          : null
-        return {
-          key: item.id,
-          title: decodeHtml(info.title || ''),
-          author_name: (info.authors || []).map(decodeHtml),
-          first_publish_year: info.publishedDate ? parseInt(info.publishedDate) : null,
-          description: info.description ? decodeHtml(info.description.slice(0, 500)) : null,
-          cover_i: null,
-          _coverUrl: coverUrl,
-          _isbn: isbn,
-          _googleId: item.id,
-        }
+      const SUPABASE_URL  = import.meta.env.SUPABASE_URL  || 'https://afwvsrjbaxutfonmmxjd.supabase.co'
+      const SUPABASE_ANON = import.meta.env.SUPABASE_ANON || ''
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/book-search`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${SUPABASE_ANON}`,
+        },
+        body: JSON.stringify({ q }),
       })
-
-      if (googleItems.length >= 3) { setOlDropdown(googleItems.slice(0, 7)); return }
-
-      // OL fallback if Google returns fewer than 3 results
-      try {
-        const olUrl = `https://openlibrary.org/search.json?title=${encodeURIComponent(q)}&fields=key,title,author_name,first_publish_year,cover_i&limit=6&language=eng`
-        const olRes = await fetch(olUrl)
-        const olData = await olRes.json()
-        const olItems = (olData.docs || []).map(doc => ({
-          key: doc.key,
-          title: doc.title || '',
-          author_name: doc.author_name || [],
-          first_publish_year: doc.first_publish_year || null,
-          cover_i: doc.cover_i || null,
-          description: null,
-          _coverUrl: null,
-          _isbn: null,
-          _googleId: null,
-        }))
-        // Merge — dedupe by title, Google results first
-        const seen = new Set(googleItems.map(i => i.title.toLowerCase()))
-        const merged = [...googleItems, ...olItems.filter(i => !seen.has(i.title.toLowerCase()))]
-        setOlDropdown(merged.slice(0, 7))
-      } catch { setOlDropdown(googleItems) }
-
-    } catch { setOlDropdown([]) }
+      if (!res.ok) throw new Error(`Search failed: ${res.status}`)
+      const data = await res.json()
+      setOlDropdown(data.results || [])
+    } catch {
+      setOlDropdown([])
+    }
   }
 
   function handleTitleChange(v) {
     setTitle(v)
     setOlKey(null); setCoverId(null); setCoverUrl(null); setIsbn(null); setGoogleBooksId(null); setDescription(null)
     clearTimeout(olTimer.current)
-    // 280ms debounce — fast enough to feel instant, slow enough to avoid spamming
-    olTimer.current = setTimeout(() => searchBooks(v), 280)
+    // 500ms debounce — balances responsiveness with API cost
+    olTimer.current = setTimeout(() => searchBooks(v), 500)
   }
 
   function selectOL(doc) {
     setTitle(doc.title || '')
-    setAuthor((doc.author_name || []).join(', ') || '')
-    setOlKey(doc._googleId ? null : (doc.key || null))
-    setCoverId(doc.cover_i || null)
-    if (doc._coverUrl) setCoverUrl(doc._coverUrl)
-    if (doc._isbn) setIsbn(doc._isbn)
-    if (doc._googleId) setGoogleBooksId(doc._googleId)
+    setAuthor(doc.author || '')
+    setOlKey(doc.olKey || null)
+    setCoverId(doc.coverId || null)
+    if (doc.coverUrl) setCoverUrl(doc.coverUrl)
+    if (doc.isbn) setIsbn(doc.isbn)
+    if (doc.googleBooksId) setGoogleBooksId(doc.googleBooksId)
     if (doc.description) setDescription(doc.description)
     setOlDropdown([])
   }
@@ -263,7 +229,7 @@ async function searchBooks(q) {
               borderRadius: 'var(--rt-r3)', boxShadow: 'var(--rt-s2)', maxHeight: 260, overflowY: 'auto'
             }}>
               {olDropdown.map((doc, i) => {
-                const coverSrc = doc._coverUrl || (doc.cover_i ? `https://covers.openlibrary.org/b/id/${doc.cover_i}-S.jpg` : null)
+                const coverSrc = doc.coverUrl || (doc.coverId ? `https://covers.openlibrary.org/b/id/${doc.coverId}-S.jpg` : null)
                 return (
                   <div
                     key={i}
@@ -278,7 +244,7 @@ async function searchBooks(q) {
                     }
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.title}</div>
-                      {doc.author_name?.[0] && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>{doc.author_name[0]}{doc.first_publish_year ? ` · ${doc.first_publish_year}` : ''}</div>}
+                      {doc.author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>{doc.author}</div>}
                     </div>
                   </div>
                 )

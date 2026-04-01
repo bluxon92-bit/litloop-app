@@ -225,35 +225,49 @@ export function useLitLoopPicks({ userId, books = [], preferredMoods = [] }) {
 
   async function fetchCover(book) {
     try {
-      const cleanTitle  = cleanBookTitle(book?.title || '')
-      const cleanAuthor = book.author ? book.author.split(',')[0].split(' ').pop() : ''
-      const JUNK = ['sparknotes', 'cliffsnotes', 'study guide', 'summary', 'analysis', 'gradesaver', 'bookrags', 'litcharts']
-      const strategies = [
-        cleanAuthor ? `title=${encodeURIComponent(cleanTitle)}&author=${encodeURIComponent(cleanAuthor)}&type=work` : null,
-        `title=${encodeURIComponent(cleanTitle)}&type=work`,
-        `q=${encodeURIComponent(cleanTitle + (cleanAuthor ? ' ' + cleanAuthor : ''))}&type=work`,
-      ].filter(Boolean)
-      let coverId = null
-      let olKey = null
-      for (const params of strategies) {
-        const res  = await fetch(`https://openlibrary.org/search.json?${params}&fields=cover_i,key,title&limit=5`)
-        const data = await res.json()
-        const doc  = (data.docs || []).find(d => d.cover_i && !JUNK.some(k => (d.title || '').toLowerCase().includes(k)))
-        if (doc) { coverId = doc.cover_i || null; olKey = doc.key || null }
-        if (coverId) break
+      // If cover_url is already stored in editorial_books, use it directly — no API call needed
+      if (book.cover_url) {
+        setCoverCache(prev => {
+          const next = { ...prev, [book.ol_key]: { coverId: book.cover_id || null, olKey: book.ol_key, coverUrl: book.cover_url } }
+          coverCacheRef.current = next
+          return next
+        })
+        return
       }
 
-      // Upload to Supabase Storage and persist cover_url back to editorial_books
-      let coverUrl = null
+      const cleanTitle = cleanBookTitle(book?.title || '')
+      if (!cleanTitle) return
+
+      // Search via Edge Function — server-side, no CORS
+      const SUPABASE_URL  = import.meta.env.SUPABASE_URL  || 'https://afwvsrjbaxutfonmmxjd.supabase.co'
+      const SUPABASE_ANON = import.meta.env.SUPABASE_ANON || ''
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/book-search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
+        body: JSON.stringify({ q: cleanTitle }),
+      })
+      const data = await res.json()
+      const match = (data.results || []).find(r =>
+        r.title?.toLowerCase().includes(cleanTitle.toLowerCase()) ||
+        cleanTitle.toLowerCase().includes((r.title || '').toLowerCase())
+      )
+      if (!match) return
+
+      const coverId = match.coverId || null
+      const olKey   = match.olKey   || null
+      let coverUrl  = match.coverUrl || null
+
+
+      // Upload to Supabase Storage only if we don't already have a coverUrl
       const uploadKey = olKey || book.ol_key
-      if (coverId && uploadKey) {
+      if (!coverUrl && coverId && uploadKey) {
         coverUrl = await uploadCoverToSupabase(coverId, uploadKey)
-        if (coverUrl) {
-          // Write cover_url back to editorial_books so future loads skip this whole path
-          await sb.from('editorial_books')
-            .update({ cover_url: coverUrl })
-            .eq('ol_key', book.ol_key)
-        }
+      }
+      if (coverUrl) {
+        // Write cover_url back to editorial_books so future loads skip this whole path
+        await sb.from('editorial_books')
+          .update({ cover_url: coverUrl })
+          .eq('ol_key', book.ol_key)
       }
 
       const entry = { coverId, olKey, coverUrl }

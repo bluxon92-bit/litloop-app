@@ -9,28 +9,29 @@ import { avatarColour, avatarInitial } from '../lib/utils'
 import { IcoBook, IcoChat } from '../components/icons'
 import CoverImage from '../components/books/CoverImage'
 
-// ── Robust OL search ──────────────────────────────────────────────
-async function searchOL(title, author, fields = 'cover_i,key') {
+// ── Book search via Edge Function (server-side, no CORS) ──────────
+async function searchOL(title, author) {
   const cleanTitle = (title || '').replace(/\s*\([^)]*#\d[^)]*\)/g, '').replace(/[:\u2014\u2013].*/u, '').trim()
-  const cleanAuthor = author ? author.split(',')[0].split(' ').pop() : ''
-  const JUNK = ['sparknotes', 'cliffsnotes', 'study guide', 'summary', 'analysis', 'gradesaver', 'bookrags', 'litcharts']
-  const strategies = [
-    cleanAuthor ? `title=${encodeURIComponent(cleanTitle)}&author=${encodeURIComponent(cleanAuthor)}&type=work` : null,
-    `title=${encodeURIComponent(cleanTitle)}&type=work`,
-    `q=${encodeURIComponent(cleanTitle + (cleanAuthor ? ' ' + cleanAuthor : ''))}&type=work`,
-  ].filter(Boolean)
-  for (const params of strategies) {
-    try {
-      const res = await fetch(`https://openlibrary.org/search.json?${params}&fields=${fields}&limit=5`)
-      const data = await res.json()
-      const doc = (data.docs || []).find(d => {
-        const t = (d.title || '').toLowerCase()
-        return (d.cover_i || d.key) && !JUNK.some(k => t.includes(k))
-      })
-      if (doc) return doc
-    } catch {}
+  if (!cleanTitle) return null
+  try {
+    const SUPABASE_URL  = import.meta.env.SUPABASE_URL  || 'https://afwvsrjbaxutfonmmxjd.supabase.co'
+    const SUPABASE_ANON = import.meta.env.SUPABASE_ANON || ''
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/book-search`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
+      body: JSON.stringify({ q: cleanTitle }),
+    })
+    const data = await res.json()
+    const match = (data.results || []).find(r =>
+      r.title?.toLowerCase().includes(cleanTitle.toLowerCase()) ||
+      cleanTitle.toLowerCase().includes((r.title || '').toLowerCase())
+    )
+    if (!match) return null
+    // Return in a shape compatible with existing Discover usage
+    return { cover_i: match.coverId || null, key: match.olKey || null, coverUrl: match.coverUrl || null }
+  } catch {
+    return null
   }
-  return null
 }
 
 // ── Small book card for carousels ────────────────────────────────
