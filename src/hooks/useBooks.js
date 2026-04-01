@@ -12,6 +12,7 @@ async function enrichBookWithOL(isbn, bookId, title, author) {
   const SUPABASE_URL  = import.meta.env.SUPABASE_URL  || 'https://afwvsrjbaxutfonmmxjd.supabase.co'
   const SUPABASE_ANON = import.meta.env.SUPABASE_ANON || ''
   console.log('[enrich] anon key present:', !!SUPABASE_ANON, 'url:', SUPABASE_URL)
+  console.log('[enrich] sending to edge fn:', { isbn, bookId, title, author })
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/book-enrich`, {
       method: 'POST',
