@@ -2,9 +2,6 @@ import { useState, useEffect } from 'react'
 import { sb } from '../lib/supabase'
 import { uploadGoogleCoverToSupabase, uploadCoverToSupabase } from '../lib/coverCache'
 
-const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || 'https://afwvsrjbaxutfonmmxjd.supabase.co'
-const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
-
 // ── OL enrichment via edge function ──────────────────────────────────────────
 // OL is called server-side (no CORS issues). Writes ol_key, cover_id,
 // description, first_publish_year directly to books.id and returns the values
@@ -12,6 +9,9 @@ const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 async function enrichBookWithOL(isbn, bookId, title, author) {
   console.log('[enrich] called with isbn:', isbn, 'bookId:', bookId)
   if (!isbn || !bookId) { console.log('[enrich] bailing — missing isbn or bookId'); return null }
+  const SUPABASE_URL  = import.meta.env.SUPABASE_URL  || 'https://afwvsrjbaxutfonmmxjd.supabase.co'
+  const SUPABASE_ANON = import.meta.env.SUPABASE_ANON || ''
+  console.log('[enrich] anon key present:', !!SUPABASE_ANON, 'url:', SUPABASE_URL)
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/book-enrich`, {
       method: 'POST',
