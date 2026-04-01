@@ -226,24 +226,14 @@ export function useBooks(user) {
                   ...b,
                   olKey:       enriched.olKey       || b.olKey,
                   coverId:     enriched.coverId      || b.coverId,
+                  coverUrl:    enriched.coverUrl     || b.coverUrl,
                   description: enriched.description  || b.description,
                 } : b
               ))
             })
           }
 
-          // ── Cover upload to Supabase Storage ────────────────────────────────
-          if (bookData.coverId && bookData.olKey) {
-            const storageUrl = await uploadCoverToSupabase(bookData.coverId, bookData.olKey)
-            if (storageUrl) {
-              setBooks(prev => prev.map(b => b.id === tempId ? { ...b, coverUrl: storageUrl } : b))
-            }
-          } else if (bookData.googleBooksId && bookData.coverUrl) {
-            const storageUrl = await uploadGoogleCoverToSupabase(bookData.googleBooksId, bookData.coverUrl)
-            if (storageUrl) {
-              setBooks(prev => prev.map(b => b.id === tempId ? { ...b, coverUrl: storageUrl } : b))
-            }
-          }
+          // Cover upload is handled server-side by book-enrich edge function
         }
       }
 
