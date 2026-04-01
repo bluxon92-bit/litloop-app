@@ -1,6 +1,37 @@
- import { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { sb } from '../lib/supabase'
-import { uploadGoogleCoverToSupabase } from '../lib/coverCache'
+import { uploadGoogleCoverToSupabase, uploadCoverToSupabase } from '../lib/coverCache'
+
+const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  || 'https://afwvsrjbaxutfonmmxjd.supabase.co'
+const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+
+// ── OL enrichment via edge function ──────────────────────────────────────────
+// OL is called server-side (no CORS issues). Writes ol_key, cover_id,
+// description, first_publish_year directly to books.id and returns the values
+// so local state can be updated immediately.
+async function enrichBookWithOL(isbn, bookId) {
+  console.log('[enrich] called with isbn:', isbn, 'bookId:', bookId)
+  if (!isbn || !bookId) { console.log('[enrich] bailing — missing isbn or bookId'); return null }
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/book-enrich`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${SUPABASE_ANON}`,
+      },
+      body: JSON.stringify({ isbn, bookId }),
+    })
+    console.log('[enrich] edge function status:', res.status)
+    const text = await res.text()
+    console.log('[enrich] edge function raw response:', text)
+    const data = JSON.parse(text)
+    console.log('[enrich] parsed response:', data)
+    return data.ok ? data : null
+  } catch (err) {
+    console.error('[enrich] error:', err)
+    return null
+  }
+}
 
 const LOCAL_KEY = 'litloop_books_v2'
 
@@ -142,24 +173,68 @@ export function useBooks(user) {
     if (user) {
       let bookId = null
 
-      // If this came from OpenLibrary, upsert into books table to preserve cover/ol_key
-      if (bookData.olKey) {
+      // ── Unified books-table upsert ──────────────────────────────────────────
+      // Any book with external data gets a row in books so cover_url, ol_key,
+      // and cover_id are always stored centrally.
+      if (bookData.olKey || bookData.googleBooksId || bookData.isbn) {
         const bookRow = {
-          ol_key: bookData.olKey,
           title:  bookData.title  || null,
           author: bookData.author || null,
         }
+        if (bookData.olKey)         bookRow.ol_key          = bookData.olKey
         if (bookData.coverId)       bookRow.cover_id        = Number(bookData.coverId)
         if (bookData.isbn)          bookRow.isbn            = bookData.isbn
-        if (bookData.description)   bookRow.description     = bookData.description
         if (bookData.googleBooksId) bookRow.google_books_id = bookData.googleBooksId
+        if (bookData.description)   bookRow.description     = bookData.description
         if (bookData.coverUrl)      bookRow.cover_url       = bookData.coverUrl
+
+        const conflictCol = bookData.olKey ? 'ol_key'
+          : bookData.googleBooksId ? 'google_books_id'
+          : 'isbn'
+
         const { data: upserted } = await sb
           .from('books')
-          .upsert(bookRow, { onConflict: 'ol_key', ignoreDuplicates: false })
+          .upsert(bookRow, { onConflict: conflictCol, ignoreDuplicates: false })
           .select('id')
           .single()
-        if (upserted) bookId = upserted.id
+
+        if (upserted) {
+          bookId = upserted.id
+
+          // ── OL enrichment (server-side, no CORS issues) ─────────────────────
+          // If this came from Google Books, ol_key and cover_id will be null.
+          // Call book-enrich edge function to fetch them from OL by ISBN and
+          // write directly to the books row we just created.
+          if (bookData.isbn && !bookData.olKey) {
+            console.log('[addBook] firing enrichBookWithOL — isbn:', bookData.isbn, 'bookId:', bookId)
+            enrichBookWithOL(bookData.isbn, bookId).then(enriched => {
+              console.log('[addBook] enrichment result:', enriched)
+              if (!enriched) return
+              // Patch local state so the UI reflects OL data immediately
+              setBooks(prev => prev.map(b =>
+                b.id === tempId ? {
+                  ...b,
+                  olKey:       enriched.olKey       || b.olKey,
+                  coverId:     enriched.coverId      || b.coverId,
+                  description: enriched.description  || b.description,
+                } : b
+              ))
+            })
+          }
+
+          // ── Cover upload to Supabase Storage ────────────────────────────────
+          if (bookData.coverId && bookData.olKey) {
+            const storageUrl = await uploadCoverToSupabase(bookData.coverId, bookData.olKey)
+            if (storageUrl) {
+              setBooks(prev => prev.map(b => b.id === tempId ? { ...b, coverUrl: storageUrl } : b))
+            }
+          } else if (bookData.googleBooksId && bookData.coverUrl) {
+            const storageUrl = await uploadGoogleCoverToSupabase(bookData.googleBooksId, bookData.coverUrl)
+            if (storageUrl) {
+              setBooks(prev => prev.map(b => b.id === tempId ? { ...b, coverUrl: storageUrl } : b))
+            }
+          }
+        }
       }
 
       const row = {
@@ -179,49 +254,8 @@ export function useBooks(user) {
 
       if (bookId) {
         row.book_id = bookId
-      } else if (bookData.googleBooksId || bookData.isbn) {
-        // Google Books result — upsert into books table by google_books_id
-        const bookRow = {
-          title:  bookData.title  || null,
-          author: bookData.author || null,
-        }
-        if (bookData.googleBooksId) bookRow.google_books_id = bookData.googleBooksId
-        if (bookData.isbn)          bookRow.isbn            = bookData.isbn
-        if (bookData.description)   bookRow.description     = bookData.description
-        if (bookData.coverUrl)      bookRow.cover_url       = bookData.coverUrl
-        if (bookData.coverId)       bookRow.cover_id        = Number(bookData.coverId)
-        const conflictCol = bookData.googleBooksId ? 'google_books_id' : 'isbn'
-        const { data: gbUpserted } = await sb
-          .from('books')
-          .upsert(bookRow, { onConflict: conflictCol, ignoreDuplicates: false })
-          .select('id')
-          .single()
-        if (gbUpserted) {
-          bookId = gbUpserted.id
-          row.book_id = bookId
-
-          // Upload cover to Supabase Storage in background so it's stable everywhere
-          // (recommendations, home feed, chat, profile — all use cover_url from books table)
-          if (bookData.googleBooksId && bookData.coverUrl) {
-            ;(async () => {
-              const storageUrl = await uploadGoogleCoverToSupabase(bookData.googleBooksId, bookData.coverUrl)
-              if (storageUrl) {
-                await sb.from('books')
-                  .update({ cover_url: storageUrl })
-                  .eq('google_books_id', bookData.googleBooksId)
-                // Update local state so the UI switches to the Storage URL immediately
-                setBooks(prev => prev.map(b =>
-                  b.googleBooksId === bookData.googleBooksId ? { ...b, coverUrl: storageUrl } : b
-                ))
-              }
-            })()
-          }
-        } else {
-          row.title_manual  = bookData.title
-          row.author_manual = bookData.author || null
-        }
       } else {
-        // Manual entry — no external data
+        // Manual entry — no external data, store title/author directly on the entry
         row.title_manual  = bookData.title
         row.author_manual = bookData.author || null
       }
