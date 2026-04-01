@@ -98,17 +98,26 @@ function SettingsSheet({ club, friends, onClose, onUpdate, onAssignBook, onMarkD
   const [editForm, setEditForm] = useState(() => ({ name: club.name || '', meetingTime: club.meetingTime || '', meetingPlace: club.meetingPlace || '', pinnedMessage: club.pinnedMessage || '' }))
 
   async function searchOL(q) {
-    if (!q.trim()) return
+    if (!q.trim() || q.trim().length < 3) return
     setSearching(true)
     try {
-      const res = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=6&fields=key,title,author_name,cover_i`)
+      const SUPABASE_URL  = import.meta.env.SUPABASE_URL  || 'https://afwvsrjbaxutfonmmxjd.supabase.co'
+      const SUPABASE_ANON = import.meta.env.SUPABASE_ANON || ''
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/book-search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
+        body: JSON.stringify({ q: q.trim() }),
+      })
       const data = await res.json()
-      setSearchResults((data.docs || []).map(d => ({
-        title:   d.title,
-        author:  d.author_name?.[0] || '',
-        olKey:   d.key,
-        coverId: d.cover_i || null,
-      })))
+      const results = (data.results || []).map(r => ({
+        title:   r.title,
+        author:  r.author || '',
+        olKey:   r.olKey  || null,
+        coverId: r.coverId || null,
+        coverUrl: r.coverUrl || null,
+        googleBooksId: r.googleBooksId || null,
+      }))
+      setSearchResults(results)
     } catch { setSearchResults([]) }
     setSearching(false)
   }
@@ -139,7 +148,7 @@ function SettingsSheet({ club, friends, onClose, onUpdate, onAssignBook, onMarkD
         {searchResults.map((b, i) => (
           <div key={i} onClick={() => pickBook(b, status)}
             style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '0.5px solid var(--rt-border)', cursor: 'pointer' }}>
-            <CoverImage coverId={b.coverId} olKey={b.olKey} title={b.title} size="S" style={{ width: 36, height: 52, borderRadius: 4, flexShrink: 0 }} />
+            <CoverImage coverId={b.coverId} olKey={b.olKey} coverUrl={b.coverUrl || null} title={b.title} size="S" style={{ width: 36, height: 52, borderRadius: 4, flexShrink: 0 }} />
             <div>
               <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--rt-navy)' }}>{b.title}</div>
               <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>{b.author}</div>
@@ -499,12 +508,26 @@ function CreateClubFlow({ friends, onDone, onCancel, startOrOpenChat }) {
   const [startMode, setStartMode]     = useState(null) // 'new' | null
 
   async function searchOL(q) {
-    if (!q.trim()) return
+    if (!q.trim() || q.trim().length < 3) return
     setSearching(true)
     try {
-      const res = await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=6&fields=key,title,author_name,cover_i`)
+      const SUPABASE_URL  = import.meta.env.SUPABASE_URL  || 'https://afwvsrjbaxutfonmmxjd.supabase.co'
+      const SUPABASE_ANON = import.meta.env.SUPABASE_ANON || ''
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/book-search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
+        body: JSON.stringify({ q: q.trim() }),
+      })
       const data = await res.json()
-      setBookResults((data.docs || []).map(d => ({ title: d.title, author: d.author_name?.[0] || '', olKey: d.key, coverId: d.cover_i || null })))
+      const results = (data.results || []).map(r => ({
+        title:   r.title,
+        author:  r.author || '',
+        olKey:   r.olKey  || null,
+        coverId: r.coverId || null,
+        coverUrl: r.coverUrl || null,
+        googleBooksId: r.googleBooksId || null,
+      }))
+      setBookResults(results)
     } catch { setBookResults([]) }
     setSearching(false)
   }
@@ -604,7 +627,7 @@ function CreateClubFlow({ friends, onDone, onCancel, startOrOpenChat }) {
               {bookResults.map((b, i) => (
                 <div key={i} onClick={() => setStartBook(b)}
                   style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '0.5px solid var(--rt-border)', cursor: 'pointer', background: startBook?.olKey === b.olKey ? 'var(--rt-surface)' : 'transparent' }}>
-                  <CoverImage coverId={b.coverId} olKey={b.olKey} title={b.title} size="S" style={{ width: 36, height: 52, borderRadius: 4, flexShrink: 0 }} />
+                  <CoverImage coverId={b.coverId} olKey={b.olKey} coverUrl={b.coverUrl || null} title={b.title} size="S" style={{ width: 36, height: 52, borderRadius: 4, flexShrink: 0 }} />
                   <div>
                     <div style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--rt-navy)' }}>{b.title}</div>
                     <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>{b.author}</div>

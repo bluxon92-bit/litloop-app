@@ -36,42 +36,40 @@ function cleanBookTitle(title) {
 async function fetchOLDetail(book, onCoverFound) {
   let olKey = book.olKey
   let foundCoverId = null
+  let foundCoverUrl = null
 
   if (!olKey || !book.coverId) {
-    // Search OL with robust fallback strategy
-    const cleanTitle = cleanBookTitle(book.title || '')
-    const authorSurname = (book.author || '').split(',')[0].split(' ').pop()
-    const strategies = [
-      authorSurname ? `title=${encodeURIComponent(cleanTitle)}&author=${encodeURIComponent(authorSurname)}&type=work` : null,
-      `title=${encodeURIComponent(cleanTitle)}&type=work`,
-      `q=${encodeURIComponent(cleanTitle + (authorSurname ? ' ' + authorSurname : ''))}&type=work`,
-    ].filter(Boolean)
-
-    const JUNK_KEYWORDS = ['sparknotes', 'cliffsnotes', 'study guide', 'summary', 'analysis', 'gradesaver', 'bookrags', 'litcharts']
-
-    for (const params of strategies) {
-      try {
-        const res  = await fetch(`https://openlibrary.org/search.json?${params}&fields=key,cover_i,title,author_name,first_publish_year,subject&limit=5`)
-        const data = await res.json()
-        const doc  = (data.docs || []).find(d => {
-          const t = (d.title || '').toLowerCase()
-          return !JUNK_KEYWORDS.some(k => t.includes(k))
-        })
-        if (doc) {
-          if (!olKey && doc.key) olKey = doc.key
-          if (!book.coverId && doc.cover_i) foundCoverId = doc.cover_i
-          if (olKey) break
-        }
-      } catch {}
-    }
+    // Search via Edge Function — handles Google Books + OL server-side
+    try {
+      const SUPABASE_URL  = import.meta.env.SUPABASE_URL  || 'https://afwvsrjbaxutfonmmxjd.supabase.co'
+      const SUPABASE_ANON = import.meta.env.SUPABASE_ANON || ''
+      const cleanTitle = cleanBookTitle(book.title || '')
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/book-search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
+        body: JSON.stringify({ q: cleanTitle }),
+      })
+      const data = await res.json()
+      const match = (data.results || []).find(r =>
+        r.title?.toLowerCase().includes(cleanTitle.toLowerCase()) ||
+        cleanTitle.toLowerCase().includes(r.title?.toLowerCase())
+      )
+      if (match) {
+        if (!olKey && match.olKey) olKey = match.olKey
+        if (!book.coverId && match.coverId) foundCoverId = match.coverId
+        if (match.coverUrl) foundCoverUrl = match.coverUrl
+      }
+    } catch {}
   }
 
   // Fire cover callback whenever we found one (regardless of whether olKey was pre-set)
-  if (foundCoverId) {
-    onCoverFound?.(foundCoverId, olKey)
-    // Persist to books table only (reading_entries has no cover_id column)
+  if (foundCoverId || foundCoverUrl) {
+    onCoverFound?.(foundCoverId, olKey, foundCoverUrl)
     if (book?.olKey) {
-      sb.from('books').update({ cover_id: foundCoverId }).eq('ol_key', book.olKey).then(() => {})
+      const update = {}
+      if (foundCoverId) update.cover_id = foundCoverId
+      if (foundCoverUrl) update.cover_url = foundCoverUrl
+      sb.from('books').update(update).eq('ol_key', book.olKey).then(() => {})
     }
   }
 

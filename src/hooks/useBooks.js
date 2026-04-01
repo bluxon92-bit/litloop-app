@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { sb } from '../lib/supabase'
+import { uploadGoogleCoverToSupabase } from '../lib/coverCache'
 
 const LOCAL_KEY = 'litloop_books_v2'
 
@@ -189,7 +190,6 @@ export function useBooks(user) {
         if (bookData.description)   bookRow.description     = bookData.description
         if (bookData.coverUrl)      bookRow.cover_url       = bookData.coverUrl
         if (bookData.coverId)       bookRow.cover_id        = Number(bookData.coverId)
-        // Use google_books_id as conflict key if available, else isbn
         const conflictCol = bookData.googleBooksId ? 'google_books_id' : 'isbn'
         const { data: gbUpserted } = await sb
           .from('books')
@@ -199,6 +199,23 @@ export function useBooks(user) {
         if (gbUpserted) {
           bookId = gbUpserted.id
           row.book_id = bookId
+
+          // Upload cover to Supabase Storage in background so it's stable everywhere
+          // (recommendations, home feed, chat, profile — all use cover_url from books table)
+          if (bookData.googleBooksId && bookData.coverUrl) {
+            ;(async () => {
+              const storageUrl = await uploadGoogleCoverToSupabase(bookData.googleBooksId, bookData.coverUrl)
+              if (storageUrl) {
+                await sb.from('books')
+                  .update({ cover_url: storageUrl })
+                  .eq('google_books_id', bookData.googleBooksId)
+                // Update local state so the UI switches to the Storage URL immediately
+                setBooks(prev => prev.map(b =>
+                  b.googleBooksId === bookData.googleBooksId ? { ...b, coverUrl: storageUrl } : b
+                ))
+              }
+            })()
+          }
         } else {
           row.title_manual  = bookData.title
           row.author_manual = bookData.author || null
