@@ -1421,7 +1421,7 @@ export default function AppShell() {
         background: 'var(--rt-white)', borderBottom: '1px solid var(--rt-border)',
         display: 'grid', gridTemplateColumns: '1fr auto 1fr',
         alignItems: 'center',
-        paddingTop: 'max(0.65rem, env(safe-area-inset-top, 0.65rem))',
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.65rem)',
         paddingBottom: '0.65rem', paddingLeft: '1rem', paddingRight: '1rem',
         zIndex: 100, boxShadow: '0 1px 6px rgba(26,39,68,0.06)'
       }}>
@@ -1514,7 +1514,7 @@ export default function AppShell() {
       </header>
 
       {/* Mobile page content */}
-      <main className="rt-main-mobile" style={{ flex: 1, paddingTop: 'calc(56px + max(0px, env(safe-area-inset-top, 0px)))', paddingBottom: 64, width: '100%' }}>
+      <main className="rt-main-mobile" style={{ flex: 1, paddingTop: 'calc(56px + env(safe-area-inset-top, 0px))', paddingBottom: 64, width: '100%' }}>
         {renderPage()}
       </main>
 
