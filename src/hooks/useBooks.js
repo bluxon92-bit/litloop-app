@@ -9,7 +9,7 @@ const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
 // OL is called server-side (no CORS issues). Writes ol_key, cover_id,
 // description, first_publish_year directly to books.id and returns the values
 // so local state can be updated immediately.
-async function enrichBookWithOL(isbn, bookId) {
+async function enrichBookWithOL(isbn, bookId, title, author) {
   console.log('[enrich] called with isbn:', isbn, 'bookId:', bookId)
   if (!isbn || !bookId) { console.log('[enrich] bailing — missing isbn or bookId'); return null }
   try {
@@ -19,7 +19,7 @@ async function enrichBookWithOL(isbn, bookId) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${SUPABASE_ANON}`,
       },
-      body: JSON.stringify({ isbn, bookId }),
+      body: JSON.stringify({ isbn, bookId, title, author }),
     })
     console.log('[enrich] edge function status:', res.status)
     const text = await res.text()
@@ -171,6 +171,13 @@ export function useBooks(user) {
 
     // Write to Supabase
     if (user) {
+      console.log('[addBook] bookData incoming:', {
+        isbn: bookData.isbn,
+        olKey: bookData.olKey,
+        googleBooksId: bookData.googleBooksId,
+        coverId: bookData.coverId,
+        title: bookData.title,
+      })
       let bookId = null
 
       // ── Unified books-table upsert ──────────────────────────────────────────
@@ -198,8 +205,10 @@ export function useBooks(user) {
           .select('id')
           .single()
 
+        console.log('[addBook] upsert result:', upserted)
         if (upserted) {
           bookId = upserted.id
+          console.log('[addBook] bookId set to:', bookId)
 
           // ── OL enrichment (server-side, no CORS issues) ─────────────────────
           // If this came from Google Books, ol_key and cover_id will be null.
@@ -207,7 +216,7 @@ export function useBooks(user) {
           // write directly to the books row we just created.
           if (bookData.isbn && !bookData.olKey) {
             console.log('[addBook] firing enrichBookWithOL — isbn:', bookData.isbn, 'bookId:', bookId)
-            enrichBookWithOL(bookData.isbn, bookId).then(enriched => {
+            enrichBookWithOL(bookData.isbn, bookId, bookData.title, bookData.author).then(enriched => {
               console.log('[addBook] enrichment result:', enriched)
               if (!enriched) return
               // Patch local state so the UI reflects OL data immediately
