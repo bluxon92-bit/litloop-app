@@ -22,11 +22,16 @@ const BUCKET       = 'book-covers'
 // ── OL search helpers ─────────────────────────────────────────────────────────
 
 async function searchOLByISBN(isbn: string) {
-  const res = await fetch(
-    `https://openlibrary.org/search.json?isbn=${isbn}&fields=key,cover_i,first_publish_year,description&limit=1`
-  )
-  if (!res.ok) return null
+  const url = `https://openlibrary.org/search.json?isbn=${isbn}&fields=key,cover_i,first_publish_year,description&limit=1`
+  console.log('[book-enrich] fetching OL URL:', url)
+  const res = await fetch(url)
+  console.log('[book-enrich] OL response status:', res.status)
+  if (!res.ok) {
+    console.log('[book-enrich] OL fetch not ok:', res.status, res.statusText)
+    return null
+  }
   const json = await res.json()
+  console.log('[book-enrich] OL raw response:', JSON.stringify(json).slice(0, 500))
   return json.docs?.[0] || null
 }
 
@@ -104,6 +109,14 @@ serve(async (req) => {
   try {
     const { bookId, isbn, title, author } = await req.json()
     console.log('[book-enrich] request:', { bookId, isbn, title, author })
+
+    // ── Connectivity test ────────────────────────────────────────────────────
+    try {
+      const testRes = await fetch('https://openlibrary.org/search.json?q=test&limit=1')
+      console.log('[book-enrich] OL connectivity test status:', testRes.status)
+    } catch (testErr) {
+      console.error('[book-enrich] OL connectivity test FAILED:', testErr)
+    }
 
     if (!bookId) {
       return new Response(JSON.stringify({ ok: false, error: 'bookId required' }), {

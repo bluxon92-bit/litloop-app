@@ -27,11 +27,16 @@ export function initFcmEarly() {
 export async function registerFcmToken(userId) {
   if (!isNative()) return { ok: false, reason: 'not_native' }
   try {
+    console.log('[FCM] Requesting permissions...')
     const permResult = await PushNotifications.requestPermissions()
+    console.log('[FCM] Permission result:', JSON.stringify(permResult))
     if (permResult.receive !== 'granted') return { ok: false, reason: 'permission_denied' }
+    console.log('[FCM] Calling register()...')
     await PushNotifications.register()
+    console.log('[FCM] register() called successfully')
     return { ok: true }
   } catch (err) {
+    console.log('[FCM] Error:', err.message)
     return { ok: false, reason: err.message }
   }
 }
@@ -60,11 +65,14 @@ export function setupFcmListeners(userId, onRoute, isReady) {
   onRouteCallback = onRoute
 
   PushNotifications.addListener('registration', async ({ value: token }) => {
+    console.log('[FCM] Token received:', token?.substring(0, 30), '... platform:', Capacitor.getPlatform())
+    console.log('[FCM] Full token length:', token?.length)
     await saveFcmToken(userId, token)
+    console.log('[FCM] Token saved to Supabase for user:', userId)
   })
 
   PushNotifications.addListener('registrationError', (err) => {
-    console.warn('FCM registration error:', err)
+    console.warn('[FCM] Registration error:', JSON.stringify(err))
   })
 
   PushNotifications.addListener('pushNotificationReceived', (notification) => {

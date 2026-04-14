@@ -1529,7 +1529,13 @@
 }
 
 /* ── GLOBAL OVERFLOW FIX ───────────────────────────────────── */
-html, body { overflow-x: hidden; max-width: 100%; }
+html, body { overflow-x: hidden; max-width: 100%; margin: 0; padding: 0; background: var(--rt-cream); }
+
+/* ── NATIVE FULL-BLEED FIX ──────────────────────────────────── */
+#root {
+  background: var(--rt-cream);
+  min-height: 100dvh;
+}
 
 /* ── DESKTOP SIDEBAR (legacy rt-app grid) ──────────────────── */
 @media (min-width: 1024px) {
