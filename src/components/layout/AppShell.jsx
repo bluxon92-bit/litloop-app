@@ -299,7 +299,7 @@ function FabRecommendModal({ books, friends, user, recs, sendRecommendation, onC
 // ── FAB: Start chat modal ─────────────────────────────────────
 function FabChatModal({ books, friends, chats, startOrOpenChat, onOpenChatModal, onClose, preselectedFriendId }) {
   const { myDisplayName } = useSocialContext()
-  const [step, setStep]           = useState(preselectedFriendId ? 'friends' : 'book') // 'book' | 'friends'
+  const [step, setStep]           = useState('book') // always start on book picker
   const [preselBook, setPreselBook] = useState(null) // used when entering via friend pre-select
   const [search, setSearch]       = useState('')
   const [selectedBook, setSelectedBook] = useState(null)
@@ -318,8 +318,7 @@ function FabChatModal({ books, friends, chats, startOrOpenChat, onOpenChatModal,
   }
 
   async function handleStart() {
-    if (!selectedFriends.size) return
-    if (!selectedBook && !preselectedFriendId) return
+    if (!selectedFriends.size || !selectedBook) return
     const friendIds = [...selectedFriends]
     setStarting(true)
     const selectedFriendObjs = friends.filter(f => friendIds.includes(f.userId))
@@ -332,7 +331,7 @@ function FabChatModal({ books, friends, chats, startOrOpenChat, onOpenChatModal,
     const chatId = await startOrOpenChat(book?.olKey || null, book?.title || 'General', book?.author || '', book?.coverId || null, friendIds, null, autoName)
     setStarting(false)
     if (chatId) {
-      onOpenChatModal?.({ id: chatId, bookOlKey: book?.olKey || null, bookTitle: book?.title || 'General', bookAuthor: book?.author || '', coverIdRaw: book?.coverId || null, chatName: autoName }, book)
+      onOpenChatModal?.({ id: chatId, bookOlKey: book?.olKey || null, bookTitle: book?.title || 'General', bookAuthor: book?.author || '', coverIdRaw: book?.coverId || null, coverUrl: book?.coverUrl || null, chatName: autoName }, book)
     }
     onClose()
   }
@@ -342,7 +341,7 @@ function FabChatModal({ books, friends, chats, startOrOpenChat, onOpenChatModal,
       <div style={{ padding: '1.25rem', paddingBottom: 'max(1.25rem, env(safe-area-inset-bottom, 1.25rem))', maxHeight: '85dvh', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.25rem' }}>
           <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--rt-navy)' }}>
-            {step === 'book' ? 'Chat about a book' : selectedBook ? `Chat about "${selectedBook.title}"` : 'Pick a book to chat about'}
+            {step === 'book' ? 'Chat about a book' : selectedBook ? `Chat about "${selectedBook.title}"` : 'Choose friends'}
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: 'var(--rt-t3)' }}>×</button>
         </div>
@@ -370,7 +369,7 @@ function FabChatModal({ books, friends, chats, startOrOpenChat, onOpenChatModal,
         </>) : (<>
           <div style={{ marginBottom: '0.75rem', marginTop: '0.25rem' }}>
             <button onClick={() => setStep('book')} style={{ background: 'none', border: 'none', color: 'var(--rt-amber)', fontSize: '0.78rem', cursor: 'pointer', padding: 0, fontWeight: 600 }}>
-              {selectedBook ? '← Change book' : '+ Pick a book (optional)'}
+              ← {selectedBook ? 'Change book' : 'Pick a book'}
             </button>
           </div>
 
@@ -408,8 +407,8 @@ function FabChatModal({ books, friends, chats, startOrOpenChat, onOpenChatModal,
               )
             })}
           </div>
-          <button onClick={handleStart} disabled={!selectedFriends.size || starting}
-            style={{ width: '100%', background: selectedFriends.size ? 'var(--rt-navy)' : 'var(--rt-surface)', color: selectedFriends.size ? '#fff' : 'var(--rt-t3)', border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.85rem', fontWeight: 700, fontSize: '0.9rem', cursor: selectedFriends.size ? 'pointer' : 'default' }}>
+          <button onClick={handleStart} disabled={!selectedFriends.size || !selectedBook || starting}
+            style={{ width: '100%', background: (selectedFriends.size && selectedBook) ? 'var(--rt-navy)' : 'var(--rt-surface)', color: (selectedFriends.size && selectedBook) ? '#fff' : 'var(--rt-t3)', border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.85rem', fontWeight: 700, fontSize: '0.9rem', cursor: (selectedFriends.size && selectedBook) ? 'pointer' : 'default' }}>
             {starting ? 'Starting…' : 'Start chat'}
           </button>
         </>)}
@@ -570,10 +569,14 @@ function OnboardingFlow({ user, onComplete }) {
   async function handleStep3() {
     if (currentBook) {
       await addBook({
-        title: currentBook.title,
-        author: currentBook.author || '',
-        olKey: currentBook.olKey || null,
-        coverId: currentBook.coverId || null,
+        title:         currentBook.title,
+        author:        currentBook.author        || '',
+        olKey:         currentBook.olKey         || null,
+        coverId:       currentBook.coverId       || null,
+        coverUrl:      currentBook.coverUrl      || null,
+        isbn:          currentBook.isbn          || null,
+        googleBooksId: currentBook.googleBooksId || null,
+        description:   currentBook.description   || null,
         status: 'reading',
         dateStarted: new Date().toISOString().split('T')[0],
       })
@@ -1519,7 +1522,7 @@ export default function AppShell() {
       </header>
 
       {/* Mobile page content */}
-      <main className="rt-main-mobile" style={{ flex: 1, paddingTop: 'calc(56px + env(safe-area-inset-top, 0px))', paddingBottom: 64, width: '100%' }}>
+      <main className="rt-main-mobile" style={{ flex: 1, paddingTop: 'calc(56px + env(safe-area-inset-top, 0px))', paddingBottom: 80, width: '100%' }}>
         {renderPage()}
       </main>
 
@@ -1541,7 +1544,7 @@ export default function AppShell() {
               style={{
                 flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center',
                 justifyContent: 'center',
-                gap: 0, padding: '0.55rem 0.25rem 0.5rem',
+                gap: 0, padding: '0.75rem 0.25rem 0.65rem',
                 border: 'none', background: 'none', cursor: 'pointer', position: 'relative',
                 borderTop: isActive ? '3px solid var(--rt-amber)' : '3px solid transparent',
                 transition: 'border-color 0.15s',

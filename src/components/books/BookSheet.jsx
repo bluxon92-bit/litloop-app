@@ -79,11 +79,11 @@ function SheetHeader({ book, onClose, stepBar }) {
           flexShrink: 0, background: 'var(--rt-surface)',
           boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
         }}>
-          {(book.coverId || book.olKey)
+          {(book.coverUrl || book.coverId || book.olKey)
             ? <img
-                src={book.coverId
-                  ? `https://covers.openlibrary.org/b/id/${book.coverId}-S.jpg`
-                  : `https://covers.openlibrary.org/b/olid/${(book.olKey||'').replace('/works/','')}-S.jpg`}
+                src={book.coverUrl
+                  || (book.coverId ? `https://covers.openlibrary.org/b/id/${book.coverId}-S.jpg` : null)
+                  || `https://covers.openlibrary.org/b/olid/${(book.olKey||'').replace('/works/','')}-S.jpg`}
                 style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                 alt=""
                 onError={e => e.target.style.display='none'}
@@ -746,10 +746,10 @@ export default function BookSheet({ book, onClose, onSaved, onDeleted, user, ini
     <ModalShell onClose={onClose} maxWidth={520}>
       {/* Header */}
       <div style={{ padding: '1rem 1rem 0.85rem', borderBottom: '1px solid var(--rt-border)', display: 'flex', gap: '0.85rem', alignItems: 'center', flexShrink: 0 }}>
-        {(book.coverId || book.olKey) && (
+        {(book.coverUrl || book.coverId || book.olKey) && (
           <div style={{ width: 40, height: 58, borderRadius: 5, overflow: 'hidden', flexShrink: 0 }}>
-            <img src={book.coverId ? `https://covers.openlibrary.org/b/id/${book.coverId}-S.jpg` : `https://covers.openlibrary.org/b/olid/${(book.olKey||'').replace('/works/','')}-S.jpg`}
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" />
+            <img src={book.coverUrl || (book.coverId ? `https://covers.openlibrary.org/b/id/${book.coverId}-S.jpg` : `https://covers.openlibrary.org/b/olid/${(book.olKey||'').replace('/works/','')}-S.jpg`)}
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="" onError={e => e.target.style.display='none'} />
           </div>
         )}
         <div style={{ flex: 1, minWidth: 0 }}>

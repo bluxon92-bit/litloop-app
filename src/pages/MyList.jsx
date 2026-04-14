@@ -10,6 +10,7 @@ import BookSheet, { FinishModal } from '../components/books/BookSheet'
 import AddBookModal from '../components/books/AddBookModal'
 import { IcoBook } from '../components/icons'
 import MomentComposer from '../components/MomentComposer'
+import { useSwipeTabs } from '../hooks/useSwipeTabs'
 
 const TABS = ['to-read', 'history', 'dnf']
 const TAB_LABELS = { 'to-read': 'To Read', history: 'History', dnf: 'DNF' }
@@ -122,6 +123,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
   const { chats }                                  = useChatContext()
 
   const [tab, setTab]                         = useState('to-read')
+  const swipeRef = useSwipeTabs(TABS, tab, setTab)
   const [detailBook, setDetailBook]           = useState(null)
   const [detailLocation, setDetailLocation]   = useState(null)
   const [editBook, setEditBook]               = useState(null)
@@ -182,7 +184,7 @@ export default function MyList({ onNavigate, onOpenChatModal }) {
   }
 
   return (
-    <div className="rt-page" style={{ maxWidth: 760, margin: '0 auto' }}>
+    <div ref={swipeRef} className="rt-page" style={{ maxWidth: 760, margin: '0 auto' }}>
 
       {/* ── Page title ── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 1rem' }}>

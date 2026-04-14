@@ -6,13 +6,13 @@ import { uploadGoogleCoverToSupabase, uploadCoverToSupabase } from '../lib/cover
 // OL is called server-side (no CORS issues). Writes ol_key, cover_id,
 // description, first_publish_year directly to books.id and returns the values
 // so local state can be updated immediately.
-async function enrichBookWithOL(isbn, bookId, title, author) {
+async function enrichBookWithOL(isbn, bookId, title, author, googleBooksId, googleCoverUrl) {
   console.log('[enrich] called with isbn:', isbn, 'bookId:', bookId)
-  if (!isbn || !bookId) { console.log('[enrich] bailing — missing isbn or bookId'); return null }
+  if (!bookId) { console.log('[enrich] bailing — missing bookId'); return null }
   const SUPABASE_URL  = import.meta.env.SUPABASE_URL  || 'https://afwvsrjbaxutfonmmxjd.supabase.co'
   const SUPABASE_ANON = import.meta.env.SUPABASE_ANON || ''
   console.log('[enrich] anon key present:', !!SUPABASE_ANON, 'url:', SUPABASE_URL)
-  console.log('[enrich] sending to edge fn:', { isbn, bookId, title, author })
+  console.log('[enrich] sending to edge fn:', { isbn, bookId, title, author, googleBooksId })
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/book-enrich`, {
       method: 'POST',
@@ -20,7 +20,7 @@ async function enrichBookWithOL(isbn, bookId, title, author) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${SUPABASE_ANON}`,
       },
-      body: JSON.stringify({ isbn, bookId, title, author }),
+      body: JSON.stringify({ isbn, bookId, title, author, googleBooksId, googleCoverUrl }),
     })
     console.log('[enrich] edge function status:', res.status)
     const text = await res.text()
@@ -213,21 +213,22 @@ export function useBooks(user) {
 
           // ── OL enrichment (server-side, no CORS issues) ─────────────────────
           // If this came from Google Books, ol_key and cover_id will be null.
-          // Call book-enrich edge function to fetch them from OL by ISBN and
-          // write directly to the books row we just created.
-          if (bookData.isbn && !bookData.olKey) {
+          // Call book-enrich edge function to fetch OL data by ISBN or title/author
+          // and write directly to the books row we just created.
+          if (!bookData.olKey && (bookData.isbn || bookData.googleBooksId)) {
             console.log('[addBook] firing enrichBookWithOL — isbn:', bookData.isbn, 'bookId:', bookId)
-            enrichBookWithOL(bookData.isbn, bookId, bookData.title, bookData.author).then(enriched => {
+            enrichBookWithOL(bookData.isbn, bookId, bookData.title, bookData.author, bookData.googleBooksId, bookData.coverUrl).then(enriched => {
               console.log('[addBook] enrichment result:', enriched)
               if (!enriched) return
               // Patch local state so the UI reflects OL data immediately
               setBooks(prev => prev.map(b =>
                 b.id === tempId ? {
                   ...b,
-                  olKey:       enriched.olKey       || b.olKey,
-                  coverId:     enriched.coverId      || b.coverId,
-                  coverUrl:    enriched.coverUrl     || b.coverUrl,
-                  description: enriched.description  || b.description,
+                  olKey:        enriched.olKey        || b.olKey,
+                  coverId:      enriched.coverId       || b.coverId,
+                  coverUrl:     enriched.coverUrl      || b.coverUrl,
+                  description:  enriched.description   || b.description,
+                  googleBooksId: b.googleBooksId,
                 } : b
               ))
             })

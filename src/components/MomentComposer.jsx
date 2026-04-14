@@ -122,7 +122,7 @@ export default function MomentComposer({ user, books, onClose, onPosted, presele
               onMouseLeave={e => e.currentTarget.style.background = ''}
             >
               <div style={{ width: 30, height: 44, borderRadius: 3, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)' }}>
-                <CoverImage coverId={book.coverId} olKey={book.olKey} title={book.title} size="S" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <CoverImage coverId={book.coverId} olKey={book.olKey} coverUrl={book.coverUrl || null} title={book.title} size="S" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{book.title}</div>
@@ -174,7 +174,7 @@ export default function MomentComposer({ user, books, onClose, onPosted, presele
           {selectedBook ? (
             <>
               <div style={{ width: 26, height: 38, borderRadius: 3, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-border)' }}>
-                <CoverImage coverId={selectedBook.coverId} olKey={selectedBook.olKey} title={selectedBook.title} size="S" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <CoverImage coverId={selectedBook.coverId} olKey={selectedBook.olKey} coverUrl={selectedBook.coverUrl || null} title={selectedBook.title} size="S" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedBook.title}</div>

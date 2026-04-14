@@ -13,6 +13,9 @@ import Clubs from '../pages/Clubs'
 import AddBookModal from '../components/books/AddBookModal'
 import { IcoOpenBook, IcoChat, IcoDoorExit, IcoUsers } from '../components/icons'
 import ReportSheet from '../components/ReportSheet'
+import { useSwipeTabs } from '../hooks/useSwipeTabs'
+
+const CHAT_TABS = ['chats', 'clubs', 'friends']
 
 // ── Colours ───────────────────────────────────────────────────
 const MY_BUBBLE    = { bg: '#DEF0FF', color: '#1a2744' }   // pale blue
@@ -178,11 +181,9 @@ export function ChatThreadModal({ chat, user, friends, messages, onClose, onSend
     setParticipants(updated)
   }
 
-  const coverSrc = chat.coverIdRaw
-    ? `https://covers.openlibrary.org/b/id/${chat.coverIdRaw}-S.jpg`
-    : chat.bookOlKey
-      ? `https://covers.openlibrary.org/b/olid/${chat.bookOlKey.replace('/works/', '')}-S.jpg`
-      : null
+  const coverSrc = chat.coverUrl
+    || (chat.coverIdRaw ? `https://covers.openlibrary.org/b/id/${chat.coverIdRaw}-S.jpg` : null)
+    || (chat.bookOlKey ? `https://covers.openlibrary.org/b/olid/${chat.bookOlKey.replace('/works/', '')}-S.jpg` : null)
 
   const participantIds = participants.map(p => p.userId)
   const isCreator = participants.find(p => p.userId === user?.id)?.isCreator || false
@@ -490,6 +491,7 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend, in
   }                                              = useChatContext()
 
   const [chatTab, setChatTab]                 = useState('chats')
+  const swipeRef = useSwipeTabs(CHAT_TABS, chatTab, setChatTab)
   const [addFriendInput, setAddFriendInput]   = useState('')
   const [addFriendMsg, setAddFriendMsg]       = useState(null)
   const [addFriendLoading, setAddFriendLoading] = useState(false)
@@ -585,7 +587,7 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend, in
   }
 
   return (
-    <div className="rt-page" style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 100px)' }}>
+    <div ref={swipeRef} className="rt-page" style={{ maxWidth: 760, margin: '0 auto', display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 100px)' }}>
       <ReportSheet
         open={!!reportTarget}
         onClose={() => setReportTarget(null)}
@@ -686,6 +688,7 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend, in
                     <CoverImage
                       coverId={chat.coverIdRaw}
                       olKey={chat.bookOlKey}
+                      coverUrl={chat.coverUrl}
                       title={chat.bookTitle}
                       size="M"
                       style={{ borderRadius: 6, flexShrink: 0 }}
@@ -853,7 +856,7 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend, in
             startOrOpenChat(b.olKey, b.title, b.author, b.coverId, [friendSheet.userId])
               .then(chatId => {
                 if (!chatId) return
-                const stub = { id: chatId, bookTitle: b.title, bookAuthor: b.author, coverIdRaw: b.coverId, bookOlKey: b.olKey }
+                const stub = { id: chatId, bookTitle: b.title, bookAuthor: b.author, coverIdRaw: b.coverId, coverUrl: b.coverUrl || null, bookOlKey: b.olKey }
                 const chat = chats.find(c => c.id === chatId) || stub
                 setFriendSheet(null)
                 openChatModal(chat)
@@ -866,7 +869,7 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend, in
           }}
           onOpenChatModal={(chatId, book) => {
             setFriendSheet(null)
-            const stub = { id: chatId, bookTitle: book?.title, bookAuthor: book?.author, coverIdRaw: book?.coverId, bookOlKey: book?.olKey }
+            const stub = { id: chatId, bookTitle: book?.title, bookAuthor: book?.author, coverIdRaw: book?.coverId, coverUrl: book?.coverUrl || null, bookOlKey: book?.olKey }
             openChatModal(chats.find(c => c.id === chatId) || stub)
           }}
           onViewProfile={friend => { setFriendProfileFriend(friend) }}

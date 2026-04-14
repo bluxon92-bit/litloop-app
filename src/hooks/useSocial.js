@@ -335,6 +335,14 @@ export function useSocial(user) {
       if (friends.find(f => f.userId === targetId)) return { error: "You're already friends with this person." }
       if (outgoingPending.find(f => f.addresseeId === targetId)) return { error: 'Friend request already sent.' }
 
+      // If they already sent us a request, accept it instead of creating a duplicate
+      const incomingFromTarget = pending.find(f => f.requesterId === targetId)
+      if (incomingFromTarget) {
+        const { error } = await acceptFriendRequest(incomingFromTarget.friendshipId)
+        if (error) return { error: error.message }
+        return { success: `✓ You're now friends!` }
+      }
+
       const { error } = await sb.from('friendships').insert({
         requester_id: user.id,
         addressee_id: targetId,

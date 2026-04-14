@@ -61,6 +61,19 @@ export function useChat(user) {
 
       if (error) throw error
 
+      // Batch-fetch cover_url from books table using ol_key
+      const olKeys = [...new Set((participations || []).map(p => p.chat?.book_ol_key).filter(Boolean))]
+      const coverUrlByOlKey = {}
+      if (olKeys.length) {
+        const { data: bookRows } = await sb
+          .from('books')
+          .select('ol_key, cover_url')
+          .in('ol_key', olKeys)
+        ;(bookRows || []).forEach(b => {
+          if (b.ol_key && b.cover_url) coverUrlByOlKey[b.ol_key] = b.cover_url
+        })
+      }
+
       // Compute unread counts
       const chatIds = (participations || []).map(p => p.chat_id)
       let unreadMap = {}
@@ -94,6 +107,7 @@ export function useChat(user) {
             bookAuthor:         p.chat.book_author || '',
             coverId:            p.chat.cover_id,
             coverIdRaw:         p.chat.cover_id,
+            coverUrl:           coverUrlByOlKey[p.chat.book_ol_key] || null,
             chatName:           p.chat.chat_name   || null,
             lastMessagePreview: p.chat.last_message_preview,
             lastMessageAt:      p.chat.last_message_at,

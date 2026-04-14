@@ -67,7 +67,7 @@ function ClubBookRow({ book, badge, badgeStyle, onOpenChat, isAdmin, onMarkDone 
   return (
     <div onClick={() => book.chat_id && onOpenChat?.(book.chat_id)}
       style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: book.chat_id ? 'pointer' : 'default' }}>
-      <CoverImage coverId={book.cover_id} olKey={book.book_ol_key} title={book.book_title} size="L"
+      <CoverImage coverId={book.cover_id} olKey={book.book_ol_key} coverUrl={book.cover_url || null} title={book.book_title} size="L"
         style={{ width: 44, height: 64, borderRadius: 5, flexShrink: 0 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ ...badgeStyle, display: 'inline-block', fontSize: '0.6rem', fontWeight: 700, padding: '2px 7px', borderRadius: 99, marginBottom: 4 }}>{badge}</div>
@@ -445,7 +445,7 @@ function ClubCard({ club, onOpenChat, onUpdate, onAssignBook, onMarkDone, onAddM
                 {prevToShow.map((b, i) => (
                   <div key={b.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '7px 0', borderBottom: i < prevToShow.length - 1 ? '0.5px solid var(--rt-border)' : 'none', cursor: b.chat_id ? 'pointer' : 'default' }}
                     onClick={() => { if (b.chat_id) { const c = { id: b.chat_id, bookTitle: b.book_title, bookAuthor: b.book_author, coverIdRaw: b.cover_id, bookOlKey: b.book_ol_key }; onOpenChatModal?.(c) } }}>
-                    <CoverImage coverId={b.cover_id} olKey={b.book_ol_key} title={b.book_title} size="L"
+                    <CoverImage coverId={b.cover_id} olKey={b.book_ol_key} coverUrl={b.cover_url || null} title={b.book_title} size="L"
                       style={{ width: 44, height: 64, borderRadius: 5, flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginBottom: 3 }}>{b.completed_at ? new Date(b.completed_at).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' }) : ''}</div>

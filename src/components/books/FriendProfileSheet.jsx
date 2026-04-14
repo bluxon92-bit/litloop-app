@@ -81,7 +81,7 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
   }
 
   function BookRow({ b, actions }) {
-    const src = b.coverId ? `https://covers.openlibrary.org/b/id/${b.coverId}-S.jpg` : null
+    const src = b.coverUrl || (b.coverId ? `https://covers.openlibrary.org/b/id/${b.coverId}-S.jpg` : null)
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.45rem 0', borderBottom: '1px solid var(--rt-border)' }}>
         <div onClick={() => setDetailBook(b)} style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: 1, minWidth: 0, cursor: 'pointer' }}>
@@ -207,9 +207,9 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
                   >
                     {/* Book cover */}
                     <div style={{ width: 28, height: 42, borderRadius: 4, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-border)' }}>
-                      {(c.coverIdRaw || c.bookOlKey) && (
+                      {(c.coverUrl || c.coverIdRaw || c.bookOlKey) && (
                         <img
-                          src={c.coverIdRaw ? `https://covers.openlibrary.org/b/id/${c.coverIdRaw}-S.jpg` : `https://covers.openlibrary.org/b/olid/${(c.bookOlKey||'').replace('/works/','')}-S.jpg`}
+                          src={c.coverUrl || (c.coverIdRaw ? `https://covers.openlibrary.org/b/id/${c.coverIdRaw}-S.jpg` : `https://covers.openlibrary.org/b/olid/${(c.bookOlKey||'').replace('/works/','')}-S.jpg`)}
                           style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt=""
                           onError={e => e.target.style.display='none'}
                         />
@@ -234,8 +234,8 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
                 <SLabel accent="var(--rt-amber)">Recommended for you ({recs.length})</SLabel>
                 {recs.map(r => {
                   const rTitle = r.book_title || r.book_ol_key || 'A book'
-                  const b = { title: rTitle, author: r.book_author || '', coverId: r.cover_id, olKey: r.book_ol_key }
-                  const src = r.cover_id ? `https://covers.openlibrary.org/b/id/${r.cover_id}-S.jpg` : r.book_ol_key ? `https://covers.openlibrary.org/b/olid/${r.book_ol_key.replace('/works/','')}-S.jpg` : null
+                  const b = { title: rTitle, author: r.book_author || '', coverId: r.cover_id, olKey: r.book_ol_key, coverUrl: r.cover_url }
+                  const src = r.cover_url || (r.cover_id ? `https://covers.openlibrary.org/b/id/${r.cover_id}-S.jpg` : r.book_ol_key ? `https://covers.openlibrary.org/b/olid/${r.book_ol_key.replace('/works/','')}-S.jpg` : null)
                   return (
                     <div key={r.id} onClick={() => setDetailBook(b)} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.45rem 0.6rem', borderRadius: 8, background: 'rgba(200,137,26,0.08)', border: '1px solid rgba(200,137,26,0.2)', marginBottom: '0.3rem', cursor: 'pointer' }}>
                       {src ? <img src={src} style={{ width: 28, height: 42, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} alt="" onError={e => e.target.style.display='none'} /> : <div style={{ width: 28, height: 42, borderRadius: 4, background: 'var(--rt-surface)', flexShrink: 0 }} />}

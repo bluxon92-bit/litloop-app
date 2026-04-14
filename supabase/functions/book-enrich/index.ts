@@ -68,6 +68,33 @@ async function getDescription(olKey: string): Promise<string | null> {
 // Fetches OL cover image server-side and uploads to Supabase Storage.
 // Returns the public URL or null on failure.
 
+async function uploadGoogleCover(sb: any, googleBooksId: string, coverUrl: string): Promise<string | null> {
+  try {
+    const safeFolder = `google_${googleBooksId.replace(/[^a-zA-Z0-9_-]/g, '')}`
+    const path = `${safeFolder}/cover.jpg`
+
+    const { data: existing } = await sb.storage.from(BUCKET).list(safeFolder)
+    if (existing?.some((f: any) => f.name === 'cover.jpg')) {
+      return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`
+    }
+
+    const res = await fetch(coverUrl)
+    if (!res.ok) return null
+    const blob = await res.blob()
+    if (blob.size < 1000) return null
+
+    const { error } = await sb.storage.from(BUCKET).upload(path, blob, {
+      contentType: 'image/jpeg',
+      upsert: true,
+    })
+    if (error) return null
+
+    return `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}`
+  } catch {
+    return null
+  }
+}
+
 async function uploadOLCover(sb: any, coverId: number, olKey: string): Promise<string | null> {
   try {
     const safeFolder = olKey.replace(/^\//, '').replace(/\//g, '_').replace(/[^a-zA-Z0-9_-]/g, '')
@@ -107,8 +134,8 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const { bookId, isbn, title, author } = await req.json()
-    console.log('[book-enrich] request:', { bookId, isbn, title, author })
+    const { bookId, isbn, title, author, googleBooksId, googleCoverUrl } = await req.json()
+    console.log('[book-enrich] request:', { bookId, isbn, title, author, googleBooksId })
 
     // ── Connectivity test ────────────────────────────────────────────────────
     try {
@@ -123,6 +150,8 @@ serve(async (req) => {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
     }
+
+    const sb = createClient(SUPABASE_URL, SUPABASE_KEY)
 
     // ── 1. Find OL record ─────────────────────────────────────────────────────
     let doc: any = null
@@ -139,7 +168,19 @@ serve(async (req) => {
       console.log('[book-enrich] title result:', doc ? `found — key:${doc.key} cover_i:${doc.cover_i}` : 'not found')
     }
 
+    // ── 2. If no OL doc, use Google Books cover as fallback ───────────────────
     if (!doc) {
+      console.log('[book-enrich] no OL match found')
+      if (googleBooksId && googleCoverUrl) {
+        console.log('[book-enrich] uploading Google Books cover as fallback')
+        const coverUrl = await uploadGoogleCover(sb, googleBooksId, googleCoverUrl)
+        if (coverUrl) {
+          await sb.from('books').update({ cover_url: coverUrl }).eq('id', bookId)
+          return new Response(JSON.stringify({ ok: true, coverUrl, olKey: null, coverId: null }), {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          })
+        }
+      }
       return new Response(JSON.stringify({ ok: false, reason: 'not_found' }), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       })
@@ -149,22 +190,28 @@ serve(async (req) => {
     const coverId          = doc.cover_i           || null
     const firstPublishYear = doc.first_publish_year || null
 
-    // ── 2. Get description ────────────────────────────────────────────────────
+    // ── 3. Get description ────────────────────────────────────────────────────
     let description: string | null = null
     if (typeof doc.description === 'string') description = doc.description.slice(0, 1000)
     else if (doc.description?.value) description = doc.description.value.slice(0, 1000)
     if (olKey && !description) description = await getDescription(olKey)
 
-    // ── 3. Upload cover to Supabase Storage ───────────────────────────────────
-    const sb = createClient(SUPABASE_URL, SUPABASE_KEY)
+    // ── 4. Upload cover to Supabase Storage ───────────────────────────────────
     let coverUrl: string | null = null
     if (coverId && olKey) {
-      console.log('[book-enrich] uploading cover — coverId:', coverId)
+      console.log('[book-enrich] uploading OL cover — coverId:', coverId)
       coverUrl = await uploadOLCover(sb, coverId, olKey)
-      console.log('[book-enrich] cover URL:', coverUrl)
+      console.log('[book-enrich] OL cover URL:', coverUrl)
     }
 
-    // ── 4. Write everything to books table ────────────────────────────────────
+    // If OL had no cover, fall back to Google Books cover
+    if (!coverUrl && googleBooksId && googleCoverUrl) {
+      console.log('[book-enrich] OL cover missing, uploading Google Books cover as fallback')
+      coverUrl = await uploadGoogleCover(sb, googleBooksId, googleCoverUrl)
+      console.log('[book-enrich] Google fallback cover URL:', coverUrl)
+    }
+
+    // ── 5. Write everything to books table ────────────────────────────────────
     const update: Record<string, any> = {}
     if (olKey)            update.ol_key            = olKey
     if (coverId)          update.cover_id           = coverId
