@@ -116,8 +116,55 @@ export function useBooks(user) {
         currentPage:   e.current_page     || null,
         totalPages:    e.total_pages      || null,
         spoilerWarning: e.spoiler_warning  || false,
+        // keep raw entry id so we can link book_id back after healing
+        _entryId:     e.id,
       }))
       setBooks(mapped)
+
+      // ── Self-heal orphaned manual entries ──────────────────────────────────
+      // Any entry with no book_id (title_manual set, books join is null) is a
+      // manual entry that never got enriched — usually because the search API
+      // failed at add time. Fire book-enrich for each one in the background so
+      // they get a books row, cover, and ol_key on next sync.
+      const orphans = data.filter(e => !e.book_id && e.title_manual)
+      orphans.forEach(async e => {
+        const title  = e.title_manual
+        const author = e.author_manual || null
+        try {
+          // First insert a minimal books row to get a bookId we can enrich
+          const { data: upserted } = await sb
+            .from('books')
+            .insert({ title, author })
+            .select('id')
+            .single()
+          if (!upserted?.id) return
+          const bookId = upserted.id
+
+          // Link the reading_entry to the new books row
+          await sb
+            .from('reading_entries')
+            .update({ book_id: bookId, title_manual: null, author_manual: null })
+            .eq('id', e.id)
+            .eq('user_id', user.id)
+
+          // Fire enrich — this will fetch OL/Google data, upload cover to Storage,
+          // and update books.cover_url, ol_key, cover_id
+          const enriched = await enrichBookWithOL(null, bookId, title, author, null, null)
+          if (enriched) {
+            // Patch local state so cover appears without a full re-sync
+            setBooks(prev => prev.map(b =>
+              b._entryId === e.id ? {
+                ...b,
+                olKey:    enriched.olKey    || b.olKey,
+                coverId:  enriched.coverId  || b.coverId,
+                coverUrl: enriched.coverUrl || b.coverUrl,
+              } : b
+            ))
+          }
+        } catch (err) {
+          console.warn('[syncFromCloud] orphan heal failed for:', title, err)
+        }
+      })
     }
     setSyncing(false)
   }
@@ -182,9 +229,10 @@ export function useBooks(user) {
       let bookId = null
 
       // ── Unified books-table upsert ──────────────────────────────────────────
-      // Any book with external data gets a row in books so cover_url, ol_key,
-      // and cover_id are always stored centrally.
-      if (bookData.olKey || bookData.googleBooksId || bookData.isbn) {
+      // Every book gets a row in the books table — even pure manual entries with
+      // no external IDs. This means book_id is always populated on reading_entries
+      // and enrich can always be fired to fetch cover/OL data in the background.
+      {
         const bookRow = {
           title:  bookData.title  || null,
           author: bookData.author || null,
@@ -196,15 +244,41 @@ export function useBooks(user) {
         if (bookData.description)   bookRow.description     = bookData.description
         if (bookData.coverUrl)      bookRow.cover_url       = bookData.coverUrl
 
-        const conflictCol = bookData.olKey ? 'ol_key'
-          : bookData.googleBooksId ? 'google_books_id'
-          : 'isbn'
-
-        const { data: upserted } = await sb
-          .from('books')
-          .upsert(bookRow, { onConflict: conflictCol, ignoreDuplicates: false })
-          .select('id')
-          .single()
+        // Upsert on a unique key if we have one, otherwise plain insert
+        let upserted = null
+        if (bookData.olKey || bookData.googleBooksId || bookData.isbn) {
+          const conflictCol = bookData.olKey ? 'ol_key'
+            : bookData.googleBooksId ? 'google_books_id'
+            : 'isbn'
+          const { data } = await sb
+            .from('books')
+            .upsert(bookRow, { onConflict: conflictCol, ignoreDuplicates: false })
+            .select('id')
+            .single()
+          upserted = data
+        } else {
+          // Pure manual entry — check if an enriched row already exists for this
+          // title/author first so we link to it rather than creating a duplicate
+          const { data: existing } = await sb
+            .from('books')
+            .select('id')
+            .ilike('title', bookRow.title)
+            .ilike('author', bookRow.author || '')
+            .limit(1)
+            .maybeSingle()
+          if (existing) {
+            upserted = existing
+          } else {
+            // No existing row — insert fresh
+            // The books_title_author_unique partial index prevents DB-level duplicates
+            const { data } = await sb
+              .from('books')
+              .insert(bookRow)
+              .select('id')
+              .single()
+            upserted = data
+          }
+        }
 
         console.log('[addBook] upsert result:', upserted)
         if (upserted) {
@@ -213,12 +287,9 @@ export function useBooks(user) {
 
           // ── OL enrichment + cover upload (server-side) ──────────────────────
           // Fire enrich whenever the cover isn't already a stable Supabase Storage URL.
-          // This covers:
-          //   • Google Books entries (no ol_key yet) — enrich fetches OL data + uploads cover
-          //   • OL-sourced entries where coverUrl is still an external OL/Google URL
-          //   • Re-adds of existing books that may already have a Storage URL (skipped cheaply)
+          // For manual entries this will do a title/author search to find OL data + cover.
           const alreadyStored = bookData.coverUrl?.includes('/storage/v1/object/public/')
-          if (!alreadyStored && (bookData.isbn || bookData.googleBooksId || bookData.olKey)) {
+          if (!alreadyStored) {
             console.log('[addBook] firing enrichBookWithOL — isbn:', bookData.isbn, 'bookId:', bookId)
             enrichBookWithOL(bookData.isbn, bookId, bookData.title, bookData.author, bookData.googleBooksId, bookData.coverUrl).then(enriched => {
               console.log('[addBook] enrichment result:', enriched)
@@ -257,7 +328,7 @@ export function useBooks(user) {
       if (bookId) {
         row.book_id = bookId
       } else {
-        // Manual entry — no external data, store title/author directly on the entry
+        // Fallback only if books insert failed entirely — should be rare
         row.title_manual  = bookData.title
         row.author_manual = bookData.author || null
       }

@@ -9,9 +9,9 @@ import { IcoOpenBook } from '../components/icons'
 import { useSocialContext } from '../context/SocialContext'
 
 // ── Small cover + title for favourites carousel ───────────────
-function FavCover({ book }) {
+function FavCover({ book, onClick }) {
   return (
-    <div style={{ flexShrink: 0, width: 76, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+    <div onClick={onClick} style={{ flexShrink: 0, width: 76, display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}>
       <div style={{ width: 76, height: 110, borderRadius: 8, overflow: 'hidden', background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.15)' }}>
         <CoverImage coverId={book.coverId} olKey={book.olKey} coverUrl={book.coverUrl} title={book.title} size="M"
           style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -327,7 +327,7 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
         </>
       )}
 
-    <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: '3rem' }} onClick={() => setShowHeroMenu(false)}>
+    <div style={{ maxWidth: 640, margin: '0 auto', paddingBottom: '3rem', paddingLeft: '1rem', paddingRight: '1rem' }} onClick={() => setShowHeroMenu(false)}>
 
       {/* BookDetailPanel overlay */}
       {detailBook && (
@@ -459,14 +459,24 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
                 const chat = existingChat(b.olKey)
                 return (
                   <div key={i} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', padding: i > 0 ? '0.6rem 0 0' : '0' }}>
-                    <CoverImage coverId={b.coverId} olKey={b.olKey} coverUrl={b.coverUrl} title={b.title} size="M" />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.title}</div>
-                      {b.author && <div style={{ fontSize: '0.75rem', color: 'var(--rt-t3)' }}>{b.author}</div>}
+                    <div onClick={() => setDetailBook(b)} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flex: 1, minWidth: 0, cursor: 'pointer' }}>
+                      <CoverImage coverId={b.coverId} olKey={b.olKey} coverUrl={b.coverUrl} title={b.title} size="M" />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.9rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.title}</div>
+                        {b.author && <div style={{ fontSize: '0.75rem', color: 'var(--rt-t3)' }}>{b.author}</div>}
+                        <div style={{ marginTop: '0.25rem', fontSize: '0.62rem', fontWeight: 700, color: 'var(--rt-teal)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Reading now</div>
+                      </div>
                     </div>
                     {b.olKey && (
                       <button
-                        onClick={() => chat ? onViewChat?.(chat.id) : onStartChat?.(b)}
+                        onClick={async () => {
+                          if (chat) {
+                            onViewChat?.(chat.id)
+                          } else {
+                            const chatId = await onStartChat?.(b)
+                            if (chatId) onOpenChatModal?.({ id: chatId, bookTitle: b.title, bookAuthor: b.author, coverIdRaw: b.coverId, coverUrl: b.coverUrl, bookOlKey: b.olKey })
+                          }
+                        }}
                         style={{ flexShrink: 0, background: chat ? 'var(--rt-navy)' : 'var(--rt-amber)', color: '#fff', border: 'none', borderRadius: 8, padding: '0.35rem 0.75rem', fontSize: '0.72rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
                       >{chat ? 'View chat' : 'Start chat'}</button>
                     )}
@@ -481,7 +491,7 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
             <div className="rt-card" style={{ marginBottom: '1.1rem' }}>
               <SLabel>Favourite books</SLabel>
               <div style={{ display: 'flex', gap: '0.85rem', overflowX: 'auto', paddingBottom: '0.3rem', scrollbarWidth: 'none' }}>
-                {favBooks.map((book, i) => <FavCover key={i} book={book} />)}
+                {favBooks.map((book, i) => <FavCover key={i} book={book} onClick={() => setDetailBook(book)} />)}
               </div>
             </div>
           )}

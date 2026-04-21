@@ -568,7 +568,19 @@ export default function Chat({ onNavigate, onAddFriend, onOpenChatWithFriend, in
         user={user}
         books={books}
         onBack={() => { setFriendProfileFriend(null); onClearFriendProfile?.() }}
-        onStartChat={b => startOrOpenChat(b.olKey, b.title, b.author, b.coverId, [friendProfileFriend.userId])}
+        onStartChat={async b => {
+          const chatId = await startOrOpenChat(b.olKey, b.title, b.author, b.coverId, [friendProfileFriend.userId])
+          return chatId
+        }}
+        onOpenChatModal={(chatOrStub) => {
+          setFriendProfileFriend(null)
+          onClearFriendProfile?.()
+          // Accept either a full chat object or a stub with id
+          const c = typeof chatOrStub === 'object' && chatOrStub.bookTitle
+            ? chatOrStub
+            : chats.find(x => x.id === (chatOrStub?.id || chatOrStub))
+          if (c) openChatModal(c)
+        }}
         onViewChat={chatId => { 
           const c = chats.find(x => x.id === chatId)
           if (c) { 
