@@ -105,6 +105,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
   const { chats, totalUnread, startOrOpenChat } = useChatContext()
 
   const [goal, setGoal]                     = useState(loadGoal)
+  const [goalDraft, setGoalDraft]           = useState(String(loadGoal()))
   const [detailBook, setDetailBook]         = useState(null)
   const [activeReview, setActiveReview]     = useState(null) // review thread sheet
   const [detailLocation, setDetailLocation] = useState(null)
@@ -268,8 +269,9 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
         <div className="rt-goal-display">
           <span className="rt-goal-current">{thisYear.length}</span>
           <span className="rt-goal-sep">/</span>
-          <input type="number" className="rt-goal-input" value={goal} min="1" max="365"
-            onChange={e => { const v = parseInt(e.target.value) || 12; setGoal(v); saveGoal(v) }} />
+          <input type="number" className="rt-goal-input" value={goalDraft} min="1" max="365"
+            onChange={e => setGoalDraft(e.target.value)}
+            onBlur={e => { const v = Math.max(1, parseInt(e.target.value) || 1); setGoal(v); setGoalDraft(String(v)); saveGoal(v) }} />
           <span className="rt-goal-unit">books</span>
         </div>
         <div className="rt-goal-bar-wrap">
@@ -401,13 +403,14 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
               const reviewText  = ev.review_body || ''
               const coverId     = ev.cover_id || null
               const olKey       = ev.book_ol_key || null
+              const coverUrl    = ev.cover_url || null
               const isDnfEvent  = ev.status === 'dnf'
               const isSpoiler   = !!ev.spoiler_warning
               const dateStr     = ev.created_at ? new Date(ev.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''
               const cardStyle = { background: 'var(--rt-white)', border: '1px solid var(--rt-border)', borderRadius: 12, padding: '0.75rem', marginBottom: '0.65rem' }
               const coverEl = (
                 <div style={{ width: 80, height: 116, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.13)' }}>
-                  <CoverImage coverId={coverId} olKey={olKey} title={ev.book_title || ''} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <CoverImage coverId={coverId} olKey={olKey} coverUrl={coverUrl} title={ev.book_title || ''} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </div>
               )
               const avatarEl = (
@@ -430,7 +433,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
                 const badgeBg  = isQuote ? 'var(--rt-amber-pale)' : '#e1f5ee'
                 const badgeCol = isQuote ? 'var(--rt-amber-text)' : '#085041'
                 const badgeTxt = isQuote ? 'Quote' : 'Reading update'
-                const openThread = () => setActiveReview({ entryId: ev.moment_id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, olKey, reviewBody: ev.moment_body, rating: null, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })
+                const openThread = () => setActiveReview({ entryId: ev.moment_id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, coverUrl, olKey, reviewBody: ev.moment_body, rating: null, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })
                 return (
                   <div key={ev.id} style={cardStyle}>
                     {/* Top row: badge · avatar username · date · report */}
@@ -468,14 +471,14 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
               // ── Review / DNF card ────────────────────────
               const feedBook = {
                 id: ev.id, title: ev.book_title || 'Unknown book',
-                author: ev.book_author || '', coverId, olKey,
+                author: ev.book_author || '', coverId, coverUrl, olKey,
                 status: null, rating, reviewBody: reviewText,
                 friendName: displayName, friendUserId: ev.user_id,
               }
 
               if (!reviewText && !isDnfEvent) return null
 
-              const openReview = () => setActiveReview({ entryId: ev.id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, olKey, reviewBody: reviewText, rating, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })
+              const openReview = () => setActiveReview({ entryId: ev.id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, coverUrl, olKey, reviewBody: reviewText, rating, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })
 
               return (
                 <div key={ev.id} style={cardStyle}>

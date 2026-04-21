@@ -3,7 +3,6 @@ import { sb } from '../../lib/supabase'
 import { avatarColour, avatarInitial, fmtDate, timeAgo } from '../../lib/utils'
 import BookDetailPanel from './BookDetailPanel'
 import CoverImage from './CoverImage'
-import { IcoOpenBook, IcoChat } from '../../components/icons'
 
 export default function FriendProfileSheet({ friend, chats, user, books: myBooks, onClose, onAddToTBR, onStartChat, onViewChat, onOpenChatModal, onViewProfile }) {
   const [entries, setEntries]         = useState(null)
@@ -26,21 +25,22 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
         entryData = rpcRes.data
       } else {
         const { data } = await sb.from('reading_entries')
-          .select('status, books(title, author, cover_id, ol_key), title_manual, author_manual')
+          .select('status, books(title, author, cover_id, ol_key, cover_url), title_manual, author_manual')
           .eq('user_id', friend.userId)
         entryData = data || []
       }
       const { data: recsData } = await sb.from('book_recommendations')
-        .select('id, book_ol_key, book_title, book_author, cover_id, message, status, created_at')
+        .select('id, book_ol_key, book_title, book_author, cover_id, cover_url, message, status, created_at')
         .eq('from_user_id', friend.userId).eq('to_user_id', user.id)
         .order('created_at', { ascending: false })
 
       setEntries(entryData.map(e => ({
-        title:   e.books?.title    || e.title_manual  || '',
-        author:  e.books?.author   || e.author_manual || '',
-        coverId: e.books?.cover_id || null,
-        olKey:   e.books?.ol_key   || null,
-        status:  e.status
+        title:    e.books?.title    || e.title_manual  || '',
+        author:   e.books?.author   || e.author_manual || '',
+        coverId:  e.books?.cover_id  || null,
+        olKey:    e.books?.ol_key    || null,
+        coverUrl: e.books?.cover_url || e.cover_url || null,
+        status:   e.status
       })))
       setRecs((recsData || []).filter(r => r.status === 'pending'))
     } catch(e) {
@@ -81,14 +81,10 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
   }
 
   function BookRow({ b, actions }) {
-    const src = b.coverUrl || (b.coverId ? `https://covers.openlibrary.org/b/id/${b.coverId}-S.jpg` : null)
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.45rem 0', borderBottom: '1px solid var(--rt-border)' }}>
         <div onClick={() => setDetailBook(b)} style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: 1, minWidth: 0, cursor: 'pointer' }}>
-          {src
-            ? <img src={src} style={{ width: 28, height: 42, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} alt="" onError={e => e.target.style.display='none'} />
-            : <div style={{ width: 28, height: 42, borderRadius: 4, background: 'var(--rt-surface)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><IcoOpenBook size={16} color="var(--rt-t3)" /></div>
-          }
+          <CoverImage coverId={b.coverId} olKey={b.olKey} coverUrl={b.coverUrl} title={b.title} size="S" style={{ width: 28, height: 42, borderRadius: 4 }} />
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.title}</div>
             {b.author && <div style={{ fontSize: '0.68rem', color: 'var(--rt-t3)' }}>{b.author}</div>}
@@ -235,10 +231,9 @@ export default function FriendProfileSheet({ friend, chats, user, books: myBooks
                 {recs.map(r => {
                   const rTitle = r.book_title || r.book_ol_key || 'A book'
                   const b = { title: rTitle, author: r.book_author || '', coverId: r.cover_id, olKey: r.book_ol_key, coverUrl: r.cover_url }
-                  const src = r.cover_url || (r.cover_id ? `https://covers.openlibrary.org/b/id/${r.cover_id}-S.jpg` : r.book_ol_key ? `https://covers.openlibrary.org/b/olid/${r.book_ol_key.replace('/works/','')}-S.jpg` : null)
                   return (
                     <div key={r.id} onClick={() => setDetailBook(b)} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.45rem 0.6rem', borderRadius: 8, background: 'rgba(200,137,26,0.08)', border: '1px solid rgba(200,137,26,0.2)', marginBottom: '0.3rem', cursor: 'pointer' }}>
-                      {src ? <img src={src} style={{ width: 28, height: 42, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }} alt="" onError={e => e.target.style.display='none'} /> : <div style={{ width: 28, height: 42, borderRadius: 4, background: 'var(--rt-surface)', flexShrink: 0 }} />}
+                      <CoverImage coverId={r.cover_id} olKey={r.book_ol_key} coverUrl={r.cover_url} title={rTitle} size="S" style={{ width: 28, height: 42, borderRadius: 4 }} />
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{rTitle}</div>
                         {r.book_author && <div style={{ fontSize: '0.68rem', color: 'var(--rt-t3)' }}>{r.book_author}</div>}

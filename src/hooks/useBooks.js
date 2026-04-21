@@ -211,30 +211,31 @@ export function useBooks(user) {
           bookId = upserted.id
           console.log('[addBook] bookId set to:', bookId)
 
-          // ── OL enrichment (server-side, no CORS issues) ─────────────────────
-          // If this came from Google Books, ol_key and cover_id will be null.
-          // Call book-enrich edge function to fetch OL data by ISBN or title/author
-          // and write directly to the books row we just created.
-          if (!bookData.olKey && (bookData.isbn || bookData.googleBooksId)) {
+          // ── OL enrichment + cover upload (server-side) ──────────────────────
+          // Fire enrich whenever the cover isn't already a stable Supabase Storage URL.
+          // This covers:
+          //   • Google Books entries (no ol_key yet) — enrich fetches OL data + uploads cover
+          //   • OL-sourced entries where coverUrl is still an external OL/Google URL
+          //   • Re-adds of existing books that may already have a Storage URL (skipped cheaply)
+          const alreadyStored = bookData.coverUrl?.includes('/storage/v1/object/public/')
+          if (!alreadyStored && (bookData.isbn || bookData.googleBooksId || bookData.olKey)) {
             console.log('[addBook] firing enrichBookWithOL — isbn:', bookData.isbn, 'bookId:', bookId)
             enrichBookWithOL(bookData.isbn, bookId, bookData.title, bookData.author, bookData.googleBooksId, bookData.coverUrl).then(enriched => {
               console.log('[addBook] enrichment result:', enriched)
               if (!enriched) return
-              // Patch local state so the UI reflects OL data immediately
+              // Patch local state so the UI reflects OL data + Storage URL immediately
               setBooks(prev => prev.map(b =>
                 b.id === tempId ? {
                   ...b,
-                  olKey:        enriched.olKey        || b.olKey,
-                  coverId:      enriched.coverId       || b.coverId,
-                  coverUrl:     enriched.coverUrl      || b.coverUrl,
-                  description:  enriched.description   || b.description,
+                  olKey:         enriched.olKey        || b.olKey,
+                  coverId:       enriched.coverId       || b.coverId,
+                  coverUrl:      enriched.coverUrl      || b.coverUrl,
+                  description:   enriched.description   || b.description,
                   googleBooksId: b.googleBooksId,
                 } : b
               ))
             })
           }
-
-          // Cover upload is handled server-side by book-enrich edge function
         }
       }
 

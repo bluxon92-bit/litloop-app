@@ -5,7 +5,8 @@ import { IcoBook, IcoPen } from '../components/icons'
 
 export default function Stats() {
   const { books } = useBooksContext()
-  const [goal, setGoal]   = useState(loadGoal)
+  const [goal, setGoal]       = useState(loadGoal)
+  const [goalDraft, setGoalDraft] = useState(String(loadGoal()))
   const [scope, setScope] = useState('year') // 'year' | 'alltime'
 
   const year     = new Date().getFullYear()
@@ -51,8 +52,12 @@ export default function Stats() {
   }
 
   function handleGoalChange(e) {
-    const v = parseInt(e.target.value) || 12
-    setGoal(v); saveGoal(v)
+    setGoalDraft(e.target.value)
+  }
+
+  function handleGoalBlur(e) {
+    const v = Math.max(1, parseInt(e.target.value) || 1)
+    setGoal(v); setGoalDraft(String(v)); saveGoal(v)
   }
 
   const scopeLabel = scope === 'year' ? `in ${year}` : 'all time'
@@ -71,8 +76,9 @@ export default function Stats() {
           <span style={{ fontFamily: 'var(--rt-font-display)', fontSize: '2.25rem', fontWeight: 700, color: 'var(--rt-amber-lt)', lineHeight: 1 }}>{thisYear.length}</span>
           <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '1.2rem' }}>/</span>
           <input
-            type="number" value={goal} min="1" max="365"
+            type="number" value={goalDraft} min="1" max="365"
             onChange={handleGoalChange}
+            onBlur={handleGoalBlur}
             style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.35rem', fontWeight: 600, color: 'rgba(255,255,255,0.6)', background: 'none', border: 'none', outline: 'none', width: 48, padding: 0 }}
           />
           <span style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.35)' }}>books</span>

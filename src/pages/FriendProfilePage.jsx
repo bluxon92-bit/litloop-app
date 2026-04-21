@@ -512,7 +512,7 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
                 const dateStr = b.reviewedAt ? fmtDate(b.reviewedAt) : null
                 const openThread = () => setActiveReview({
                   entryId: b.entryId, bookTitle: b.title, bookAuthor: b.author,
-                  coverId: b.coverId, olKey: b.olKey, reviewBody: b.reviewBody,
+                  coverId: b.coverId, coverUrl: b.coverUrl, olKey: b.olKey, reviewBody: b.reviewBody,
                   rating: b.rating, reviewedAt: b.reviewedAt,
                   reviewer: { userId: friend.userId, displayName: friend.displayName, avatarUrl: friend.avatarUrl },
                 })
@@ -569,7 +569,8 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
                 const dateStr  = ev.created_at ? new Date(ev.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''
                 const coverId  = ev.cover_id || null
                 const olKey    = ev.book_ol_key || null
-                const openThread = () => setActiveReview({ entryId: ev.moment_id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, olKey, reviewBody: ev.moment_body, rating: null, reviewedAt: ev.created_at, reviewer: { userId: friend.userId, displayName: friend.displayName, avatarUrl: friend.avatarUrl } })
+                const coverUrl = ev.cover_url || null
+                const openThread = () => setActiveReview({ entryId: ev.moment_id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, coverUrl, olKey, reviewBody: ev.moment_body, rating: null, reviewedAt: ev.created_at, reviewer: { userId: friend.userId, displayName: friend.displayName, avatarUrl: friend.avatarUrl } })
                 return (
                   <div key={ev.id} style={{ background: 'var(--rt-white)', border: '1px solid var(--rt-border)', borderRadius: 12, padding: '0.75rem', marginBottom: '0.65rem' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
@@ -580,7 +581,7 @@ export default function FriendProfilePage({ friend, onBack, onOpenChatModal, cha
                     </div>
                     <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: '0.6rem' }}>
                       <div style={{ width: 80, height: 116, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.13)' }}>
-                        <CoverImage coverId={coverId} olKey={olKey} title={ev.book_title || ''} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <CoverImage coverId={coverId} olKey={olKey} coverUrl={coverUrl} title={ev.book_title || ''} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.15rem' }}>{ev.book_title || ''}</div>

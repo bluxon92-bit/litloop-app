@@ -351,14 +351,14 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
                       <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.15rem' }}>{book.title}</div>
                       {book.author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>{book.author}</div>}
                       {book.reviewBody && (
-                        <SpoilerBody barCol="var(--rt-navy)" onClick={e => { e.stopPropagation(); setActiveReview({ entryId: book.id, bookTitle: book.title, bookAuthor: book.author, coverId: book.coverId, olKey: book.olKey, reviewBody: book.reviewBody, rating: book.rating, reviewedAt: book.dateRead, reviewer: { userId: user.id, displayName, avatarUrl: myAvatarUrl } }) }}>
+                        <SpoilerBody barCol="var(--rt-navy)" onClick={e => { e.stopPropagation(); setActiveReview({ entryId: book.id, bookTitle: book.title, bookAuthor: book.author, coverId: book.coverId, coverUrl: book.coverUrl, olKey: book.olKey, reviewBody: book.reviewBody, rating: book.rating, reviewedAt: book.dateRead, reviewer: { userId: user.id, displayName, avatarUrl: myAvatarUrl } }) }}>
                           {book.reviewBody}
                         </SpoilerBody>
                       )}
                     </div>
                   </div>
                   <div style={{ height: '0.5px', background: 'var(--rt-border)', marginBottom: '0.5rem' }} />
-                  <FeedEngagementBar entryId={book.id} user={user} onOpenThread={() => setActiveReview({ entryId: book.id, bookTitle: book.title, bookAuthor: book.author, coverId: book.coverId, olKey: book.olKey, reviewBody: book.reviewBody, rating: book.rating, reviewedAt: book.dateRead, reviewer: { userId: user.id, displayName, avatarUrl: myAvatarUrl } })} />
+                  <FeedEngagementBar entryId={book.id} user={user} onOpenThread={() => setActiveReview({ entryId: book.id, bookTitle: book.title, bookAuthor: book.author, coverId: book.coverId, coverUrl: book.coverUrl, olKey: book.olKey, reviewBody: book.reviewBody, rating: book.rating, reviewedAt: book.dateRead, reviewer: { userId: user.id, displayName, avatarUrl: myAvatarUrl } })} />
                 </div>
               )
             })
@@ -386,7 +386,8 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
               const dateStr  = ev.created_at ? new Date(ev.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''
               const coverId  = ev.cover_id || null
               const olKey    = ev.book_ol_key || null
-              const openThread = () => setActiveReview({ entryId: ev.moment_id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, olKey, reviewBody: ev.moment_body, rating: null, reviewedAt: ev.created_at, reviewer: { userId: user.id, displayName, avatarUrl: myAvatarUrl } })
+              const coverUrl = ev.cover_url || null
+              const openThread = () => setActiveReview({ entryId: ev.moment_id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, coverUrl, olKey, reviewBody: ev.moment_body, rating: null, reviewedAt: ev.created_at, reviewer: { userId: user.id, displayName, avatarUrl: myAvatarUrl } })
               return (
                 <div key={ev.id} style={cardStyle}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
@@ -401,7 +402,7 @@ export default function Profile({ onNavigate, onOpenChatModal }) {
                   </div>
                   <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: '0.6rem' }}>
                     <div style={{ width: 80, height: 116, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.13)' }}>
-                      <CoverImage coverId={coverId} olKey={olKey} title={ev.book_title || ''} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <CoverImage coverId={coverId} olKey={olKey} coverUrl={coverUrl} title={ev.book_title || ''} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.15rem' }}>{ev.book_title || ''}</div>

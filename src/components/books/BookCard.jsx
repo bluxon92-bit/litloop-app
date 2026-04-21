@@ -20,6 +20,7 @@ export default function BookCard({ book, onClick, showStatus = false }) {
         <CoverImage
           coverId={book.coverId}
           olKey={book.olKey}
+          coverUrl={book.coverUrl}
           title={book.title}
           size="M"
         />

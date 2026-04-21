@@ -37,7 +37,7 @@ function Avatar({ userId, displayName, avatarUrl, size = 26 }) {
 }
 
 export default function ReviewThreadSheet({
-  review,        // { entryId, bookTitle, bookAuthor, coverId, olKey, reviewBody, rating, reviewedAt, reviewer }
+  review,        // { entryId, bookTitle, bookAuthor, coverId, coverUrl, olKey, reviewBody, rating, reviewedAt, reviewer }
   user,
   friends,
   chats,
@@ -279,7 +279,7 @@ export default function ReviewThreadSheet({
         <div style={{ display: 'flex', gap: '0.85rem', alignItems: 'flex-start' }}>
           {/* Cover */}
           <div style={{ width: 52, height: 76, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,0.08)', boxShadow: '0 2px 10px rgba(0,0,0,0.3)' }}>
-            <CoverImage coverId={review.coverId} olKey={review.olKey} title={review.bookTitle} size="M"
+            <CoverImage coverId={review.coverId} olKey={review.olKey} coverUrl={review.coverUrl} title={review.bookTitle} size="M"
               style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           </div>
           {/* Title + actions */}
