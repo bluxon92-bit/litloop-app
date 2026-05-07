@@ -1,0 +1,169 @@
+[
+  {
+    "title": "Deadhouse Gates",
+    "author": "Steven Erikson",
+    "year": 2000,
+    "genres": [
+      "grimdark"
+    ],
+    "book_id": "298ec81a-710a-4e41-999b-1aae3bb590bc",
+    "ol_key": "/works/OL37587193W",
+    "missing": [
+      "description"
+    ],
+    "attempts": 4,
+    "last_error": "Still missing after 4 attempts: description"
+  },
+  {
+    "title": "Ravage",
+    "author": "Thomas Olde Heuvelt",
+    "year": 2022,
+    "genres": [
+      "grimdark"
+    ],
+    "book_id": "f7fece36-e4d5-489c-8baa-18e37b385725",
+    "ol_key": "/works/OL1450059W",
+    "missing": [
+      "description"
+    ],
+    "attempts": 4,
+    "last_error": "Still missing after 4 attempts: description"
+  },
+  {
+    "title": "The Girl with the Dragon Tattoo",
+    "author": "Stieg Larsson",
+    "year": 2005,
+    "genres": [
+      "thriller",
+      "crime-mystery"
+    ],
+    "book_id": "48619ba2-b8d8-425b-bd7d-b030386ff861",
+    "ol_key": "/works/OL31964906W",
+    "missing": [
+      "cover"
+    ],
+    "attempts": 4,
+    "last_error": "Still missing after 4 attempts: cover"
+  },
+  {
+    "title": "The Bone Collector",
+    "author": "Jeffery Deaver",
+    "year": 1997,
+    "genres": [
+      "thriller"
+    ],
+    "book_id": "483569a3-14ae-4d49-9921-b7ea89631ed8",
+    "ol_key": "/works/OL24275716W",
+    "missing": [
+      "description"
+    ],
+    "attempts": 4,
+    "last_error": "Still missing after 4 attempts: description"
+  },
+  {
+    "title": "Magpie Murders",
+    "author": "Anthony Horowitz",
+    "year": 2016,
+    "genres": [
+      "crime-mystery"
+    ],
+    "book_id": "77f2914b-583a-4751-a9da-b260929530dd",
+    "ol_key": "/works/OL35686139W",
+    "missing": [
+      "cover"
+    ],
+    "attempts": 4,
+    "last_error": "Still missing after 4 attempts: cover"
+  },
+  {
+    "title": "Captain Corelli's Mandolin",
+    "author": "Louis de Bernieres",
+    "year": 1994,
+    "genres": [
+      "historical-fiction"
+    ],
+    "book_id": "639fb27e-a3e8-4a48-a113-c054932df83a",
+    "ol_key": "/works/OL35323989W",
+    "missing": [
+      "description",
+      "isbn"
+    ],
+    "attempts": 4,
+    "last_error": "Still missing after 4 attempts: description, isbn"
+  },
+  {
+    "title": "Nausea",
+    "author": "Jean-Paul Sartre",
+    "year": 1938,
+    "genres": [
+      "literary-fiction"
+    ],
+    "book_id": "4d9dd2e7-dbac-4528-a935-75dd328cccc2",
+    "ol_key": "/works/OL43066499W",
+    "missing": [
+      "isbn"
+    ],
+    "attempts": 4,
+    "last_error": "Still missing after 4 attempts: isbn"
+  },
+  {
+    "title": "The God of the Woods",
+    "author": "Lauren Fox",
+    "year": 2024,
+    "genres": [
+      "contemporary-fiction"
+    ],
+    "book_id": "454407fe-5b63-4a32-8d03-73cce8d9048b",
+    "ol_key": "/works/OL17597290W",
+    "missing": [
+      "isbn"
+    ],
+    "attempts": 4,
+    "last_error": "Still missing after 4 attempts: isbn"
+  },
+  {
+    "title": "The Gulag Archipelago",
+    "author": "Aleksandr Solzhenitsyn",
+    "year": 1973,
+    "genres": [
+      "non-fiction"
+    ],
+    "book_id": "0a5ee6bf-7a84-49c3-91a8-470f63c98946",
+    "ol_key": "/works/OL29249607W",
+    "missing": [
+      "description"
+    ],
+    "attempts": 4,
+    "last_error": "Still missing after 4 attempts: description"
+  },
+  {
+    "title": "Good Girl Bad Blood",
+    "author": "Holly Jackson",
+    "year": 2020,
+    "genres": [
+      "young-adult"
+    ],
+    "book_id": "4ebbd168-f40b-4e96-85d2-49bccd53f577",
+    "ol_key": "/works/OL42454753W",
+    "missing": [
+      "cover"
+    ],
+    "attempts": 4,
+    "last_error": "Still missing after 4 attempts: cover"
+  },
+  {
+    "title": "Lirael",
+    "author": "Garth Nix",
+    "year": 2001,
+    "genres": [
+      "young-adult"
+    ],
+    "book_id": "31019b3c-c405-4af6-93f6-cae986ca31e0",
+    "ol_key": "/works/OL26545956W",
+    "missing": [
+      "cover"
+    ],
+    "attempts": 4,
+    "last_error": "Still missing after 4 attempts: cover"
+  }
+]

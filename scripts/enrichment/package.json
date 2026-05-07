@@ -1,0 +1,15 @@
+{
+  "name": "litloop-enrichment",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Reading list enrichment script for Litloop",
+  "scripts": {
+    "dry-run": "DRY_RUN=true node enrich.mjs",
+    "start": "node enrich.mjs",
+    "retry": "node enrich.mjs --retry",
+    "retry:dry": "DRY_RUN=true node enrich.mjs --retry"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0"
+  }
+}

@@ -18,6 +18,8 @@ import { sb } from '../../lib/supabase'
 import { IcoBook, IcoChat as IcoChatBubble, IcoUsers as IcoUsersGroup } from '../icons'
 import logo from '../../assets/Ltiloop-logo-b-w.png'
 import { isNative, registerFcmToken, removeFcmListeners, setupFcmListeners } from '../../lib/fcmManager'
+import ReadingListOnboarding from '../ReadingListOnboarding'
+import { loadIntent, clearIntent } from '../../lib/readingListIntent'
 
 // ── SVG icons ─────────────────────────────────────────────────
 function IcoHome(active) {
@@ -1029,6 +1031,8 @@ export default function AppShell() {
           myDisplayName, myAvatarUrl,
           inAppToast, clearInAppToast } = useSocialContext()
   const { books, addBook } = useBooksContext()
+  const [showReadingListStep, setShowReadingListStep] = useState(false)
+  const [readingListIntent, setReadingListIntent]     = useState(null)
   const [activeTab, setActiveTab]         = useState('home')
   const showOnboarding = profileLoaded && onboardingComplete === false
   const [notifOpen, setNotifOpen]         = useState(false)
@@ -1212,6 +1216,28 @@ export default function AppShell() {
     return () => document.removeEventListener('mousedown', handler)
   }, [notifOpen])
 
+  useEffect(() => {
+    // Only run once profile is loaded (so we know onboarding state)
+    if (!profileLoaded) return
+
+    const intent = loadIntent()
+    if (!intent) return
+
+    if (onboardingComplete === false) {
+    // User is going through onboarding — the reading list step will be shown
+    // after onboarding completes (handled by OnboardingFlow below). Store intent.
+    setReadingListIntent(intent)
+    return
+  }
+
+  // User is already fully onboarded — fire the intent action immediately,
+  // then show the reading list step so they can tick off more books.
+  if (intent.action === 'mark-read' || intent.action === 'add-to-list') {
+    setReadingListIntent(intent)
+    setShowReadingListStep(true)
+  }
+}, [profileLoaded, onboardingComplete])
+
   // Build notifications list — chats with unread messages first, then social
   const unreadChats = (chats || []).filter(c => c.unread > 0)
   const notifications = [
@@ -1347,9 +1373,32 @@ export default function AppShell() {
     <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--rt-cream)', fontFamily: 'var(--rt-font-body)' }}>
 
       {/* ── Onboarding — shown when user has no username yet ── */}
-      {showOnboarding && (
-        <OnboardingFlow user={user} onComplete={() => {}} />
-      )}
+    {showOnboarding && (
+     <OnboardingFlow
+       user={user}
+      onComplete={() => {
+         // After onboarding, check if there's a pending reading list intent
+        const intent = loadIntent()
+        if (intent) {
+          setReadingListIntent(intent)
+          setShowReadingListStep(true)
+        }
+     }}
+    />
+)}
+
+{/* Reading list onboarding step — shown after main onboarding OR for returning users */}
+{showReadingListStep && readingListIntent && (
+  <ReadingListOnboarding
+    intent={readingListIntent}
+    addBook={addBook}
+    books={books}
+    onDone={() => {
+      setShowReadingListStep(false)
+      setReadingListIntent(null)
+    }}
+  />
+)}
 
       {/* ── Desktop sidebar ─────────────────────────────── */}
       <nav className="rt-sidebar-desktop" style={{

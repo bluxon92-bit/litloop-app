@@ -1,0 +1,17 @@
+[
+  { "slug": "grimdark", "title": "Grimdark", "description": "The best grimdark fantasy novels — morally grey characters, brutal worlds, and stories where good doesn't always triumph." },
+  { "slug": "fantasy", "title": "Fantasy", "description": "The definitive fantasy reading list — from Tolkien's foundational epics to the genre-defining novels of today." },
+  { "slug": "sci-fi", "title": "Science Fiction", "description": "The greatest science fiction novels ever written — from golden age classics to contemporary masterworks." },
+  { "slug": "horror", "title": "Horror", "description": "The most terrifying horror novels of all time — from gothic classics to modern psychological nightmares." },
+  { "slug": "thriller", "title": "Thriller", "description": "The most gripping psychological and suspense thrillers — page-turners that refuse to let you go." },
+  { "slug": "romantasy", "title": "Romantasy", "description": "The best romantic fantasy novels — sweeping worlds, epic magic systems, and love stories with serious emotional payoff." },
+  { "slug": "crime-mystery", "title": "Crime & Mystery", "description": "The greatest crime and mystery novels — from golden age whodunits to modern noir and detective fiction." },
+  { "slug": "historical-fiction", "title": "Historical Fiction", "description": "The best historical fiction — immersive stories that bring the past vividly to life." },
+  { "slug": "literary-fiction", "title": "Literary Fiction", "description": "The most acclaimed literary fiction — Pulitzer winners, Booker Prize champions, and novels that define their era." },
+  { "slug": "contemporary-fiction", "title": "Contemporary Fiction", "description": "The best contemporary fiction — the novels that are defining literature right now." },
+  { "slug": "romance", "title": "Romance", "description": "The greatest romance novels ever written — from Austen classics to modern BookTok favourites." },
+  { "slug": "non-fiction", "title": "Non-Fiction", "description": "The most compelling narrative non-fiction — true stories told with the power of great literature." },
+  { "slug": "biography-memoir", "title": "Biography & Memoir", "description": "The most powerful biographies and memoirs — lives that inspire, challenge, and stay with you forever." },
+  { "slug": "travel-writing", "title": "Travel Writing", "description": "The greatest travel writing — adventures, discoveries, and journeys that take you somewhere extraordinary." },
+  { "slug": "young-adult", "title": "Young Adult", "description": "The best young adult fiction — beloved classics and modern hits that captivate readers of all ages." }
+]

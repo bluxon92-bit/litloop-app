@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useAuthContext } from '../../context/AuthContext'
+import { loadIntent } from '../../lib/readingListIntent'
 import logoSrc from '../../assets/Litloop-logo-white-on-blue.png'
 
 const QUOTES = [
@@ -67,7 +68,13 @@ const smallLink = {
 export default function AuthForms() {
   const { signIn, signUp, resetPassword } = useAuthContext()
   const isDesktop = useIsDesktop()
-  const [mode, setMode]     = useState('login')
+
+  // Check for a pending reading list intent
+  const intent = useMemo(() => loadIntent(), [])
+  const hasIntent = !!intent
+
+  // Default to signup when arriving from a reading list CTA
+  const [mode, setMode]     = useState(hasIntent ? 'signup' : 'login')
   const [email, setEmail]   = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm]   = useState('')
@@ -109,18 +116,50 @@ export default function AuthForms() {
 
   const heading = mode === 'forgot' ? 'Reset password' : mode === 'login' ? 'Welcome back' : 'Join Litloop'
 
-  // Sub rendered as two lines for login, single for others
-  const subEl = mode === 'login'
-    ? <p style={{ fontSize: '0.9rem', color: 'var(--rt-t2)', textAlign: isDesktop ? 'left' : 'center', lineHeight: 1.65, marginBottom: '1.5rem' }}>
-        Good to see you again.<br />Your reading list is waiting.
-      </p>
-    : mode === 'signup'
-    ? <p style={{ fontSize: '0.9rem', color: 'var(--rt-t2)', textAlign: isDesktop ? 'left' : 'center', lineHeight: 1.65, marginBottom: '1.5rem' }}>
-        Because books are better shared.<br />The reading tracker app built for real conversations.
-      </p>
-    : <p style={{ fontSize: '0.9rem', color: 'var(--rt-t2)', textAlign: isDesktop ? 'left' : 'center', lineHeight: 1.65, marginBottom: '1.5rem' }}>
-        Enter your email and we'll send you a reset link.
-      </p>
+  // Contextual sub-copy when arriving from a reading list CTA
+  const intentSubEl = hasIntent && mode !== 'forgot' && (
+    <div style={{
+      display: 'flex', alignItems: 'center', gap: '0.85rem',
+      background: 'var(--rt-navy)', borderRadius: 12,
+      padding: '0.85rem 1rem', marginBottom: '1.25rem',
+    }}>
+      {intent.cover_url && (
+        <img
+          src={intent.cover_url}
+          alt=""
+          style={{ width: 40, height: 56, borderRadius: 4, objectFit: 'cover', flexShrink: 0 }}
+        />
+      )}
+      <div>
+        <div style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.5)', marginBottom: '0.2rem' }}>
+          {intent.list_name || 'Reading List'}
+        </div>
+        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#fff', lineHeight: 1.3 }}>
+          {intent.action === 'mark-read'
+            ? `Track "${intent.title}" and more on Litloop`
+            : `Add "${intent.title}" to your reading list`}
+        </div>
+        <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.55)', marginTop: '0.2rem' }}>
+          {mode === 'signup' ? 'Free account — no credit card needed' : 'Sign in to continue'}
+        </div>
+      </div>
+    </div>
+  )
+
+  // Default sub-copy (no intent)
+  const subEl = !hasIntent && (
+    mode === 'login'
+      ? <p style={{ fontSize: '0.9rem', color: 'var(--rt-t2)', textAlign: isDesktop ? 'left' : 'center', lineHeight: 1.65, marginBottom: '1.5rem' }}>
+          Good to see you again.<br />Your reading list is waiting.
+        </p>
+      : mode === 'signup'
+      ? <p style={{ fontSize: '0.9rem', color: 'var(--rt-t2)', textAlign: isDesktop ? 'left' : 'center', lineHeight: 1.65, marginBottom: '1.5rem' }}>
+          Because books are better shared.<br />The reading tracker app built for real conversations.
+        </p>
+      : <p style={{ fontSize: '0.9rem', color: 'var(--rt-t2)', textAlign: isDesktop ? 'left' : 'center', lineHeight: 1.65, marginBottom: '1.5rem' }}>
+          Enter your email and we'll send you a reset link.
+        </p>
+  )
 
   // ── Inline form JSX — no nested component functions to avoid remount bug ──
   const formEl = mode === 'forgot' ? (
@@ -158,7 +197,7 @@ export default function AuthForms() {
         onFocus={e => e.target.style.borderColor = 'var(--rt-navy)'} onBlur={e => e.target.style.borderColor = 'var(--rt-border-md)'} />
       {msgEl}
       <button type="submit" disabled={loading} style={{ ...submitStyle, opacity: loading ? 0.7 : 1, cursor: loading ? 'default' : 'pointer' }}>
-        {loading ? 'Creating account…' : 'Create account'}
+        {loading ? 'Creating account…' : hasIntent ? `Create account & track your reading →` : 'Create account'}
       </button>
       {mode === 'signup' && (
         <p style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', textAlign: 'center', marginTop: '0.75rem', lineHeight: 1.5 }}>
@@ -212,6 +251,7 @@ export default function AuthForms() {
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '3rem 2rem' }}>
           <div style={{ width: '100%', maxWidth: 360 }}>
             <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.35rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.4rem' }}>{heading}</h2>
+            {intentSubEl}
             {subEl}
             {formEl}
             <div style={{ marginTop: '1.25rem' }}>{switchLinkEl}</div>
@@ -224,8 +264,6 @@ export default function AuthForms() {
   // ── Mobile ─────────────────────────────────────────────────
   return (
     <div style={{ minHeight: '100vh', background: 'var(--rt-cream)', fontFamily: 'var(--rt-font-body)', display: 'flex', flexDirection: 'column' }}>
-
-      {/* Navy hero — paddingTop accounts for notch/safe area */}
       <div style={{ background: 'var(--rt-navy)', paddingTop: 'max(3.25rem, env(safe-area-inset-top, 3.25rem))', textAlign: 'center', flexShrink: 0 }}>
         <img src={logoSrc} alt="Litloop" style={{ height: 38, width: 'auto' }} />
         <svg viewBox="0 0 400 64" preserveAspectRatio="none"
@@ -233,20 +271,17 @@ export default function AuthForms() {
           <path d="M0 0 Q200 64 400 0 L400 64 L0 64 Z" fill="var(--rt-cream)" />
         </svg>
       </div>
-
-      {/* Form — centred in remaining space */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ width: '100%', maxWidth: 400, padding: '1.5rem 1.5rem 0', boxSizing: 'border-box' }}>
             <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.35rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.4rem', textAlign: 'center' }}>
               {heading}
             </h2>
+            {intentSubEl}
             {subEl}
             {formEl}
           </div>
         </div>
-
-        {/* Switch link — pinned to bottom, respects safe area */}
         <div style={{ padding: '1rem 1.5rem', paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom, 1.5rem))', textAlign: 'center' }}>
           {switchLinkEl}
         </div>
