@@ -158,6 +158,13 @@ function LitLoopPicksSection({ feed, loading, moods, activeMood, setActiveMood, 
 }
 
 // ── Book detail modal ─────────────────────────────────────────────
+// ── Status button colours for genre book modal actions ────────────
+const STATUS_BTN_COLOURS = {
+  read:    '#22c55e',
+  reading: '#3b82f6',
+  tbr:     '#C9973A',
+}
+
 function BookModal({ book, added, dupMsg, onReread, onClose, onAddToTBR, onRecommend, onChat, onDismiss }) {
   // Use description already on the book object immediately (from DB — Google or OL)
   const [desc, setDesc]               = useState(book?.description || '')
@@ -298,7 +305,22 @@ function BookModal({ book, added, dupMsg, onReread, onClose, onAddToTBR, onRecom
                 Not for me
               </button>
             )}
-            {onReread ? (
+            {book._genreBook ? (
+              <div style={{ flex: 1, display: 'flex', gap: '0.5rem' }}>
+                <button onClick={() => { onAddToTBR('read'); onClose() }}
+                  style={{ flex: 1, background: STATUS_BTN_COLOURS.read, color: '#fff', border: 'none', borderRadius: 12, padding: '0.85rem 0.5rem', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  ✓ Read
+                </button>
+                <button onClick={() => { onAddToTBR('reading'); onClose() }}
+                  style={{ flex: 1, background: STATUS_BTN_COLOURS.reading, color: '#fff', border: 'none', borderRadius: 12, padding: '0.85rem 0.5rem', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  📖 Reading
+                </button>
+                <button onClick={() => { onAddToTBR('tbr'); onClose() }}
+                  style={{ flex: 1, background: 'var(--rt-navy)', color: '#fff', border: 'none', borderRadius: 12, padding: '0.85rem 0.5rem', fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  + To Read
+                </button>
+              </div>
+            ) : onReread ? (
               <button onClick={onReread}
                 style={{ flex: 1, background: 'var(--rt-navy)', color: '#fff', border: 'none', borderRadius: 12, padding: '0.85rem 1rem', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer' }}>
                 Yes, add as reread
@@ -694,7 +716,11 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
         <GenresTab
           user={user}
           addBook={addBook}
-          onSelectBook={book => setSelectedBook(book)}
+          onSelectBook={book => {
+            setShowRecommend(false)
+            setShowChatPicker(false)
+            setSelectedBook(book)
+          }}
         />
       )}
 
@@ -871,46 +897,6 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
         </div>
       </div>
 
-      {/* ── Book modal ── */}
-      {selectedBook && !showRecommend && !showChatPicker && (() => {
-        const currentKey = selectedBook._key
-        const dup = (dupMsgKey === currentKey && !selectedBook._aiPick) ? findDuplicate(selectedBook.title, selectedBook.author) : null
-        let dupMsg = null
-        if (dup) {
-          if (dup.status === 'tbr') dupMsg = `"${dup.title}" is already in your To Read list.`
-          else if (dup.status === 'reading') dupMsg = `You're currently reading "${dup.title}".`
-          else dupMsg = `You've already read "${dup.title}". Add it again as a reread?`
-        }
-        const isAdded = addedKeys.has(currentKey) || (selectedBook._aiIndex !== undefined && aiPicks.added.has(selectedBook._aiIndex))
-        return (
-          <BookModal
-            book={selectedBook}
-            added={isAdded}
-            dupMsg={dupMsg}
-            onReread={dup && dup.status !== 'tbr' && dup.status !== 'reading' ? confirmReread : null}
-            onClose={() => { setSelectedBook(null); setDupMsgKey(null); setPendingReread(null) }}
-            onAddToTBR={() => {
-              if (selectedBook._recs?.length) {
-                selectedBook._recs.forEach(r => acceptFriendRec(r))
-              } else if (selectedBook._rec) {
-                acceptFriendRec(selectedBook._rec)
-              } else {
-                addToTBR(selectedBook, currentKey)
-              }
-            }}
-            onRecommend={() => setShowRecommend(true)}
-            onChat={() => setShowChatPicker(true)}
-            onDismiss={
-              selectedBook._editorial
-                ? () => dismissBook(selectedBook._dbOlKey || currentKey)
-                : selectedBook._aiPick
-                  ? () => aiPicks.dismiss(selectedBook._aiIndex)
-                  : null
-            }
-          />
-        )
-      })()}
-
       {/* ── Recommend modal ── */}
       {selectedBook && showRecommend && (
         <RecommendModal
@@ -930,6 +916,64 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
         />
       )}
       </>}
+
+      {/* ── Book modal (shared across both tabs) ── */}
+      {selectedBook && !showRecommend && !showChatPicker && (() => {
+        const currentKey = selectedBook._key
+        const isGenreBook = !!selectedBook._genreBook
+        const dup = (!isGenreBook && dupMsgKey === currentKey && !selectedBook._aiPick) ? findDuplicate(selectedBook.title, selectedBook.author) : null
+        let dupMsg = null
+        if (dup) {
+          if (dup.status === 'tbr') dupMsg = `"${dup.title}" is already in your To Read list.`
+          else if (dup.status === 'reading') dupMsg = `You're currently reading "${dup.title}".`
+          else dupMsg = `You've already read "${dup.title}". Add it again as a reread?`
+        }
+        const isAdded = addedKeys.has(currentKey) || (selectedBook._aiIndex !== undefined && aiPicks.added.has(selectedBook._aiIndex))
+        return (
+          <BookModal
+            book={selectedBook}
+            added={isAdded}
+            dupMsg={dupMsg}
+            onReread={dup && dup.status !== 'tbr' && dup.status !== 'reading' ? confirmReread : null}
+            onClose={() => { setSelectedBook(null); setDupMsgKey(null); setPendingReread(null) }}
+            onAddToTBR={isGenreBook
+              ? async (status) => {
+                  await addBook({
+                    title:    selectedBook.title,
+                    author:   selectedBook.author   || '',
+                    olKey:    selectedBook.olKey     || null,
+                    coverUrl: selectedBook.coverUrl  || null,
+                    coverId:  selectedBook.coverId   || null,
+                    status,
+                    dateRead: status === 'read' ? new Date().toISOString().split('T')[0] : null,
+                  })
+                  selectedBook._onStatusChange?.(selectedBook._bookId, status)
+                  setSelectedBook(null)
+                }
+              : () => {
+                  if (selectedBook._recs?.length) {
+                    selectedBook._recs.forEach(r => acceptFriendRec(r))
+                  } else if (selectedBook._rec) {
+                    acceptFriendRec(selectedBook._rec)
+                  } else {
+                    addToTBR(selectedBook, currentKey)
+                  }
+                }
+            }
+            onRecommend={() => setShowRecommend(true)}
+            onChat={() => setShowChatPicker(true)}
+            onDismiss={
+              isGenreBook
+                ? () => selectedBook._onDismiss?.(selectedBook._bookId)
+                : selectedBook._editorial
+                  ? () => dismissBook(selectedBook._dbOlKey || currentKey)
+                  : selectedBook._aiPick
+                    ? () => aiPicks.dismiss(selectedBook._aiIndex)
+                    : null
+            }
+          />
+        )
+      })()}
     </div>
   )
 }

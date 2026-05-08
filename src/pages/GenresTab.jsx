@@ -184,12 +184,16 @@ function BookTile({ book, listId, userId, onStatusChange, onDismiss, onUndismiss
       {/* Cover */}
       <div
         onClick={() => onSelectBook && onSelectBook({
-          title:    book.title,
-          author:   book.author,
-          coverUrl: book.cover_url || null,
-          coverId:  book.cover_id  || null,
-          olKey:    book.ol_key    || null,
-          _key:     `genre-${book.book_id}`,
+          title:           book.title,
+          author:          book.author,
+          coverUrl:        book.cover_url || null,
+          coverId:         book.cover_id  || null,
+          olKey:           book.ol_key    || null,
+          _key:            `genre-${book.book_id}`,
+          _genreBook:      true,
+          _bookId:         book.book_id,
+          _onStatusChange: onStatusChange,
+          _onDismiss:      onDismiss,
         })}
         style={{
           borderRadius: 8,

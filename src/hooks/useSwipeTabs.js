@@ -11,10 +11,16 @@ import { useRef, useEffect } from 'react'
  *
  * Swipe threshold: 60px horizontal, with less than 80px vertical movement.
  * This avoids intercepting vertical scrolling.
+ *
+ * Carousel guard: if the touch starts inside a horizontally scrollable
+ * element (e.g. a book carousel), the swipe is ignored so the carousel
+ * can scroll freely without triggering a tab change.
  */
 export function useSwipeTabs(tabs, activeTab, setTab) {
   const ref = useRef(null)
   const touchStart = useRef(null)
+  const ignore = useRef(false)
+
   // Keep a ref to current values so the event handlers are never stale
   const activeTabRef = useRef(activeTab)
   const setTabRef = useRef(setTab)
@@ -26,13 +32,28 @@ export function useSwipeTabs(tabs, activeTab, setTab) {
     const el = ref.current
     if (!el) return
 
+    function isInsideScrollable(target) {
+      let node = target
+      while (node && node !== el) {
+        const style = window.getComputedStyle(node)
+        const overflowX = style.overflowX
+        const isScrollable = (overflowX === 'auto' || overflowX === 'scroll')
+        // Only suppress if the element actually has scrollable content wider than itself
+        if (isScrollable && node.scrollWidth > node.clientWidth) return true
+        node = node.parentElement
+      }
+      return false
+    }
+
     function onTouchStart(e) {
       const t = e.touches[0]
+      ignore.current = isInsideScrollable(e.target)
+      if (ignore.current) return
       touchStart.current = { x: t.clientX, y: t.clientY }
     }
 
     function onTouchEnd(e) {
-      if (!touchStart.current) return
+      if (ignore.current || !touchStart.current) return
       const t = e.changedTouches[0]
       const dx = t.clientX - touchStart.current.x
       const dy = t.clientY - touchStart.current.y
