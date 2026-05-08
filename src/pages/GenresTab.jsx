@@ -186,9 +186,10 @@ function BookTile({ book, listId, userId, onStatusChange, onDismiss, onUndismiss
         onClick={() => onSelectBook && onSelectBook({
           title:           book.title,
           author:          book.author,
-          coverUrl:        book.cover_url || null,
-          coverId:         book.cover_id  || null,
-          olKey:           book.ol_key    || null,
+          coverUrl:        book.cover_url  || null,
+          coverId:         book.cover_id   || null,
+          olKey:           book.ol_key     || null,
+          description:     book.description || null,
           _key:            `genre-${book.book_id}`,
           _genreBook:      true,
           _bookId:         book.book_id,
