@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
-import { sb } from '../../lib/supabase'
-import { clearIntent } from '../../lib/readingListIntent'
+import { sb } from '../lib/supabase'
+import { clearIntent } from '../lib/readingListIntent'
 
 // ── Reading List Onboarding Step ─────────────────────────────────────────
 // Shown after the main onboarding flow completes, when a user arrived

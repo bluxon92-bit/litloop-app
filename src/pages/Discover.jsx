@@ -8,6 +8,10 @@ import { useAiPicks } from '../hooks/useAiPicks'
 import { avatarColour, avatarInitial } from '../lib/utils'
 import { IcoBook, IcoChat } from '../components/icons'
 import CoverImage from '../components/books/CoverImage'
+import GenresTab from './GenresTab'
+
+const DISCOVER_TABS = ['picks', 'genres']
+const DISCOVER_TAB_LABELS = { picks: 'Picks', genres: 'Genres' }
 
 // ── Book search via Edge Function (server-side, no CORS) ──────────
 async function searchOL(title, author) {
@@ -490,6 +494,7 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
 
   const aiPicks = useAiPicks(user, books)
 
+  const [discoverTab, setDiscoverTab]       = useState('picks')
   const [selectedBook, setSelectedBook]     = useState(null)
   const [showRecommend, setShowRecommend]   = useState(false)
   const [showChatPicker, setShowChatPicker] = useState(false)
@@ -654,10 +659,43 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 1rem' }}>
         <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.35rem', fontWeight: 600, color: 'var(--rt-navy)', margin: 0 }}>Discover</h2>
-        <button onClick={onRecommend} style={{ background: 'var(--rt-amber-pale)', border: 'none', borderRadius: 99, padding: '0.25rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--rt-amber)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-          <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>+</span> Recommend
-        </button>
+        {discoverTab === 'picks' && (
+          <button onClick={onRecommend} style={{ background: 'var(--rt-amber-pale)', border: 'none', borderRadius: 99, padding: '0.25rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--rt-amber)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+            <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>+</span> Recommend
+          </button>
+        )}
       </div>
+
+      {/* ── Tabs ── */}
+      <div style={{ display: 'flex', borderBottom: '2px solid var(--rt-border)', marginBottom: '1.25rem' }}>
+        {DISCOVER_TABS.map(t => (
+          <button
+            key={t}
+            onClick={() => setDiscoverTab(t)}
+            style={{
+              flex: 1, background: 'none', border: 'none', cursor: 'pointer',
+              padding: '0.6rem 0.5rem',
+              fontFamily: 'var(--rt-font-body)',
+              fontSize: '0.88rem',
+              fontWeight: discoverTab === t ? 600 : 500,
+              color: discoverTab === t ? 'var(--rt-navy)' : 'var(--rt-t3)',
+              borderBottom: `2.5px solid ${discoverTab === t ? 'var(--rt-amber)' : 'transparent'}`,
+              marginBottom: '-2px',
+              transition: 'color 0.15s',
+            }}
+          >
+            {DISCOVER_TAB_LABELS[t]}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Genres tab ── */}
+      {discoverTab === 'genres' && (
+        <GenresTab user={user} />
+      )}
+
+      {/* ── Picks tab ── */}
+      {discoverTab === 'picks' && <>
 
       {/* ── Block 1: LitLoop Picks ── */}
       <LitLoopPicksSection
@@ -887,6 +925,7 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
           onClose={() => setShowChatPicker(false)}
         />
       )}
+      </>}
     </div>
   )
 }
