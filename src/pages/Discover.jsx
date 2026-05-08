@@ -5,6 +5,7 @@ import { useSocialContext } from '../context/SocialContext'
 import { useChatContext } from '../context/ChatContext'
 import { useAuthContext } from '../context/AuthContext'
 import { useAiPicks } from '../hooks/useAiPicks'
+import { useSwipeTabs } from '../hooks/useSwipeTabs'
 import { avatarColour, avatarInitial } from '../lib/utils'
 import { IcoBook, IcoChat } from '../components/icons'
 import CoverImage from '../components/books/CoverImage'
@@ -495,6 +496,7 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
   const aiPicks = useAiPicks(user, books)
 
   const [discoverTab, setDiscoverTab]       = useState('picks')
+  const swipeRef = useSwipeTabs(DISCOVER_TABS, discoverTab, setDiscoverTab)
   const [selectedBook, setSelectedBook]     = useState(null)
   const [showRecommend, setShowRecommend]   = useState(false)
   const [showChatPicker, setShowChatPicker] = useState(false)
@@ -655,15 +657,13 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
   }
 
   return (
-    <div className="rt-page" style={{ maxWidth: 760, margin: '0 auto' }}>
+    <div ref={swipeRef} className="rt-page" style={{ maxWidth: 760, margin: '0 auto' }}>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 0 1rem' }}>
         <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.35rem', fontWeight: 600, color: 'var(--rt-navy)', margin: 0 }}>Discover</h2>
-        {discoverTab === 'picks' && (
-          <button onClick={onRecommend} style={{ background: 'var(--rt-amber-pale)', border: 'none', borderRadius: 99, padding: '0.25rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--rt-amber)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-            <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>+</span> Recommend
-          </button>
-        )}
+        <button onClick={onRecommend} style={{ background: 'var(--rt-amber-pale)', border: 'none', borderRadius: 99, padding: '0.25rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--rt-amber)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+          <span style={{ fontSize: '0.9rem', lineHeight: 1 }}>+</span> Recommend
+        </button>
       </div>
 
       {/* ── Tabs ── */}
@@ -691,7 +691,11 @@ export default function Discover({ onNavigate, onOpenChatModal, onRecommend, pen
 
       {/* ── Genres tab ── */}
       {discoverTab === 'genres' && (
-        <GenresTab user={user} />
+        <GenresTab
+          user={user}
+          addBook={addBook}
+          onSelectBook={book => setSelectedBook(book)}
+        />
       )}
 
       {/* ── Picks tab ── */}

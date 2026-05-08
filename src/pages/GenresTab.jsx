@@ -97,7 +97,7 @@ function ProgressBar({ books, total }) {
 }
 
 // ── Single book tile (3-col grid) ─────────────────────────────────
-function BookTile({ book, listId, userId, onStatusChange, onDismiss, onUndismiss }) {
+function BookTile({ book, listId, userId, onStatusChange, onDismiss, onUndismiss, addBook, onSelectBook }) {
   const [menuOpen, setMenuOpen] = useState(false)
   const [saving, setSaving]     = useState(false)
 
@@ -108,11 +108,14 @@ function BookTile({ book, listId, userId, onStatusChange, onDismiss, onUndismiss
     setSaving(true)
     setMenuOpen(false)
     try {
-      await sb.from('reading_entries').insert({
-        user_id:    userId,
-        book_id:    book.book_id,
+      await addBook({
+        title:     book.title,
+        author:    book.author    || '',
+        olKey:     book.ol_key    || null,
+        coverUrl:  book.cover_url || null,
+        coverId:   book.cover_id  || null,
         status,
-        date_read:  status === 'read' ? new Date().toISOString().split('T')[0] : null,
+        dateRead:  status === 'read' ? new Date().toISOString().split('T')[0] : null,
       })
       onStatusChange(book.book_id, status)
     } catch (err) {
@@ -179,15 +182,26 @@ function BookTile({ book, listId, userId, onStatusChange, onDismiss, onUndismiss
       )}
 
       {/* Cover */}
-      <div style={{
-        borderRadius: 8,
-        overflow: 'hidden',
-        aspectRatio: '2/3',
-        opacity: isDismissed ? 0.35 : isTracked ? 0.65 : 1,
-        transition: 'opacity 0.2s',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-        background: 'var(--rt-surface)',
-      }}>
+      <div
+        onClick={() => onSelectBook && onSelectBook({
+          title:    book.title,
+          author:   book.author,
+          coverUrl: book.cover_url || null,
+          coverId:  book.cover_id  || null,
+          olKey:    book.ol_key    || null,
+          _key:     `genre-${book.book_id}`,
+        })}
+        style={{
+          borderRadius: 8,
+          overflow: 'hidden',
+          aspectRatio: '2/3',
+          opacity: isDismissed ? 0.35 : isTracked ? 0.65 : 1,
+          transition: 'opacity 0.2s',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+          background: 'var(--rt-surface)',
+          cursor: onSelectBook ? 'pointer' : 'default',
+        }}
+      >
         <CoverImage
           coverUrl={book.cover_url}
           coverId={book.cover_id}
@@ -378,7 +392,7 @@ function EditFavouritesSheet({ current, onSave, onClose }) {
 }
 
 // ── Main GenresTab ────────────────────────────────────────────────
-export default function GenresTab({ user }) {
+export default function GenresTab({ user, addBook, onSelectBook }) {
   // Session-persistent selected genre
   const [selectedSlug, setSelectedSlug] = useState(
     () => sessionStorage.getItem('litloop_genre_tab') || null
@@ -599,6 +613,8 @@ export default function GenresTab({ user }) {
                     onStatusChange={handleStatusChange}
                     onDismiss={handleDismiss}
                     onUndismiss={handleUndismiss}
+                    addBook={addBook}
+                    onSelectBook={onSelectBook}
                   />
                 ))}
               </div>
@@ -654,6 +670,8 @@ export default function GenresTab({ user }) {
                           onStatusChange={handleStatusChange}
                           onDismiss={handleDismiss}
                           onUndismiss={handleUndismiss}
+                          addBook={addBook}
+                          onSelectBook={onSelectBook}
                         />
                       ))}
                     </div>
