@@ -489,7 +489,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
             </div>
 
             {/* Spacer when fixed so content doesn't jump under the header */}
-            {journalHeaderFixed && <div style={{ height: 90 }} />
+            {journalHeaderFixed && <div style={{ height: 90 }} />}
 
             {/* Entries */}
             {journalLoading ? (
