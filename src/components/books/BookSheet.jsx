@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { fmtDate, GENRES, avatarColour, avatarInitial } from '../../lib/utils'
 import { useSocialContext } from '../../context/SocialContext'
 import { useChatContext } from '../../context/ChatContext'
+import { sb } from '../../lib/supabase'
 import CoverImage from './CoverImage'
 import { IcoOpenBook, IcoBook, IcoLock } from '../../components/icons'
 
@@ -327,12 +328,13 @@ function AmberBtn({ onClick, disabled, children }) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// FINISH WORKFLOW — 2 steps
+// FINISH WORKFLOW — 3 steps
 // step 0 = How was it? (stars + date + review + genre + private notes)
 // step 1 = Share (recommend friends — book already saved)
-// DNF: saves immediately from step 0, no share step
+// step 2 = Discover (other recent readers — only shown if ≥1 exists)
+// DNF: saves immediately from step 0, no further steps
 // ─────────────────────────────────────────────────────────────
-const FINISH_STEPS = ['HOW WAS IT?', 'SHARE']
+const FINISH_STEPS = ['HOW WAS IT?', 'SHARE', 'DISCOVER']
 
 // ── FriendItem — must be defined outside FinishModal to avoid React #310 ──
 function FriendItem({ friend, dateRead, selected, onToggle }) {
@@ -395,21 +397,38 @@ export function FinishModal({ book, user, onClose, onSaved, onOpenChatModal }) {
   const [shareSending, setShareSending] = useState(false)
   const [shareError, setShareError]     = useState(null)
 
+  // Step 2 (discover) state — declared before any early returns
+  const [discoveryReaders, setDiscoveryReaders] = useState(null) // null = not yet loaded
+  const [discoveryLoading, setDiscoveryLoading] = useState(false)
+  const [followedIds, setFollowedIds]           = useState(new Set())
+
+  // Prefetch discovery readers as soon as we have an ol_key
+  // so step 2 is ready by the time the user reaches it
+  useEffect(() => {
+    if (!book.olKey || discoveryReaders !== null) return
+    setDiscoveryLoading(true)
+    sb.rpc('get_book_activity_feed', { p_ol_key: book.olKey })
+      .then(({ data }) => {
+        setDiscoveryReaders(data || [])
+        setDiscoveryLoading(false)
+      })
+  }, [book.olKey])
+
   async function commitBook() {
     setSaving(true)
     const status = isDnf ? 'dnf' : 'read'
-    // DNF: only post review to feed if they wrote one
     const hasReview = reviewText.trim().length > 0
     const changes = {
       status,
-      dateRead:     date,
-      rating:       status === 'read' ? (rating || null) : null,
-      notes:        privateNotes.trim() || null,
-      reviewBody:      hasReview ? reviewText.trim() : null,
-      reviewPublic:    hasReview,
-      spoilerWarning:  spoilerWarning && hasReview,
-      genre:        genre || book.genre || null,
-      updatedAt:    new Date().toISOString(),
+      dateRead:          date,
+      rating:            status === 'read' ? (rating || null) : null,
+      notes:             privateNotes.trim() || null,
+      reviewBody:        hasReview ? reviewText.trim() : null,
+      reviewPublic:      hasReview, // kept for backwards compat
+      reviewVisibility:  hasReview ? 'public' : null, // new visibility field
+      spoilerWarning:    spoilerWarning && hasReview,
+      genre:             genre || book.genre || null,
+      updatedAt:         new Date().toISOString(),
     }
     onSaved(changes)
     setSaving(false)
@@ -697,10 +716,107 @@ export function FinishModal({ book, user, onClose, onSaved, onOpenChatModal }) {
 
       <SheetFooter
         left={null}
-        right={<PrimaryBtn onClick={onClose}>Done ✓</PrimaryBtn>}
+        right={
+          <PrimaryBtn onClick={() => {
+            // Only show discovery step if at least one reader found and book has ol_key
+            const hasDiscovery = !discoveryLoading && discoveryReaders && discoveryReaders.length > 0
+            if (hasDiscovery) {
+              setStep(2)
+            } else {
+              onClose()
+            }
+          }}>
+            {!discoveryLoading && discoveryReaders && discoveryReaders.length > 0
+              ? 'Next →'
+              : 'Done ✓'}
+          </PrimaryBtn>
+        }
       />
     </ModalShell>
   )
+
+  // ── Step 2 — Discover ──
+  // Other readers who recently finished this book
+  // Only reached if discoveryReaders.length > 0
+  if (step === 2) {
+    async function handleFollow(userId) {
+      const { error } = await sb.rpc('follow_user', { p_following_id: userId })
+      if (!error) setFollowedIds(prev => new Set([...prev, userId]))
+    }
+
+    return (
+      <ModalShell onClose={onClose} maxWidth={520}>
+        <SheetHeader book={book} onClose={onClose}
+          stepBar={<StepBar steps={FINISH_STEPS} current={2} />}
+        />
+        <div style={{ overflowY: 'auto', flex: 1, padding: '1.1rem 1rem 0.5rem' }}>
+          <div style={{ fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.25rem' }}>
+            DISCOVER
+          </div>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.95rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.25rem' }}>
+            Others who just finished this
+          </div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--rt-t3)', marginBottom: '1rem', lineHeight: 1.5 }}>
+            Follow them to see their reviews, quotes, and reading updates in your feed.
+          </div>
+
+          {discoveryReaders.map(reader => {
+            const colour   = avatarColour(reader.user_id)
+            const init     = avatarInitial(reader.display_name || reader.username)
+            const followed = followedIds.has(reader.user_id)
+            return (
+              <div key={reader.user_id} style={{
+                display: 'flex', alignItems: 'center', gap: '0.75rem',
+                padding: '0.65rem 0', borderBottom: '0.5px solid var(--rt-border)',
+              }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: '50%', background: colour,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: '0.9rem', fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden',
+                }}>
+                  {reader.avatar_url
+                    ? <img src={reader.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : init}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {reader.display_name || reader.username}
+                  </div>
+                  {reader.username && (
+                    <div style={{ fontSize: '0.7rem', color: 'var(--rt-t3)' }}>@{reader.username}</div>
+                  )}
+                  {(reader.review_body || reader.moment_body) && (
+                    <div style={{ fontSize: '0.72rem', color: 'var(--rt-t2)', marginTop: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontStyle: 'italic' }}>
+                      "{(reader.review_body || reader.moment_body || '').slice(0, 60)}…"
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => handleFollow(reader.user_id)}
+                  disabled={followed}
+                  style={{
+                    padding: '0.3rem 0.85rem', borderRadius: 99, fontSize: '0.75rem', fontWeight: 700,
+                    border: followed ? '1.5px solid var(--rt-border-md)' : '1.5px solid var(--rt-navy)',
+                    background: followed ? 'var(--rt-white)' : 'var(--rt-navy)',
+                    color: followed ? 'var(--rt-t2)' : '#fff',
+                    cursor: followed ? 'default' : 'pointer',
+                    transition: 'all 0.15s', whiteSpace: 'nowrap', flexShrink: 0,
+                  }}
+                >
+                  {followed ? 'Following' : 'Follow'}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+
+        <SheetFooter
+          left={null}
+          right={<PrimaryBtn onClick={onClose}>Done ✓</PrimaryBtn>}
+        />
+      </ModalShell>
+    )
+  }
 }
 
 // ─────────────────────────────────────────────────────────────

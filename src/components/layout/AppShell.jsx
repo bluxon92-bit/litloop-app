@@ -11,6 +11,7 @@ const Discover        = lazy(() => import('../../pages/Discover'))
 const Chat            = lazy(() => import('../../pages/Chat'))
 const ChatThreadModal = lazy(() => import('../../pages/Chat').then(m => ({ default: m.ChatThreadModal })))
 const Profile         = lazy(() => import('../../pages/Profile'))
+const Feed            = lazy(() => import('../../pages/Feed'))
 const AccountSettings = lazy(() => import('../../pages/AccountSettings'))
 import AddBookModal from '../books/AddBookModal'
 import { avatarColour, avatarInitial, timeAgo } from '../../lib/utils'
@@ -42,6 +43,10 @@ function IcoProfile(active) {
   const c = active ? 'var(--rt-navy)' : '#9ca3af'
   return <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
 }
+function IcoFeed(active) {
+  const c = active ? 'var(--rt-navy)' : '#9ca3af'
+  return <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke={c} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8 12h8M12 8v8"/><circle cx="12" cy="12" r="3" fill={c} stroke="none"/></svg>
+}
 function IcoBell() {
   return <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
 }
@@ -49,13 +54,13 @@ function IcoStats() {
   return <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
 }
 
-// Nav order: Home, Discover, My List, Chat, Profile
+// Nav order: Home, Discover, My List, Chat, Feed
 const MOBILE_TABS = [
   { id: 'home',     label: 'Home',    icon: IcoHome    },
   { id: 'discover', label: 'Discover',icon: IcoDiscover},
   { id: 'mylist',   label: 'My List', icon: IcoList    },
   { id: 'chat',     label: 'Chat',    icon: IcoChat    },
-  { id: 'profile',  label: 'Profile', icon: IcoProfile },
+  { id: 'feed',     label: 'Feed',    icon: IcoFeed    },
 ]
 
 const SIDEBAR_TABS = [
@@ -63,6 +68,7 @@ const SIDEBAR_TABS = [
   { id: 'chat',     label: 'Chat',    icon: IcoChat    },
   { id: 'mylist',   label: 'My List', icon: IcoList    },
   { id: 'discover', label: 'Discover',icon: IcoDiscover},
+  { id: 'feed',     label: 'Feed',    icon: IcoFeed    },
   { id: 'stats',    label: 'Stats',   icon: null       },
   { id: 'profile',  label: 'Profile', icon: IcoProfile },
 ]
@@ -1363,6 +1369,7 @@ export default function AppShell() {
       case 'stats':    return <Stats           onNavigate={onNavigate} />
       case 'discover': return <Discover        onNavigate={onNavigate} onOpenChatModal={openChatModal} onRecommend={() => setFabAction('recommend')} pendingRecOpen={pendingRecOpen} />
       case 'chat':     return <Chat            onNavigate={onNavigate} onOpenChatModal={openChatModal} onAddFriend={() => setFabAction('friend')} onOpenChatWithFriend={openChatWithFriend} initialFriendProfile={activeFriendProfile} onClearFriendProfile={() => setActiveFriendProfile(null)} />
+      case 'feed':     return <Feed            onNavigate={onNavigate} onOpenChatModal={openChatModal} />
       case 'profile':  return <Profile         onNavigate={onNavigate} onOpenChatModal={openChatModal} />
       case 'account':  return <AccountSettings onNavigate={onNavigate} />
       default:         return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} />
@@ -1490,7 +1497,7 @@ export default function AppShell() {
             onClick={() => setActiveTab('account')}
             style={{
               background: avatarBg,
-              border: (activeTab==='profile'||activeTab==='account') ? '2px solid var(--rt-amber)' : '2px solid transparent',
+              border: (activeTab==='feed'||activeTab==='account') ? '2px solid var(--rt-amber)' : '2px solid transparent',
               borderRadius: '50%', width: 32, height: 32,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer', fontFamily: 'var(--rt-font-display)',
@@ -1589,7 +1596,7 @@ export default function AppShell() {
       }}>
         <div style={{ display: 'flex' }}>
         {MOBILE_TABS.map(tab => {
-          const isActive = activeTab === tab.id || (tab.id === 'profile' && activeTab === 'account')
+          const isActive = activeTab === tab.id || (tab.id === 'feed' && activeTab === 'account')
           return (
             <button
               key={tab.id}

@@ -4,7 +4,7 @@ import { useBooksContext } from '../context/BooksContext'
 import { useSocialContext } from '../context/SocialContext'
 import { useChatContext } from '../context/ChatContext'
 import { useAuthContext } from '../context/AuthContext'
-import { avatarColour, avatarInitial, fmtDate, GENRE_COLOURS, loadGoal, saveGoal } from '../lib/utils'
+import { loadGoal, saveGoal, fmtDate, GENRE_COLOURS } from '../lib/utils'
 import CoverImage from '../components/books/CoverImage'
 import BookDetailPanel from '../components/books/BookDetailPanel'
 import AddBookModal from '../components/books/AddBookModal'
@@ -101,24 +101,27 @@ function FeedEngagementBar({ entryId, user, onOpenThread }) {
 export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile, onAddFriend, pendingReviewOpen }) {
   const { user } = useAuthContext()
   const { books, addBook, updateBook, deleteBook, findDuplicate } = useBooksContext()
-  const { friends, feed, recs, loaded: socialLoaded, myDisplayName, myAvatarUrl, sendFriendRequest, submitReport, blockedIds } = useSocialContext()
+  const { friends, myDisplayName, myAvatarUrl, sendFriendRequest, submitReport } = useSocialContext()
   const { chats, totalUnread, startOrOpenChat } = useChatContext()
 
   const [goal, setGoal]                     = useState(loadGoal)
   const [goalDraft, setGoalDraft]           = useState(String(loadGoal()))
   const [detailBook, setDetailBook]         = useState(null)
-  const [activeReview, setActiveReview]     = useState(null) // review thread sheet
+  const [activeReview, setActiveReview]     = useState(null)
   const [detailLocation, setDetailLocation] = useState(null)
   const [finishBook, setFinishBook]         = useState(null)
   const [editBook, setEditBook]             = useState(null)
-  const [reportTarget, setReportTarget]     = useState(null) // { userId, contentType, contentId }
+  const [reportTarget, setReportTarget]     = useState(null)
   const [addModal, setAddModal]             = useState(false)
   const [crCarouselIdx, setCrCarouselIdx]   = useState(0)
   const [toast, setToast]                   = useState(null)
-  const [feedLimit, setFeedLimit]           = useState(20)
   const [pendingMoment, setPendingMoment]   = useState(null)
-  const feedSentinelRef                     = useRef(null)
   const toastTimer                          = useRef(null)
+
+  // ── Journal state ──────────────────────────────────────────
+  const [journalFilter, setJournalFilter]   = useState('all')
+  const [journalEntries, setJournalEntries] = useState(null)
+  const [journalLoading, setJournalLoading] = useState(false)
 
   useEffect(() => {
     if (!toast) return
@@ -165,15 +168,56 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
       })
   }) // runs every render — ref check makes it a no-op when nothing is pending
 
-  // Infinite scroll — load more when sentinel comes into view
-  useEffect(() => {
-    if (!feedSentinelRef.current) return
-    const observer = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting) setFeedLimit(n => n + 10)
-    }, { threshold: 0.1 })
-    observer.observe(feedSentinelRef.current)
-    return () => observer.disconnect()
-  }, [feedSentinelRef.current])
+  // ── Load journal entries (own content) ────────────────────
+  useEffect(() => { if (user) loadJournal() }, [user])
+
+  async function loadJournal() {
+    if (!user) return
+    setJournalLoading(true)
+    // Own moments + reviews from feed_events
+    const { data: events } = await sb
+      .from('feed_events')
+      .select('id, event_type, book_ol_key, book_title, book_author, cover_id, cover_url, review_body, rating, moment_id, moment_type, moment_body, page_ref, spoiler_warning, visibility, created_at')
+      .eq('user_id', user.id)
+      .in('event_type', ['book_moment', 'posted_review', 'finished'])
+      .order('created_at', { ascending: false })
+      .limit(100)
+    // Own private notes from reading_entries
+    const { data: noteEntries } = await sb
+      .from('reading_entries')
+      .select('id, notes, date_finished, date_started, book_id, title_manual, author_manual')
+      .eq('user_id', user.id)
+      .not('notes', 'is', null)
+      .order('updated_at', { ascending: false })
+      .limit(50)
+    // Enrich notes with book info
+    const bookIds = (noteEntries || []).map(n => n.book_id).filter(Boolean)
+    let booksMap = {}
+    if (bookIds.length) {
+      const { data: bks } = await sb.from('books').select('id, title, author, cover_id, cover_url, ol_key').in('id', bookIds)
+      ;(bks || []).forEach(b => { booksMap[b.id] = b })
+    }
+    const notes = (noteEntries || []).map(n => {
+      const bk = booksMap[n.book_id] || {}
+      return {
+        _type:      'note',
+        id:         n.id,
+        noteBody:   n.notes,
+        bookTitle:  n.title_manual || bk.title  || '',
+        bookAuthor: n.author_manual || bk.author || '',
+        coverId:    bk.cover_id  || null,
+        coverUrl:   bk.cover_url || null,
+        olKey:      bk.ol_key    || null,
+        created_at: n.date_finished || n.date_started || null,
+      }
+    })
+    const combined = [
+      ...(events || []).map(e => ({ ...e, _type: e.event_type === 'book_moment' ? e.moment_type || 'moment' : 'review' })),
+      ...notes,
+    ].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+    setJournalEntries(combined)
+    setJournalLoading(false)
+  }
 
   const year     = new Date().getFullYear()
   const read     = books.filter(b => b.status === 'read')
@@ -181,11 +225,6 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
   const pct      = Math.min(100, Math.round((thisYear.length / Math.max(goal, 1)) * 100))
   const reading  = books.filter(b => b.status === 'reading')
     .sort((a, b) => new Date(b.dateStarted || b.added || 0) - new Date(a.dateStarted || a.added || 0))
-  const pendingRecs    = (recs || []).filter(r => r.status === 'pending')
-  const fiveStarBooks  = read.filter(b => b.rating === 5)
-
-  // Friends' user IDs — for filtering feed to friends only, not self
-  const friendIds = new Set((friends || []).map(f => f.userId))
 
   // Genre pie data
   const genreMap = {}
@@ -208,36 +247,12 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
     })
   }
 
-  // Feed: moments pass through unfiltered; reviews deduplicate (prefer posted_review over finished)
-  const reviewEvents = (() => {
-    const blocked = new Set(blockedIds || [])
-    const moments = (feed || []).filter(ev =>
-      friendIds.has(ev.user_id) && ev.event_type === 'book_moment' && !blocked.has(ev.user_id)
-    )
-    const reviews = (feed || []).filter(ev =>
-      friendIds.has(ev.user_id) &&
-      (ev.event_type === 'posted_review' || ev.event_type === 'finished') &&
-      !blocked.has(ev.user_id)
-    )
-    const seen = new Map()
-    for (const ev of reviews) {
-      const key = `${ev.user_id}__${ev.book_ol_key}`
-      const existing = seen.get(key)
-      if (!existing) { seen.set(key, ev); continue }
-      if (ev.event_type === 'posted_review') seen.set(key, ev)
-    }
-    const deduped = [...seen.values()]
-    return [...moments, ...deduped].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-  })()
-
   function findExistingChat(olKey) {
     if (!olKey || !chats) return null
     return chats.find(c => c.bookOlKey === olKey) || null
   }
 
   function openDetail(book, location) { setDetailBook(book); setDetailLocation(location) }
-
-  const showGenreBlock = genreEntries.length > 0
 
   return (
     <div className="rt-page" style={{ maxWidth: 760, margin: '0 auto' }}>
@@ -374,160 +389,197 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
         </>
       )}
 
-      {/* ── Friend's Feed ── */}
-      {user && (
-        <div style={{ marginBottom: '1.25rem' }}>
-          <div className="rt-section-heading" style={{ marginBottom: '0.85rem' }}>Friend's Feed</div>
-          {!socialLoaded ? (
-            <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>Loading…</div>
-          ) : reviewEvents.length === 0 ? (
-            <div className="rt-card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
-              <div style={{ marginBottom: '0.5rem' }}><IcoOpenBook size={36} color="var(--rt-t3)" /></div>
-              <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.25rem' }}>No posts yet</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)' }}>
-                <button onClick={() => onAddFriend?.()} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--rt-amber)', fontWeight: 600, fontSize: 'inherit', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>Add friends</button>
-                {' '}to see their posts here.
-              </div>
-            </div>
-          ) : (
-            <>
-            {reviewEvents.slice(0, feedLimit).map(ev => {
-              const profile     = ev.profiles || null
-              const username    = profile?.username    || profile?.display_name || 'friend'
-              const displayName = profile?.display_name || profile?.username    || 'friend'
-              const avatarUrl   = profile?.avatar_url   || null
-              const colour      = avatarColour(ev.user_id)
-              const init        = avatarInitial(displayName)
-              const rating      = ev.rating || 0
-              const stars       = rating ? '★'.repeat(rating) + '☆'.repeat(5 - rating) : ''
-              const reviewText  = ev.review_body || ''
-              const coverId     = ev.cover_id || null
-              const olKey       = ev.book_ol_key || null
-              const coverUrl    = ev.cover_url || null
-              const isDnfEvent  = ev.status === 'dnf'
-              const isSpoiler   = !!ev.spoiler_warning
-              const dateStr     = ev.created_at ? new Date(ev.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''
-              const cardStyle = { background: 'var(--rt-white)', border: '1px solid var(--rt-border)', borderRadius: 12, padding: '0.75rem', marginBottom: '0.65rem' }
-              const coverEl = (
-                <div style={{ width: 80, height: 116, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.13)' }}>
-                  <CoverImage coverId={coverId} olKey={olKey} coverUrl={coverUrl} title={ev.book_title || ''} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                </div>
-              )
-              const avatarEl = (
-                <div style={{ width: 18, height: 18, borderRadius: '50%', background: colour, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.5rem', fontWeight: 700, color: '#fff', flexShrink: 0, overflow: 'hidden' }}>
-                  {avatarUrl ? <img src={avatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : init}
-                </div>
-              )
-              const usernameEl = (
-                <span
-                  onClick={e => { e.stopPropagation(); onViewFriendProfile?.({ userId: ev.user_id, displayName, username, avatarUrl }) }}
-                  style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--rt-t2)', cursor: onViewFriendProfile ? 'pointer' : 'default', textDecoration: onViewFriendProfile ? 'underline' : 'none', textUnderlineOffset: 2 }}>
-                  {displayName}
-                </span>
-              )
+      {/* ── Your Journal ── */}
+      {user && (() => {
+        const FILTERS = [
+          { id: 'all',      label: 'All'      },
+          { id: 'review',   label: 'Reviews'  },
+          { id: 'quote',    label: 'Quotes'   },
+          { id: 'moment',   label: 'Moments'  },
+          { id: 'note',     label: 'Notes'    },
+        ]
+        const pillStyle = (active) => ({
+          padding: '0.3rem 0.85rem', borderRadius: 99, fontSize: '0.75rem', fontWeight: 600,
+          border: `1.5px solid ${active ? 'var(--rt-navy)' : 'var(--rt-border-md)'}`,
+          background: active ? 'var(--rt-navy)' : 'var(--rt-white)',
+          color: active ? '#fff' : 'var(--rt-t2)',
+          cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s',
+        })
+        const visibilityBadge = (vis) => {
+          if (vis === 'public')  return { label: 'Public',  bg: '#e1f5ee', col: '#085041' }
+          if (vis === 'friends') return { label: 'Friends', bg: 'var(--rt-amber-pale)', col: 'var(--rt-amber-text)' }
+          return null
+        }
+        const filtered = (journalEntries || []).filter(e => {
+          if (journalFilter === 'all')    return true
+          if (journalFilter === 'review') return e._type === 'review'
+          if (journalFilter === 'quote')  return e._type === 'quote'
+          if (journalFilter === 'moment') return e._type === 'moment' || e._type === 'update'
+          if (journalFilter === 'note')   return e._type === 'note'
+          return true
+        })
+        const cardStyle = { background: 'var(--rt-white)', border: '1px solid var(--rt-border)', borderRadius: 12, padding: '0.75rem', marginBottom: '0.65rem' }
 
-              // ── Moment card ──────────────────────────────
-              if (ev.event_type === 'book_moment' && ev.moment_id) {
-                const isQuote  = ev.moment_type === 'quote'
-                const barCol   = isQuote ? 'var(--rt-amber)' : 'var(--rt-teal)'
-                const badgeBg  = isQuote ? 'var(--rt-amber-pale)' : '#e1f5ee'
-                const badgeCol = isQuote ? 'var(--rt-amber-text)' : '#085041'
-                const badgeTxt = isQuote ? 'Quote' : 'Reading update'
-                const openThread = () => setActiveReview({ entryId: ev.moment_id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, coverUrl, olKey, reviewBody: ev.moment_body, rating: null, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })
+        return (
+          <div style={{ marginBottom: '1.25rem' }}>
+            {/* Section heading */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+              <div className="rt-section-heading" style={{ margin: 0 }}>Your Journal</div>
+              <button
+                onClick={() => setPendingMoment({ book: null, page: null, total: null })}
+                style={{ background: 'var(--rt-amber-pale)', border: 'none', borderRadius: 99, padding: '0.25rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--rt-amber)', cursor: 'pointer' }}
+              >
+                + Add entry
+              </button>
+            </div>
+
+            {/* Filter pills */}
+            <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.5rem', marginBottom: '0.85rem', scrollbarWidth: 'none' }}>
+              {FILTERS.map(f => (
+                <button key={f.id} onClick={() => setJournalFilter(f.id)} style={pillStyle(journalFilter === f.id)}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Entries */}
+            {journalLoading ? (
+              <div style={{ padding: '1.5rem', textAlign: 'center', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>Loading…</div>
+            ) : filtered.length === 0 ? (
+              <div className="rt-card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
+                <div style={{ marginBottom: '0.5rem' }}><IcoOpenBook size={36} color="var(--rt-t3)" /></div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.25rem' }}>
+                  {journalFilter === 'all' ? 'Your journal is empty' : `No ${journalFilter}s yet`}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)', marginBottom: '1rem', lineHeight: 1.5 }}>
+                  {journalFilter === 'note'
+                    ? 'Private notes you add to books will appear here.'
+                    : 'Share a review, quote, or reading moment to get started.'}
+                </div>
+                {journalFilter !== 'note' && (
+                  <button
+                    onClick={() => setPendingMoment({ book: null, page: null, total: null })}
+                    style={{ background: 'var(--rt-navy)', color: '#fff', border: 'none', borderRadius: 'var(--rt-r3)', padding: '0.55rem 1.25rem', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Add your first entry
+                  </button>
+                )}
+              </div>
+            ) : (
+              filtered.map(ev => {
+                const dateStr = ev.created_at
+                  ? new Date(ev.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                  : ''
+
+                // ── Note card ────────────────────────────────
+                if (ev._type === 'note') {
+                  return (
+                    <div key={ev.id} style={cardStyle}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.5rem' }}>
+                        <span style={{ background: 'var(--rt-surface)', color: 'var(--rt-t2)', borderRadius: 99, padding: '0.15em 0.55em', fontSize: '0.65rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                          🔒 Private note
+                        </span>
+                        <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginLeft: 'auto' }}>{dateStr}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'flex-start' }}>
+                        {(ev.coverId || ev.olKey || ev.coverUrl) && (
+                          <div style={{ width: 44, height: 64, borderRadius: 4, overflow: 'hidden', flexShrink: 0, boxShadow: '0 2px 6px rgba(26,39,68,0.12)' }}>
+                            <CoverImage coverId={ev.coverId} olKey={ev.olKey} coverUrl={ev.coverUrl} title={ev.bookTitle || ''} size="S" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          </div>
+                        )}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          {ev.bookTitle && <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.82rem', fontWeight: 700, color: 'var(--rt-navy)', marginBottom: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.bookTitle}</div>}
+                          <p style={{ fontSize: '0.82rem', color: 'var(--rt-navy)', lineHeight: 1.6, margin: 0, borderLeft: '3px solid var(--rt-border-md)', paddingLeft: '0.5rem' }}>
+                            {ev.noteBody}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                }
+
+                // ── Quote / Moment card ──────────────────────
+                if (ev.event_type === 'book_moment' && ev.moment_id) {
+                  const isQuote  = ev._type === 'quote'
+                  const barCol   = isQuote ? 'var(--rt-amber)' : 'var(--rt-teal)'
+                  const badgeBg  = isQuote ? 'var(--rt-amber-pale)' : '#e1f5ee'
+                  const badgeCol = isQuote ? 'var(--rt-amber-text)' : '#085041'
+                  const badgeTxt = isQuote ? 'Quote' : 'Reading update'
+                  const vbadge   = visibilityBadge(ev.visibility)
+                  const openThread = () => setActiveReview({
+                    entryId: ev.moment_id, bookTitle: ev.book_title, bookAuthor: ev.book_author,
+                    coverId: ev.cover_id, coverUrl: ev.cover_url, olKey: ev.book_ol_key,
+                    reviewBody: ev.moment_body, rating: null, reviewedAt: ev.created_at,
+                    reviewer: { userId: user.id, displayName: myDisplayName, avatarUrl: myAvatarUrl },
+                  })
+                  return (
+                    <div key={ev.id} style={cardStyle}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
+                        <span style={{ background: badgeBg, color: badgeCol, borderRadius: 99, padding: '0.15em 0.55em', fontSize: '0.65rem', fontWeight: 700 }}>
+                          {badgeTxt}{ev.page_ref ? ` · ${ev.page_ref}%` : ''}
+                        </span>
+                        {vbadge && <span style={{ background: vbadge.bg, color: vbadge.col, borderRadius: 99, padding: '0.15em 0.55em', fontSize: '0.65rem', fontWeight: 700 }}>{vbadge.label}</span>}
+                        <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginLeft: 'auto' }}>{dateStr}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: '0.6rem' }}>
+                        <div style={{ width: 56, height: 82, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.13)' }}>
+                          <CoverImage coverId={ev.cover_id} olKey={ev.book_ol_key} coverUrl={ev.cover_url} title={ev.book_title || ''} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.15rem' }}>{ev.book_title || ''}</div>
+                          {ev.book_author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.4rem' }}>{ev.book_author}</div>}
+                          <SpoilerBody isSpoiler={!!ev.spoiler_warning} isItalic={isQuote} barCol={barCol} onClick={openThread}>
+                            {ev.moment_body}
+                          </SpoilerBody>
+                        </div>
+                      </div>
+                      <div style={{ height: '0.5px', background: 'var(--rt-border)', marginBottom: '0.5rem' }} />
+                      <FeedEngagementBar entryId={ev.moment_id} user={user} onOpenThread={openThread} />
+                    </div>
+                  )
+                }
+
+                // ── Review card ──────────────────────────────
+                const rating     = ev.rating || 0
+                const stars      = rating ? '★'.repeat(rating) + '☆'.repeat(5 - rating) : ''
+                const reviewText = ev.review_body || ''
+                const vbadge     = visibilityBadge(ev.visibility)
+                if (!reviewText) return null
+                const openReview = () => setActiveReview({
+                  entryId: ev.id, bookTitle: ev.book_title, bookAuthor: ev.book_author,
+                  coverId: ev.cover_id, coverUrl: ev.cover_url, olKey: ev.book_ol_key,
+                  reviewBody: reviewText, rating, reviewedAt: ev.created_at,
+                  reviewer: { userId: user.id, displayName: myDisplayName, avatarUrl: myAvatarUrl },
+                })
                 return (
                   <div key={ev.id} style={cardStyle}>
-                    {/* Top row: badge · avatar username · date · report */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
-                      <span style={{ background: badgeBg, color: badgeCol, borderRadius: 99, padding: '0.15em 0.55em', fontSize: '0.65rem', fontWeight: 700 }}>
-                        {badgeTxt}{ev.page_ref ? ` · ${ev.page_ref}%` : ''}
-                      </span>
-                      <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)' }}>·</span>
-                      {avatarEl}
-                      {usernameEl}
+                      {stars && <span style={{ fontSize: '0.82rem', color: 'var(--rt-amber)', letterSpacing: '0.5px' }}>{stars}</span>}
+                      {vbadge && <span style={{ background: vbadge.bg, color: vbadge.col, borderRadius: 99, padding: '0.15em 0.55em', fontSize: '0.65rem', fontWeight: 700 }}>{vbadge.label}</span>}
                       <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginLeft: 'auto' }}>{dateStr}</span>
-                      <button
-                        onClick={e => { e.stopPropagation(); setReportTarget({ reportedUserId: ev.user_id, contentType: 'feed_event', contentId: ev.id }) }}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rt-t3)', fontSize: '1rem', padding: '0 0.1rem', lineHeight: 1 }}
-                        title="Report"
-                      >⋯</button>
                     </div>
-                    {/* Book row: cover centred with meta */}
-                    <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: '0.6rem' }}>
-                      {coverEl}
-                      <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: '0.6rem' }}
+                      onClick={() => openDetail({ id: ev.id, title: ev.book_title, author: ev.book_author, coverId: ev.cover_id, coverUrl: ev.cover_url, olKey: ev.book_ol_key }, 'home-journal')}>
+                      <div style={{ width: 56, height: 82, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.13)', cursor: 'pointer' }}>
+                        <CoverImage coverId={ev.cover_id} olKey={ev.book_ol_key} coverUrl={ev.cover_url} title={ev.book_title || ''} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
                         <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.15rem' }}>{ev.book_title || ''}</div>
-                        {ev.book_author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>{ev.book_author}</div>}
-                        <SpoilerBody isSpoiler={isSpoiler} isItalic={isQuote} barCol={barCol} onClick={openThread}>
-                          {ev.moment_body}
+                        {ev.book_author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.4rem' }}>{ev.book_author}</div>}
+                        <SpoilerBody isSpoiler={!!ev.spoiler_warning} barCol="var(--rt-navy)" onClick={e => { e.stopPropagation(); openReview() }}>
+                          {reviewText}
                         </SpoilerBody>
                       </div>
                     </div>
                     <div style={{ height: '0.5px', background: 'var(--rt-border)', marginBottom: '0.5rem' }} />
-                    <FeedEngagementBar entryId={ev.moment_id} user={user} onOpenThread={openThread} />
+                    <FeedEngagementBar entryId={ev.id} user={user} onOpenThread={openReview} />
                   </div>
                 )
-              }
-
-              // ── Review / DNF card ────────────────────────
-              const feedBook = {
-                id: ev.id, title: ev.book_title || 'Unknown book',
-                author: ev.book_author || '', coverId, coverUrl, olKey,
-                status: null, rating, reviewBody: reviewText,
-                friendName: displayName, friendUserId: ev.user_id,
-              }
-
-              if (!reviewText && !isDnfEvent) return null
-
-              const openReview = () => setActiveReview({ entryId: ev.id, bookTitle: ev.book_title, bookAuthor: ev.book_author, coverId, coverUrl, olKey, reviewBody: reviewText, rating, reviewedAt: ev.created_at, reviewer: { userId: ev.user_id, displayName, username, avatarUrl } })
-
-              return (
-                <div key={ev.id} style={cardStyle}>
-                  {/* Top row: stars/dnf · avatar username · date · report */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
-                    {isDnfEvent
-                      ? <span style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', background: '#fee2e2', color: '#991b1b', borderRadius: 4, padding: '0.15em 0.5em' }}>Did not finish</span>
-                      : stars && <span style={{ fontSize: '0.82rem', color: 'var(--rt-amber)', letterSpacing: '0.5px' }}>{stars}</span>
-                    }
-                    <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)' }}>·</span>
-                    {avatarEl}
-                    {usernameEl}
-                    <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginLeft: 'auto' }}>{dateStr}</span>
-                    <button
-                      onClick={e => { e.stopPropagation(); setReportTarget({ reportedUserId: ev.user_id, contentType: 'feed_event', contentId: ev.id }) }}
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rt-t3)', fontSize: '1rem', padding: '0 0.1rem', lineHeight: 1 }}
-                      title="Report"
-                    >⋯</button>
-                  </div>
-                  {/* Book row: cover centred with meta */}
-                  <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: reviewText ? '0.6rem' : 0 }}
-                    onClick={() => openDetail(feedBook, 'home-feed')}>
-                    {coverEl}
-                    <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
-                      <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.15rem' }}>{ev.book_title || 'Unknown book'}</div>
-                      {ev.book_author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>{ev.book_author}</div>}
-                      {reviewText && (
-                        <SpoilerBody isSpoiler={isSpoiler} barCol="var(--rt-navy)" onClick={e => { e.stopPropagation(); openReview() }}>
-                          {reviewText}
-                        </SpoilerBody>
-                      )}
-                    </div>
-                  </div>
-                  {reviewText && (
-                    <>
-                      <div style={{ height: '0.5px', background: 'var(--rt-border)', marginBottom: '0.5rem' }} />
-                      <FeedEngagementBar entryId={ev.id} user={user} onOpenThread={openReview} />
-                    </>
-                  )}
-                </div>
-              )
-            })}
-            {reviewEvents.length > feedLimit && (
-              <div ref={feedSentinelRef} style={{ height: 40 }} />
+              })
             )}
-            </>
-          )}
-        </div>
-      )}
+          </div>
+        )
+      })()}
 
       {/* ── Modals ── */}
       {activeReview && (
