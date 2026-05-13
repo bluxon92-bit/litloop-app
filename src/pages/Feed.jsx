@@ -870,10 +870,19 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
     >
 
       {/* ── Fixed header ── */}
-      <div style={{
+      <style>{`
+        .feed-fixed-header {
+          left: 50%;
+        }
+        @media (min-width: 768px) {
+          .feed-fixed-header {
+            left: calc(50% + 110px);
+          }
+        }
+      `}</style>
+      <div className="feed-fixed-header" style={{
         position: 'fixed',
         top: 'calc(env(safe-area-inset-top, 0px) + 56px)',
-        left: 'calc(50% + 110px)',
         transform: 'translateX(-50%)',
         width: '100%',
         maxWidth: 760,
