@@ -122,6 +122,8 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
   const [journalFilter, setJournalFilter]   = useState('all')
   const [journalEntries, setJournalEntries] = useState(null)
   const [journalLoading, setJournalLoading] = useState(false)
+  const [journalHeaderFixed, setJournalHeaderFixed] = useState(false)
+  const journalSentinelRef = useRef(null)
 
   useEffect(() => {
     if (!toast) return
@@ -170,6 +172,17 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
 
   // ── Load journal entries (own content) ────────────────────
   useEffect(() => { if (user) loadJournal() }, [user])
+
+  // Fix journal header when sentinel scrolls out of view
+  useEffect(() => {
+    if (!journalSentinelRef.current) return
+    const observer = new IntersectionObserver(
+      ([entry]) => setJournalHeaderFixed(!entry.isIntersecting),
+      { rootMargin: '-56px 0px 0px 0px', threshold: 0 }
+    )
+    observer.observe(journalSentinelRef.current)
+    return () => observer.disconnect()
+  }, [journalSentinelRef.current])
 
   async function loadJournal() {
     if (!user) return
@@ -432,9 +445,32 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
 
         return (
           <div style={{ marginBottom: '1.25rem' }}>
-            {/* Section heading + filter pills — sticky */}
-            <div style={{ position: 'sticky', top: 0, zIndex: 5, background: 'var(--rt-cream)', paddingBottom: '0.5rem', marginBottom: '0.35rem' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', paddingTop: '0.25rem' }}>
+            {/* Sentinel — watched by IntersectionObserver */}
+            <div ref={journalSentinelRef} style={{ height: 1, marginBottom: 0 }} />
+
+            {/* Section heading + filter pills */}
+            {/* When sentinel is out of view (scrolled past), renders fixed */}
+            <div style={journalHeaderFixed ? {
+              position: 'fixed',
+              top: 'calc(env(safe-area-inset-top, 0px) + 56px)',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              width: '100%',
+              maxWidth: 760,
+              zIndex: 50,
+              background: 'var(--rt-cream)',
+              paddingLeft: 'var(--rt-page-px, 1rem)',
+              paddingRight: 'var(--rt-page-px, 1rem)',
+              paddingBottom: '0.5rem',
+              paddingTop: '0.5rem',
+              boxSizing: 'border-box',
+              borderBottom: '1px solid var(--rt-border)',
+            } : {
+              background: 'var(--rt-cream)',
+              paddingBottom: '0.5rem',
+              marginBottom: '0.35rem',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
                 <div className="rt-section-heading" style={{ margin: 0 }}>Your Journal</div>
                 <button
                   onClick={() => setPendingMoment({ book: null, page: null, total: null })}
@@ -443,8 +479,6 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
                   + Add entry
                 </button>
               </div>
-
-              {/* Filter pills */}
               <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem', scrollbarWidth: 'none' }}>
                 {FILTERS.map(f => (
                   <button key={f.id} onClick={() => setJournalFilter(f.id)} style={pillStyle(journalFilter === f.id)}>
@@ -453,6 +487,9 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
                 ))}
               </div>
             </div>
+
+            {/* Spacer when fixed so content doesn't jump under the header */}
+            {journalHeaderFixed && <div style={{ height: 90 }} />
 
             {/* Entries */}
             {journalLoading ? (

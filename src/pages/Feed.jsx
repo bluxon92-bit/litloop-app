@@ -195,6 +195,7 @@ function FeedCard({ ev, user, isFriend, isFollowing, onOpenThread, onOpenDetail,
   const coverId     = ev.cover_id    || null
   const olKey       = ev.book_ol_key || null
   const coverUrl    = ev.cover_url   || null
+  const hasCover    = coverId || olKey || coverUrl
   const rating      = ev.rating      || 0
   const stars       = rating ? '★'.repeat(rating) + '☆'.repeat(5 - rating) : ''
   const reviewText  = ev.review_body || ''
@@ -220,10 +221,12 @@ function FeedCard({ ev, user, isFriend, isFollowing, onOpenThread, onOpenDetail,
     ? <span style={{ fontSize: '0.6rem', background: '#e1f5ee', color: '#085041', borderRadius: 99, padding: '0.1em 0.5em', fontWeight: 600 }}>Following</span>
     : null
 
-  const coverEl = (
+  const coverEl = hasCover ? (
     <div style={{ width: 56, height: 82, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.13)' }}>
       <CoverImage coverId={coverId} olKey={olKey} coverUrl={coverUrl} title={ev.book_title || ''} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
     </div>
+  ) : (
+    <div style={{ width: 56, height: 82, borderRadius: 6, flexShrink: 0, background: 'var(--rt-surface)' }} />
   )
 
   // ── Moment / Quote card ──────────────────────────────────────
@@ -339,7 +342,9 @@ function SearchDropdown({ results, onSelectUser, onSelectBook, onClose }) {
               onMouseLeave={e => e.currentTarget.style.background = ''}
             >
               <div style={{ width: 28, height: 42, borderRadius: 4, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)' }}>
-                <CoverImage coverId={b.cover_id} olKey={b.ol_key} coverUrl={b.cover_url} title={b.title} size="S" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                {(b.cover_id || b.ol_key || b.cover_url) && (
+                  <CoverImage coverId={b.cover_id} olKey={b.ol_key} coverUrl={b.cover_url} title={b.title} size="S" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                )}
               </div>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: '0.85rem', fontWeight: 600, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.title}</div>
@@ -428,12 +433,29 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
     setFriendFeed([...moments, ...seen.values()].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)))
 
     // Following feed — from public_reading_events view
+    // Exclude friends (they appear in Friends tab already)
+    // Deduplicate posted_review vs finished for same user+book
     const { data: followData } = await sb
       .from('public_reading_events')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(50)
-    setFollowingFeed((followData || []).filter(ev => !blocked.has(ev.user_id)))
+      .limit(100)
+
+    const followFiltered = (followData || [])
+      .filter(ev => !blocked.has(ev.user_id) && !friendIds.has(ev.user_id))
+
+    // Deduplicate: prefer posted_review over finished for same user+book
+    const followMoments = followFiltered.filter(ev => ev.event_type === 'book_moment')
+    const followReviews = followFiltered.filter(ev => ev.event_type === 'posted_review' || ev.event_type === 'finished')
+    const followSeen = new Map()
+    for (const ev of followReviews) {
+      const key = `${ev.user_id}__${ev.book_ol_key}`
+      const existing = followSeen.get(key)
+      if (!existing || ev.event_type === 'posted_review') followSeen.set(key, ev)
+    }
+    const deduped = [...followMoments, ...followSeen.values()]
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    setFollowingFeed(deduped)
 
     setLoading(false)
   }
@@ -540,12 +562,17 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
   const allFeedItems = (() => {
     if (feedFilter === 'friends')   return friendFeed
     if (feedFilter === 'following') return followingFeed
-    if (feedFilter === 'suggested') return [] // suggested tab shows people cards instead
-    // All: friends first within same time window, then following
+    if (feedFilter === 'suggested') return []
+    // All: merge friends + non-friend following, deduplicate by event id
+    const seenIds = new Set()
     const combined = [
       ...friendFeed.map(ev => ({ ...ev, _tier: 'friend' })),
       ...followingFeed.filter(ev => !friendIds.has(ev.user_id)).map(ev => ({ ...ev, _tier: 'following' })),
-    ]
+    ].filter(ev => {
+      if (seenIds.has(ev.id)) return false
+      seenIds.add(ev.id)
+      return true
+    })
     return combined.sort((a, b) => {
       const timeDiff = new Date(b.created_at) - new Date(a.created_at)
       // Within 24h, friends float to top
@@ -582,12 +609,21 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
       style={{ maxWidth: 760, margin: '0 auto', position: 'relative' }}
     >
 
-      {/* ── Collapsing header ── */}
+      {/* ── Fixed header ── */}
       <div style={{
-        position: 'sticky', top: 0, zIndex: 10,
+        position: 'fixed',
+        top: 'calc(env(safe-area-inset-top, 0px) + 56px)',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '100%',
+        maxWidth: 760,
+        zIndex: 50,
         background: 'var(--rt-cream)',
-        paddingBottom: '0.75rem',
-        transition: 'all 0.2s',
+        paddingLeft: 'var(--rt-page-px, 1rem)',
+        paddingRight: 'var(--rt-page-px, 1rem)',
+        paddingBottom: '0.5rem',
+        boxSizing: 'border-box',
+        borderBottom: '1px solid var(--rt-border)',
       }}>
         {/* Resting state — full bio visible */}
         {!collapsed && (
@@ -675,8 +711,8 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
         </div>
       </div>
 
-      {/* ── Feed content ── */}
-      <div style={{ paddingTop: '0.75rem', paddingBottom: '4rem' }}>
+      {/* ── Feed content ── pushes below fixed header */}
+      <div style={{ paddingTop: collapsed ? '120px' : '200px', paddingBottom: '4rem', transition: 'padding-top 0.2s' }}>
 
         {/* Suggested — people cards, not a post feed */}
         {feedFilter === 'suggested' && (
