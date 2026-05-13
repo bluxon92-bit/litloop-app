@@ -14,6 +14,35 @@ import { IcoOpenBook } from '../components/icons'
 import MomentComposer from '../components/MomentComposer'
 import ReportSheet from '../components/ReportSheet'
 
+// ── Persistent journal cache ───────────────────────────────────
+const JOURNAL_CACHE_KEY = 'litloop_journal_'
+const JOURNAL_CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
+function readJournalCache(userId) {
+  try {
+    const raw = localStorage.getItem(JOURNAL_CACHE_KEY + userId)
+    if (!raw) return null
+    const { data, ts } = JSON.parse(raw)
+    if (Date.now() - ts > JOURNAL_CACHE_TTL) { localStorage.removeItem(JOURNAL_CACHE_KEY + userId); return null }
+    return data
+  } catch { return null }
+}
+
+function writeJournalCache(userId, data) {
+  try {
+    localStorage.setItem(JOURNAL_CACHE_KEY + userId, JSON.stringify({ data, ts: Date.now() }))
+  } catch (e) {
+    if (e.name === 'QuotaExceededError') {
+      try { localStorage.removeItem(JOURNAL_CACHE_KEY + userId); localStorage.setItem(JOURNAL_CACHE_KEY + userId, JSON.stringify({ data, ts: Date.now() })) }
+      catch { /* ignore */ }
+    }
+  }
+}
+
+function invalidateJournalCache(userId) {
+  try { localStorage.removeItem(JOURNAL_CACHE_KEY + userId) } catch { /* ignore */ }
+}
+
 // ── Engagement bar — likes + comments ─────────────────────────
 function SpoilerBody({ isSpoiler, isItalic, barCol = 'var(--rt-navy)', onClick, children }) {
   const [revealed, setRevealed] = React.useState(false)
@@ -186,6 +215,9 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
 
   async function loadJournal() {
     if (!user) return
+    // Serve from localStorage cache if fresh
+    const cached = readJournalCache(user.id)
+    if (cached) { setJournalEntries(cached); return }
     setJournalLoading(true)
     // Own moments + reviews from feed_events
     const { data: events } = await sb
@@ -238,6 +270,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
       ...moments.map(e => ({ ...e, _type: e.moment_type || 'moment' })),
       ...notes,
     ].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+    writeJournalCache(user.id, combined)
     setJournalEntries(combined)
     setJournalLoading(false)
   }
@@ -572,7 +605,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
                       </div>
                       <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: '0.6rem' }}>
                         <div style={{ width: 56, height: 82, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.13)' }}>
-                          <CoverImage coverId={ev.cover_id} olKey={ev.book_ol_key} coverUrl={ev.cover_url} title={ev.book_title || ''} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          <CoverImage coverId={ev.cover_id} olKey={null} coverUrl={ev.cover_url} title={ev.book_title || ''} size="M" lazy={true} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.15rem' }}>{ev.book_title || ''}</div>
@@ -610,7 +643,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
                     <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: '0.6rem' }}
                       onClick={() => openDetail({ id: ev.id, title: ev.book_title, author: ev.book_author, coverId: ev.cover_id, coverUrl: ev.cover_url, olKey: ev.book_ol_key }, 'home-journal')}>
                       <div style={{ width: 56, height: 82, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.13)', cursor: 'pointer' }}>
-                        <CoverImage coverId={ev.cover_id} olKey={ev.book_ol_key} coverUrl={ev.cover_url} title={ev.book_title || ''} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <CoverImage coverId={ev.cover_id} olKey={null} coverUrl={ev.cover_url} title={ev.book_title || ''} size="M" lazy={true} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
                         <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: '0.15rem' }}>{ev.book_title || ''}</div>
@@ -761,7 +794,12 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
           prefilledType="update"
           prefilledPageRef={pendingMoment.pct || pendingMoment.page || null}
           onClose={() => setPendingMoment(null)}
-          onPosted={() => { setPendingMoment(null); loadSocialData() }}
+          onPosted={() => {
+            setPendingMoment(null)
+            invalidateJournalCache(user.id)
+            loadJournal()
+            loadSocialData()
+          }}
         />
       )}
     </div>

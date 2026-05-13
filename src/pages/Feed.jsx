@@ -8,6 +8,202 @@ import { avatarColour, avatarInitial, timeAgo } from '../lib/utils'
 import CoverImage from '../components/books/CoverImage'
 import ReviewThreadSheet from '../components/ReviewThreadSheet'
 import BookDetailPanel from '../components/books/BookDetailPanel'
+import { ModalShell } from '../components/books/BookSheet'
+import { uploadCoverToSupabase } from '../lib/coverCache'
+
+// ── Background cover upgrader ──────────────────────────────────
+// Runs after feed loads. For events missing cover_url but having coverId+olKey,
+// uploads the OL cover to Supabase Storage and patches feed_events in the DB.
+// Next time the feed loads, cover_url is populated — no storage.list needed.
+const upgradedCoverIds = new Set() // session-level, avoid re-uploading
+
+async function upgradeCovers(events) {
+  const candidates = (events || []).filter(ev =>
+    ev.cover_id && ev.book_ol_key && !ev.cover_url && !upgradedCoverIds.has(ev.cover_id)
+  )
+  // Process one at a time to avoid hammering storage
+  for (const ev of candidates.slice(0, 5)) {
+    upgradedCoverIds.add(ev.cover_id)
+    try {
+      const url = await uploadCoverToSupabase(ev.cover_id, ev.book_ol_key)
+      if (url) {
+        // Patch the feed_events row so future loads have cover_url
+        await sb.from('feed_events')
+          .update({ cover_url: url })
+          .eq('cover_id', ev.cover_id)
+          .is('cover_url', null)
+        // Also invalidate the following cache so next load gets the updated URL
+        clearCached('following')
+      }
+    } catch { /* ignore individual failures */ }
+  }
+}
+
+// ── Persistent cache — survives page refresh and app restarts ──
+// Stores feed data in localStorage with TTL.
+// Falls back to in-memory if localStorage unavailable (private browsing).
+const CACHE_TTL_MS     = 5 * 60 * 1000  // 5 minutes for cross-session
+const CACHE_PREFIX     = 'litloop_feed_'
+
+function readCache(key) {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + key)
+    if (!raw) return null
+    const { data, ts } = JSON.parse(raw)
+    if (Date.now() - ts > CACHE_TTL_MS) { localStorage.removeItem(CACHE_PREFIX + key); return null }
+    return data
+  } catch { return null }
+}
+
+function writeCache(key, data) {
+  try {
+    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ data, ts: Date.now() }))
+  } catch (e) {
+    // localStorage full or unavailable — fail silently
+    if (e.name === 'QuotaExceededError') {
+      // Clear old feed caches to make space
+      try {
+        ['following', 'recentlyActive', 'suggested'].forEach(k => localStorage.removeItem(CACHE_PREFIX + k))
+        localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ data, ts: Date.now() }))
+      } catch { /* ignore */ }
+    }
+  }
+}
+
+function invalidateCache(key) {
+  try { localStorage.removeItem(CACHE_PREFIX + key) } catch { /* ignore */ }
+}
+
+// In-memory fallback for within-session use
+const memCache = {
+  following:      { data: null, ts: 0 },
+  recentlyActive: { data: null, ts: 0 },
+  suggested:      { data: null, ts: 0 },
+}
+
+function getCached(key) {
+  // Try localStorage first (cross-session)
+  const stored = readCache(key)
+  if (stored) return stored
+  // Fall back to memory cache (within-session)
+  const mem = memCache[key]
+  if (mem.data && (Date.now() - mem.ts) < CACHE_TTL_MS) return mem.data
+  return null
+}
+
+function setCached(key, data) {
+  memCache[key] = { data, ts: Date.now() }
+  writeCache(key, data)
+}
+
+function clearCached(key) {
+  memCache[key] = { data: null, ts: 0 }
+  invalidateCache(key)
+}
+
+// ── User profile sheet (for non-friend public profiles) ───────
+function UserProfileSheet({ userId, user, followingIds, onFollowChange, onClose }) {
+  const [profile, setProfile]   = useState(null)
+  const [posts, setPosts]       = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [followerCount, setFollowerCount] = useState(null)
+
+  useEffect(() => {
+    if (!userId) return
+    setLoading(true)
+    Promise.all([
+      sb.from('profiles').select('id, username, display_name, avatar_url, bio').eq('id', userId).single(),
+      sb.from('feed_events')
+        .select('id, event_type, book_ol_key, book_title, book_author, cover_id, cover_url, review_body, rating, moment_type, moment_body, spoiler_warning, created_at')
+        .eq('user_id', userId)
+        .eq('visibility', 'public')
+        .in('event_type', ['posted_review', 'finished', 'book_moment'])
+        .order('created_at', { ascending: false })
+        .limit(10),
+      sb.from('follows').select('id', { count: 'exact', head: true }).eq('following_id', userId),
+    ]).then(([profileRes, postsRes, followerRes]) => {
+      setProfile(profileRes.data)
+      // Deduplicate posts
+      const raw = postsRes.data || []
+      const moments = raw.filter(e => e.event_type === 'book_moment')
+      const reviews = raw.filter(e => e.event_type === 'posted_review' || e.event_type === 'finished')
+      const seen = new Map()
+      for (const ev of reviews) {
+        const key = ev.book_ol_key || ev.book_title
+        if (!seen.has(key) || ev.event_type === 'posted_review') seen.set(key, ev)
+      }
+      setPosts([...moments, ...seen.values()].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)))
+      setFollowerCount(followerRes.count || 0)
+      setLoading(false)
+    })
+  }, [userId])
+
+  if (!userId) return null
+  const isFollowing = followingIds.has(userId)
+  const colour      = avatarColour(userId)
+
+  return (
+    <ModalShell onClose={onClose} maxWidth={520}>
+      <div style={{ overflowY: 'auto', flex: 1 }}>
+        {loading ? (
+          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>Loading…</div>
+        ) : !profile ? (
+          <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--rt-t3)' }}>Profile not found.</div>
+        ) : (
+          <>
+            {/* Hero */}
+            <div style={{ background: 'var(--rt-navy)', padding: '1.5rem 1.25rem 1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', marginBottom: '0.75rem' }}>
+                <div style={{ width: 52, height: 52, borderRadius: '50%', background: colour, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.1rem', fontWeight: 700, color: '#fff', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.2)' }}>
+                  {profile.avatar_url ? <img src={profile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : avatarInitial(profile.display_name || profile.username)}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: '#fff' }}>{profile.display_name || profile.username}</div>
+                  {profile.username && <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.5)', marginTop: '0.1rem' }}>@{profile.username}</div>}
+                </div>
+                {userId !== user?.id && (
+                  <FollowButton userId={userId} initialFollowing={isFollowing} onFollowChange={following => { onFollowChange(userId, following); setFollowerCount(c => c + (following ? 1 : -1)) }} />
+                )}
+              </div>
+              {profile.bio && <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.7)', lineHeight: 1.5, marginBottom: '0.75rem' }}>{profile.bio}</div>}
+              <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)' }}>{followerCount} follower{followerCount !== 1 ? 's' : ''}</div>
+            </div>
+
+            {/* Recent posts */}
+            <div style={{ padding: '1rem' }}>
+              <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.75rem' }}>Recent posts</div>
+              {posts.length === 0 ? (
+                <div style={{ fontSize: '0.82rem', color: 'var(--rt-t3)', padding: '0.5rem 0' }}>No public posts yet.</div>
+              ) : posts.map(ev => {
+                const rating = ev.rating || 0
+                const stars  = rating ? '★'.repeat(rating) + '☆'.repeat(5 - rating) : ''
+                const text   = ev.review_body || ev.moment_body || ''
+                const dateStr = ev.created_at ? new Date(ev.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''
+                return (
+                  <div key={ev.id} style={{ display: 'flex', gap: '0.65rem', alignItems: 'flex-start', padding: '0.65rem 0', borderBottom: '0.5px solid var(--rt-border)' }}>
+                    {(ev.cover_url || ev.cover_id) && (
+                      <div style={{ width: 40, height: 58, borderRadius: 4, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)' }}>
+                        <CoverImage coverId={ev.cover_id} olKey={null} coverUrl={ev.cover_url} title={ev.book_title || ''} size="S" lazy={true} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      </div>
+                    )}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.2rem' }}>
+                        {stars && <span style={{ fontSize: '0.75rem', color: 'var(--rt-amber)' }}>{stars}</span>}
+                        <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginLeft: 'auto' }}>{dateStr}</span>
+                      </div>
+                      <div style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.book_title}</div>
+                      {text && <div style={{ fontSize: '0.78rem', color: 'var(--rt-t2)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{text}</div>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    </ModalShell>
+  )
+}
 
 // ── Spoiler-aware body ─────────────────────────────────────────
 function SpoilerBody({ isSpoiler, isItalic, barCol = 'var(--rt-navy)', onClick, children }) {
@@ -130,7 +326,7 @@ function FollowButton({ userId, initialFollowing, onFollowChange }) {
 }
 
 // ── Suggested reader card ──────────────────────────────────────
-function SuggestedCard({ person, onFollowed }) {
+function SuggestedCard({ person, onFollowed, onOpenProfile }) {
   const colour = avatarColour(person.user_id)
   const init   = avatarInitial(person.display_name || person.username)
   const signalLabel = {
@@ -155,7 +351,7 @@ function SuggestedCard({ person, onFollowed }) {
           ? <img src={person.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           : init}
       </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div style={{ flex: 1, minWidth: 0, cursor: 'pointer' }} onClick={() => onOpenProfile?.(person.user_id)}>
         <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
           {person.display_name || person.username}
         </div>
@@ -182,7 +378,7 @@ function SuggestedCard({ person, onFollowed }) {
 }
 
 // ── Feed card ──────────────────────────────────────────────────
-function FeedCard({ ev, user, isFriend, isFollowing, onOpenThread, onOpenDetail, onFollowChange }) {
+function FeedCard({ ev, user, isFriend, isFollowing, onOpenThread, onOpenDetail, onFollowChange, onOpenProfile }) {
   // Profile data may be:
   // - top-level fields (from public_reading_events view)
   // - nested under ev.profiles (from SocialContext friends feed)
@@ -221,9 +417,12 @@ function FeedCard({ ev, user, isFriend, isFollowing, onOpenThread, onOpenDetail,
     ? <span style={{ fontSize: '0.6rem', background: '#e1f5ee', color: '#085041', borderRadius: 99, padding: '0.1em 0.5em', fontWeight: 600 }}>Following</span>
     : null
 
+  // Pass olKey=null to prevent CoverImage from triggering uploadCoverToSupabase
+  // which calls storage.list() — expensive and causes 40s LCP on feed pages.
+  // Feed cards show covers for reference only; upgrading happens on book detail pages.
   const coverEl = hasCover ? (
     <div style={{ width: 56, height: 82, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.13)' }}>
-      <CoverImage coverId={coverId} olKey={olKey} coverUrl={coverUrl} title={ev.book_title || ''} size="M" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      <CoverImage coverId={coverId} olKey={null} coverUrl={coverUrl} title={ev.book_title || ''} size="M" lazy={true} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
     </div>
   ) : (
     <div style={{ width: 56, height: 82, borderRadius: 6, flexShrink: 0, background: 'var(--rt-surface)' }} />
@@ -240,7 +439,7 @@ function FeedCard({ ev, user, isFriend, isFollowing, onOpenThread, onOpenDetail,
       <div style={cardStyle}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
           {avatarEl}
-          <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--rt-navy)' }}>{displayName}</span>
+          <span onClick={() => onOpenProfile?.(ev.user_id)} style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--rt-navy)', cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'transparent' }} onMouseEnter={e => e.target.style.textDecorationColor='var(--rt-navy)'} onMouseLeave={e => e.target.style.textDecorationColor='transparent'}>{displayName}</span>
           {username && <span style={{ fontSize: '0.7rem', color: 'var(--rt-t3)' }}>@{username}</span>}
           {relationshipBadge}
           <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginLeft: 'auto' }}>{dateStr}</span>
@@ -275,7 +474,7 @@ function FeedCard({ ev, user, isFriend, isFollowing, onOpenThread, onOpenDetail,
     <div style={cardStyle}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.6rem', flexWrap: 'wrap' }}>
         {avatarEl}
-        <span style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--rt-navy)' }}>{displayName}</span>
+        <span onClick={() => onOpenProfile?.(ev.user_id)} style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--rt-navy)', cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'transparent' }} onMouseEnter={e => e.target.style.textDecorationColor='var(--rt-navy)'} onMouseLeave={e => e.target.style.textDecorationColor='transparent'}>{displayName}</span>
         {username && <span style={{ fontSize: '0.7rem', color: 'var(--rt-t3)' }}>@{username}</span>}
         {relationshipBadge}
         <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginLeft: 'auto' }}>{dateStr}</span>
@@ -381,6 +580,7 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
   const [searchFocused, setSearchFocused]   = useState(false)
   const [collapsed, setCollapsed]           = useState(false)
   const [toast, setToast]                   = useState(null)
+  const [viewingProfile, setViewingProfile] = useState(null) // userId
 
   const searchRef    = useRef(null)
   const toastTimer   = useRef(null)
@@ -413,15 +613,14 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
 
   async function loadFeeds() {
     setLoading(true)
-    const blocked = new Set(blockedIds || [])
+    const blocked   = new Set(blockedIds || [])
     const friendIds = new Set((friends || []).map(f => f.userId))
 
-    // Friends feed — from existing SocialContext feed (already loaded)
+    // Friends feed — from SocialContext, already in memory, set immediately
     const ff = (feed || []).filter(ev =>
       friendIds.has(ev.user_id) && !blocked.has(ev.user_id) &&
       (ev.event_type === 'book_moment' || ev.event_type === 'posted_review' || ev.event_type === 'finished')
     )
-    // Deduplicate reviews (prefer posted_review over finished for same user+book)
     const seen = new Map()
     const reviews = ff.filter(ev => ev.event_type === 'posted_review' || ev.event_type === 'finished')
     for (const ev of reviews) {
@@ -430,21 +629,26 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
       if (!existing || ev.event_type === 'posted_review') seen.set(key, ev)
     }
     const moments = ff.filter(ev => ev.event_type === 'book_moment')
-    setFriendFeed([...moments, ...seen.values()].sort((a, b) => new Date(b.created_at) - new Date(a.created_at)))
+    const friendFeedData = [...moments, ...seen.values()].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+    setFriendFeed(friendFeedData)
+    // Show friend feed immediately — don't wait for following feed
+    setLoading(false)
 
-    // Following feed — from public_reading_events view
-    // Exclude friends (they appear in Friends tab already)
-    // Deduplicate posted_review vs finished for same user+book
+    // Following feed — use cache if fresh, otherwise fetch
+    const cachedFollowing = getCached('following'); if (cachedFollowing) {
+      setFollowingFeed(cachedFollowing)
+      return
+    }
+
     const { data: followData } = await sb
       .from('public_reading_events')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(100)
+      .limit(50) // reduced from 100
 
     const followFiltered = (followData || [])
       .filter(ev => !blocked.has(ev.user_id) && !friendIds.has(ev.user_id))
 
-    // Deduplicate: prefer posted_review over finished for same user+book
     const followMoments = followFiltered.filter(ev => ev.event_type === 'book_moment')
     const followReviews = followFiltered.filter(ev => ev.event_type === 'posted_review' || ev.event_type === 'finished')
     const followSeen = new Map()
@@ -453,62 +657,58 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
       const existing = followSeen.get(key)
       if (!existing || ev.event_type === 'posted_review') followSeen.set(key, ev)
     }
-    const deduped = [...followMoments, ...followSeen.values()]
+    const result = [...followMoments, ...followSeen.values()]
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    setFollowingFeed(deduped)
+    setCached('following', result)
+    setFollowingFeed(result)
 
-    setLoading(false)
+    // Background: upgrade any feed events missing cover_url
+    // Runs after render so it never blocks the UI
+    setTimeout(() => upgradeCovers(result), 2000)
   }
 
-  // ── Load suggested readers ─────────────────────────────────
+  // ── Load suggested readers + recently active in parallel ──
   useEffect(() => {
     if (!user || feedFilter !== 'suggested') return
-    if (suggested !== null) return // already loaded
-    loadSuggested()
+    if (suggested !== null && recentlyActive !== null) return
+    if (suggested === null) loadSuggested()
+    if (recentlyActive === null) loadRecentlyActive()
   }, [feedFilter, user])
 
   async function loadSuggested() {
-    const { data } = await sb.rpc('get_suggested_readers', { p_limit: 20 })
-    setSuggested(data || [])
+    const cachedSuggested = getCached('suggested'); if (cachedSuggested) { setSuggested(cachedSuggested); return }
+    const { data } = await sb.rpc('get_suggested_readers', { p_limit: 10 })
+    const result = data || []
+    setCached('suggested', result)
+    setSuggested(result)
   }
 
-  // ── Load recently active (fallback for suggested tab) ─────
-  useEffect(() => {
-    if (!user || feedFilter !== 'suggested') return
-    if (recentlyActive !== null) return
-    loadRecentlyActive()
-  }, [feedFilter, user, suggested])
-
   async function loadRecentlyActive() {
+    const cachedRecent = getCached('recentlyActive'); if (cachedRecent) { setRecentlyActive(cachedRecent); setRecentlyActiveLoading(false); return }
     setRecentlyActiveLoading(true)
 
-    // Get IDs to exclude: self + friends + following
-    const friendIds  = new Set((friends || []).map(f => f.userId))
-    const blocked    = new Set(blockedIds || [])
+    const friendIds = new Set((friends || []).map(f => f.userId))
+    const blocked   = new Set(blockedIds || [])
 
-    // Get following IDs fresh from DB (followingIds state may not be loaded yet)
-    const { data: followRows } = await sb
-      .from('follows')
-      .select('following_id')
-      .eq('follower_id', user.id)
-    const followingSet = new Set((followRows || []).map(r => r.following_id))
+    // Run follows fetch and feed_events fetch in parallel
+    const [followResult, feedResult] = await Promise.all([
+      sb.from('follows').select('following_id').eq('follower_id', user.id),
+      sb.from('feed_events')
+        .select('id, user_id, event_type, book_ol_key, book_title, book_author, cover_id, cover_url, review_body, rating, moment_id, moment_type, moment_body, page_ref, spoiler_warning, visibility, created_at')
+        .eq('visibility', 'public')
+        .neq('user_id', user.id)
+        .in('event_type', ['posted_review', 'finished', 'book_moment'])
+        .order('created_at', { ascending: false })
+        .limit(50), // reduced from 100
+    ])
 
-    // Query public feed_events directly — not the view (which only returns followed users)
-    const { data: raw } = await sb
-      .from('feed_events')
-      .select('id, user_id, event_type, book_ol_key, book_title, book_author, cover_id, cover_url, review_body, rating, moment_id, moment_type, moment_body, page_ref, spoiler_warning, visibility, created_at')
-      .eq('visibility', 'public')
-      .neq('user_id', user.id)
-      .in('event_type', ['posted_review', 'finished', 'book_moment'])
-      .order('created_at', { ascending: false })
-      .limit(100)
+    const followingSet = new Set((followResult.data || []).map(r => r.following_id))
 
-    // Filter out friends, following, blocked
-    const filtered = (raw || []).filter(ev =>
+    const filtered = (feedResult.data || []).filter(ev =>
       !friendIds.has(ev.user_id) &&
       !followingSet.has(ev.user_id) &&
       !blocked.has(ev.user_id) &&
-      (ev.moment_type !== 'note')
+      ev.moment_type !== 'note'
     )
 
     // Enrich with profile data in a single batch query
@@ -542,6 +742,7 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
     const deduped = [...moments, ...seen.values()]
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
 
+    setCached('recentlyActive', deduped)
     setRecentlyActive(deduped)
     setRecentlyActiveLoading(false)
   }
@@ -590,9 +791,10 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
       else next.delete(userId)
       return next
     })
-    // Reload following feed after follow state changes
+    // Invalidate caches so next load reflects the new follow state
+    clearCached('following')
+    clearCached('recentlyActive')
     if (nowFollowing) loadFeeds()
-    // Reset recently active so it reloads excluding the newly followed user
     setRecentlyActive(null)
   }
 
@@ -686,22 +888,23 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
         transition: 'all 0.25s ease',
       }}>
 
-        {/* Top row — always rendered, transitions between expanded/collapsed */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: collapsed ? '0' : '0.6rem', transition: 'margin-bottom 0.25s ease' }}>
+        {/* Top row — transitions between expanded/collapsed */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: collapsed ? '0.5rem' : '0.6rem', transition: 'margin-bottom 0.25s ease' }}>
 
-          {/* Avatar — shrinks on collapse */}
-          <div style={{
-            width: collapsed ? 32 : 48, height: collapsed ? 32 : 48,
-            borderRadius: '50%', background: avatarBg, flexShrink: 0,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: collapsed ? '0.8rem' : '1.1rem', fontWeight: 700, color: '#fff',
-            overflow: 'hidden', transition: 'width 0.25s ease, height 0.25s ease, font-size 0.25s ease',
-            border: collapsed ? 'none' : '2px solid rgba(255,255,255,0.6)',
-          }}>
-            {myAvatarUrl
-              ? <img src={myAvatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-              : avatarLetter}
-          </div>
+          {/* Avatar — only shown when expanded */}
+          {!collapsed && (
+            <div style={{
+              width: 48, height: 48,
+              borderRadius: '50%', background: avatarBg, flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '1.1rem', fontWeight: 700, color: '#fff',
+              overflow: 'hidden', border: '2px solid rgba(255,255,255,0.6)',
+            }}>
+              {myAvatarUrl
+                ? <img src={myAvatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                : avatarLetter}
+            </div>
+          )}
 
           {/* Name/bio — collapses into search bar */}
           <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
@@ -713,7 +916,7 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
                 display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{myBio}</div>}
             </div>
 
-            {/* Collapsed: search bar */}
+            {/* Collapsed: search bar takes full width */}
             <div style={{ opacity: collapsed ? 1 : 0, height: collapsed ? 'auto' : 0, overflow: 'hidden', transition: 'opacity 0.2s ease, height 0.25s ease', pointerEvents: collapsed ? 'auto' : 'none' }}
               ref={searchRef}>
               <div style={{ position: 'relative' }}>
@@ -746,7 +949,7 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
         </div>
 
         {/* Search bar — expanded state only */}
-        <div style={{ opacity: collapsed ? 0 : 1, height: collapsed ? 0 : 'auto', overflow: 'hidden', transition: 'opacity 0.2s ease, height 0.25s ease', pointerEvents: collapsed ? 'none' : 'auto', marginBottom: collapsed ? 0 : '0.6rem' }}
+        <div style={{ opacity: collapsed ? 0 : 1, height: collapsed ? 0 : 'auto', overflow: 'hidden', transition: 'opacity 0.2s ease, height 0.25s ease', pointerEvents: collapsed ? 'none' : 'auto', marginBottom: collapsed ? 0 : '0.65rem' }}
           ref={collapsed ? null : searchRef}>
           <div style={{ position: 'relative' }}>
             <input
@@ -792,7 +995,7 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
                     Readers with similar books, ratings, and reading history.
                   </div>
                   {suggested.map(p => (
-                    <SuggestedCard key={p.user_id} person={p} onFollowed={() => handleFollowChange(p.user_id, true)} />
+                    <SuggestedCard key={p.user_id} person={p} onFollowed={() => handleFollowChange(p.user_id, true)} onOpenProfile={userId => setViewingProfile(userId)} />
                   ))}
                 </>
               )}
@@ -822,6 +1025,7 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
                       onOpenThread={openThread}
                       onOpenDetail={book => setDetailBook(book)}
                       onFollowChange={handleFollowChange}
+                      onOpenProfile={userId => setViewingProfile(userId)}
                     />
                   ))
                 )}
@@ -859,11 +1063,23 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
                 onOpenThread={openThread}
                 onOpenDetail={book => setDetailBook(book)}
                 onFollowChange={handleFollowChange}
+                onOpenProfile={userId => setViewingProfile(userId)}
               />
             ))
           )
         )}
       </div>
+
+      {/* ── User profile sheet ── */}
+      {viewingProfile && (
+        <UserProfileSheet
+          userId={viewingProfile}
+          user={user}
+          followingIds={followingIds}
+          onFollowChange={handleFollowChange}
+          onClose={() => setViewingProfile(null)}
+        />
+      )}
 
       {/* ── ReviewThreadSheet ── */}
       {activeReview && (
