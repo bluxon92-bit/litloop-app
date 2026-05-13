@@ -496,7 +496,7 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
     // Query public feed_events directly — not the view (which only returns followed users)
     const { data: raw } = await sb
       .from('feed_events')
-      .select('id, user_id, event_type, book_ol_key, book_title, book_author, cover_id, cover_url, review_body, rating, moment_id, moment_type, moment_body, page_ref, spoiler_warning, visibility, created_at, profiles(username, display_name, avatar_url)')
+      .select('id, user_id, event_type, book_ol_key, book_title, book_author, cover_id, cover_url, review_body, rating, moment_id, moment_type, moment_body, page_ref, spoiler_warning, visibility, created_at')
       .eq('visibility', 'public')
       .neq('user_id', user.id)
       .in('event_type', ['posted_review', 'finished', 'book_moment'])
@@ -511,9 +511,28 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
       (ev.moment_type !== 'note')
     )
 
+    // Enrich with profile data in a single batch query
+    const uniqueUserIds = [...new Set(filtered.map(ev => ev.user_id))]
+    let profileMap = {}
+    if (uniqueUserIds.length > 0) {
+      const { data: profiles } = await sb
+        .from('profiles')
+        .select('id, username, display_name, avatar_url')
+        .in('id', uniqueUserIds)
+      ;(profiles || []).forEach(p => { profileMap[p.id] = p })
+    }
+
+    // Attach profiles to events
+    const withProfiles = filtered.map(ev => ({
+      ...ev,
+      display_name: profileMap[ev.user_id]?.display_name || null,
+      username:     profileMap[ev.user_id]?.username     || null,
+      avatar_url:   profileMap[ev.user_id]?.avatar_url   || null,
+    }))
+
     // Deduplicate: prefer posted_review over finished for same user+book
-    const moments = filtered.filter(ev => ev.event_type === 'book_moment')
-    const reviews = filtered.filter(ev => ev.event_type === 'posted_review' || ev.event_type === 'finished')
+    const moments = withProfiles.filter(ev => ev.event_type === 'book_moment')
+    const reviews = withProfiles.filter(ev => ev.event_type === 'posted_review' || ev.event_type === 'finished')
     const seen = new Map()
     for (const ev of reviews) {
       const key = `${ev.user_id}__${ev.book_ol_key}`
@@ -660,72 +679,76 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
         background: 'var(--rt-cream)',
         paddingLeft: 'var(--rt-page-px, 1rem)',
         paddingRight: 'var(--rt-page-px, 1rem)',
+        paddingTop: '0.5rem',
         paddingBottom: '0.5rem',
         boxSizing: 'border-box',
         borderBottom: '1px solid var(--rt-border)',
+        transition: 'all 0.25s ease',
       }}>
-        {/* Resting state — full bio visible */}
-        {!collapsed && (
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem', paddingTop: '0.5rem', marginBottom: '0.75rem' }}>
-            <div style={{ width: 56, height: 56, borderRadius: '50%', background: avatarBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 700, color: '#fff', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.6)' }}>
-              {myAvatarUrl
-                ? <img src={myAvatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : avatarLetter}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--rt-navy)', lineHeight: 1.2 }}>{displayName}</div>
-              {myUsername && <div style={{ fontSize: '0.75rem', color: 'var(--rt-t3)', marginTop: '0.1rem' }}>@{myUsername}</div>}
-              {myBio && <div style={{ fontSize: '0.82rem', color: 'var(--rt-t2)', marginTop: '0.35rem', lineHeight: 1.45 }}>{myBio}</div>}
-            </div>
-            <button
-              onClick={() => onNavigate('account')}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rt-t3)', padding: '0.25rem', flexShrink: 0 }}
-              title="Settings"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-              </svg>
-            </button>
-          </div>
-        )}
 
-        {/* Collapsed state — small avatar + search bar + settings */}
-        {collapsed && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', paddingTop: '0.5rem', marginBottom: '0.5rem' }}>
-            <div style={{ width: 32, height: 32, borderRadius: '50%', background: avatarBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 700, color: '#fff', overflow: 'hidden' }}>
-              {myAvatarUrl
-                ? <img src={myAvatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : avatarLetter}
-            </div>
-            <div style={{ flex: 1, position: 'relative' }} ref={searchRef}>
-              <input
-                className="rt-input"
-                style={{ width: '100%', boxSizing: 'border-box', paddingLeft: '2rem' }}
-                placeholder="Search people or books…"
-                value={searchQuery}
-                onChange={handleSearchChange}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
-              />
-              <svg style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--rt-t3)" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-              {searchFocused && <SearchDropdown results={searchResults} onSelectUser={() => {}} onSelectBook={() => {}} onClose={() => { setSearchQuery(''); setSearchResults(null) }} />}
-            </div>
-            <button
-              onClick={() => onNavigate('account')}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rt-t3)', padding: '0.25rem', flexShrink: 0 }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="3"/>
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-              </svg>
-            </button>
-          </div>
-        )}
+        {/* Top row — always rendered, transitions between expanded/collapsed */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: collapsed ? '0' : '0.6rem', transition: 'margin-bottom 0.25s ease' }}>
 
-        {/* Search bar — always visible in resting state */}
-        {!collapsed && (
-          <div style={{ position: 'relative', marginBottom: '0.75rem' }} ref={searchRef}>
+          {/* Avatar — shrinks on collapse */}
+          <div style={{
+            width: collapsed ? 32 : 48, height: collapsed ? 32 : 48,
+            borderRadius: '50%', background: avatarBg, flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: collapsed ? '0.8rem' : '1.1rem', fontWeight: 700, color: '#fff',
+            overflow: 'hidden', transition: 'width 0.25s ease, height 0.25s ease, font-size 0.25s ease',
+            border: collapsed ? 'none' : '2px solid rgba(255,255,255,0.6)',
+          }}>
+            {myAvatarUrl
+              ? <img src={myAvatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : avatarLetter}
+          </div>
+
+          {/* Name/bio — collapses into search bar */}
+          <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+            {/* Expanded: name + username + bio */}
+            <div style={{ opacity: collapsed ? 0 : 1, height: collapsed ? 0 : 'auto', overflow: 'hidden', transition: 'opacity 0.2s ease, height 0.25s ease', pointerEvents: collapsed ? 'none' : 'auto' }}>
+              <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 700, color: 'var(--rt-navy)', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{displayName}</div>
+              {myUsername && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>@{myUsername}</div>}
+              {myBio && <div style={{ fontSize: '0.8rem', color: 'var(--rt-t2)', marginTop: '0.25rem', lineHeight: 1.4,
+                display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{myBio}</div>}
+            </div>
+
+            {/* Collapsed: search bar */}
+            <div style={{ opacity: collapsed ? 1 : 0, height: collapsed ? 'auto' : 0, overflow: 'hidden', transition: 'opacity 0.2s ease, height 0.25s ease', pointerEvents: collapsed ? 'auto' : 'none' }}
+              ref={searchRef}>
+              <div style={{ position: 'relative' }}>
+                <input
+                  className="rt-input"
+                  style={{ width: '100%', boxSizing: 'border-box', paddingLeft: '2rem' }}
+                  placeholder="Search people or books…"
+                  value={searchQuery}
+                  onChange={handleSearchChange}
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+                />
+                <svg style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--rt-t3)" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                {searchFocused && <SearchDropdown results={searchResults} onSelectUser={() => {}} onSelectBook={() => {}} onClose={() => { setSearchQuery(''); setSearchResults(null) }} />}
+              </div>
+            </div>
+          </div>
+
+          {/* Settings cog — always visible */}
+          <button
+            onClick={() => onNavigate('account')}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rt-t3)', padding: '0.25rem', flexShrink: 0 }}
+            title="Settings"
+          >
+            <svg width={collapsed ? 18 : 20} height={collapsed ? 18 : 20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'width 0.2s, height 0.2s' }}>
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Search bar — expanded state only */}
+        <div style={{ opacity: collapsed ? 0 : 1, height: collapsed ? 0 : 'auto', overflow: 'hidden', transition: 'opacity 0.2s ease, height 0.25s ease', pointerEvents: collapsed ? 'none' : 'auto', marginBottom: collapsed ? 0 : '0.6rem' }}
+          ref={collapsed ? null : searchRef}>
+          <div style={{ position: 'relative' }}>
             <input
               className="rt-input"
               style={{ width: '100%', boxSizing: 'border-box', paddingLeft: '2rem' }}
@@ -736,11 +759,11 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
               onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
             />
             <svg style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--rt-t3)" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-            {searchFocused && <SearchDropdown results={searchResults} onSelectUser={() => {}} onSelectBook={() => {}} onClose={() => { setSearchQuery(''); setSearchResults(null) }} />}
+            {searchFocused && !collapsed && <SearchDropdown results={searchResults} onSelectUser={() => {}} onSelectBook={() => {}} onClose={() => { setSearchQuery(''); setSearchResults(null) }} />}
           </div>
-        )}
+        </div>
 
-        {/* Filter pills */}
+        {/* Filter pills — always visible */}
         <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', scrollbarWidth: 'none' }}>
           {FILTERS.map(f => (
             <button key={f.id} onClick={() => setFeedFilter(f.id)} style={pillStyle(feedFilter === f.id)}>
