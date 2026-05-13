@@ -481,12 +481,49 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
 
   async function loadRecentlyActive() {
     setRecentlyActiveLoading(true)
-    const { data } = await sb
-      .from('public_reading_events')
-      .select('*')
+
+    // Get IDs to exclude: self + friends + following
+    const friendIds  = new Set((friends || []).map(f => f.userId))
+    const blocked    = new Set(blockedIds || [])
+
+    // Get following IDs fresh from DB (followingIds state may not be loaded yet)
+    const { data: followRows } = await sb
+      .from('follows')
+      .select('following_id')
+      .eq('follower_id', user.id)
+    const followingSet = new Set((followRows || []).map(r => r.following_id))
+
+    // Query public feed_events directly — not the view (which only returns followed users)
+    const { data: raw } = await sb
+      .from('feed_events')
+      .select('id, user_id, event_type, book_ol_key, book_title, book_author, cover_id, cover_url, review_body, rating, moment_id, moment_type, moment_body, page_ref, spoiler_warning, visibility, created_at, profiles(username, display_name, avatar_url)')
+      .eq('visibility', 'public')
+      .neq('user_id', user.id)
+      .in('event_type', ['posted_review', 'finished', 'book_moment'])
       .order('created_at', { ascending: false })
-      .limit(30)
-    setRecentlyActive(data || [])
+      .limit(100)
+
+    // Filter out friends, following, blocked
+    const filtered = (raw || []).filter(ev =>
+      !friendIds.has(ev.user_id) &&
+      !followingSet.has(ev.user_id) &&
+      !blocked.has(ev.user_id) &&
+      (ev.moment_type !== 'note')
+    )
+
+    // Deduplicate: prefer posted_review over finished for same user+book
+    const moments = filtered.filter(ev => ev.event_type === 'book_moment')
+    const reviews = filtered.filter(ev => ev.event_type === 'posted_review' || ev.event_type === 'finished')
+    const seen = new Map()
+    for (const ev of reviews) {
+      const key = `${ev.user_id}__${ev.book_ol_key}`
+      const existing = seen.get(key)
+      if (!existing || ev.event_type === 'posted_review') seen.set(key, ev)
+    }
+    const deduped = [...moments, ...seen.values()]
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+
+    setRecentlyActive(deduped)
     setRecentlyActiveLoading(false)
   }
 
@@ -536,6 +573,8 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
     })
     // Reload following feed after follow state changes
     if (nowFollowing) loadFeeds()
+    // Reset recently active so it reloads excluding the newly followed user
+    setRecentlyActive(null)
   }
 
   // ── Open review thread ─────────────────────────────────────
