@@ -873,7 +873,7 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
       <div style={{
         position: 'fixed',
         top: 'calc(env(safe-area-inset-top, 0px) + 56px)',
-        left: '50%',
+        left: 'calc(50% + 110px)',
         transform: 'translateX(-50%)',
         width: '100%',
         maxWidth: 760,
