@@ -1,17 +1,17 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, lazy, Suspense } from 'react'
 import { useAuthContext } from '../../context/AuthContext'
 import { useChatContext } from '../../context/ChatContext'
 import { useSocialContext } from '../../context/SocialContext'
 import { startBackgroundImport } from '../../lib/importManager'
 import { useBooksContext } from '../../context/BooksContext'
-import Home from '../../pages/Home'
-import MyList from '../../pages/MyList'
-import Stats from '../../pages/Stats'
-import Discover from '../../pages/Discover'
-import Chat, { ChatThreadModal } from '../../pages/Chat'
-import MomentComposer from '../MomentComposer'
-import Profile from '../../pages/Profile'
-import AccountSettings from '../../pages/AccountSettings'
+const Home            = lazy(() => import('../../pages/Home'))
+const MyList          = lazy(() => import('../../pages/MyList'))
+const Stats           = lazy(() => import('../../pages/Stats'))
+const Discover        = lazy(() => import('../../pages/Discover'))
+const Chat            = lazy(() => import('../../pages/Chat'))
+const ChatThreadModal = lazy(() => import('../../pages/Chat').then(m => ({ default: m.ChatThreadModal })))
+const Profile         = lazy(() => import('../../pages/Profile'))
+const AccountSettings = lazy(() => import('../../pages/AccountSettings'))
 import AddBookModal from '../books/AddBookModal'
 import { avatarColour, avatarInitial, timeAgo } from '../../lib/utils'
 import { sb } from '../../lib/supabase'
@@ -1469,7 +1469,9 @@ export default function AppShell() {
 
       {/* Desktop main */}
       <main className="rt-main-desktop" style={{ marginLeft: 220, flex: 1, minWidth: 0, minHeight: '100vh', paddingBottom: '2rem', boxSizing: 'border-box' }}>
-        {renderPage()}
+        <Suspense fallback={<div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--rt-t3)' }}>Loading…</div>}>
+         {renderPage()}
+       </Suspense>
       </main>
 
       {/* ── Mobile top nav ──────────────────────────────── */}
@@ -1572,7 +1574,9 @@ export default function AppShell() {
 
       {/* Mobile page content */}
       <main className="rt-main-mobile" style={{ flex: 1, paddingTop: 'calc(56px + env(safe-area-inset-top, 0px))', paddingBottom: 80, width: '100%' }}>
-        {renderPage()}
+        <Suspense fallback={<div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--rt-t3)' }}>Loading…</div>}>
+          {renderPage()}
+       </Suspense>
       </main>
 
       {/* ── Mobile bottom tab bar ──────────────────────── */}
