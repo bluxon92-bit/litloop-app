@@ -1,8 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useSocialContext } from '../context/SocialContext'
 import { useAuthContext } from '../context/AuthContext'
+import { useBooksContext } from '../context/BooksContext'
 import { clearCoverCache } from '../lib/coverCache'
 import { sb } from '../lib/supabase'
+import { avatarColour, avatarInitial } from '../lib/utils'
+import CoverImage from '../components/books/CoverImage'
+import { ModalShell } from '../components/books/BookSheet'
 import {
   isPushSupported, isPwa, getPermissionState,
   subscribeToPush, unsubscribeFromPush, isSubscribed,
@@ -312,7 +316,7 @@ function SubPage({ title, onBack, children }) {
 }
 
 // ── Settings index row ────────────────────────────────────────
-function SettingsRow({ icon, label, sublabel, onPress, danger }) {
+function SettingsRow({ label, sublabel, onPress, danger }) {
   return (
     <button
       onClick={onPress}
@@ -326,7 +330,6 @@ function SettingsRow({ icon, label, sublabel, onPress, danger }) {
       onMouseEnter={e => e.currentTarget.style.background = 'var(--rt-surface)'}
       onMouseLeave={e => e.currentTarget.style.background = ''}
     >
-      <span style={{ fontSize: '1.1rem', width: 28, textAlign: 'center', flexShrink: 0 }}>{icon}</span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: '0.88rem', fontWeight: 500, color: danger ? '#dc2626' : 'var(--rt-navy)' }}>{label}</div>
         {sublabel && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginTop: '0.1rem' }}>{sublabel}</div>}
@@ -354,7 +357,8 @@ function SettingsGroup({ heading, children }) {
 // ── Sub-page: Edit profile ────────────────────────────────────
 function ProfileSubPage({ onBack }) {
   const { user }                             = useAuthContext()
-  const { myUsername, myFirstName, myLastName, myBio, saveProfile } = useSocialContext()
+  const { myUsername, myFirstName, myLastName, myBio, myAvatarUrl, saveProfile, topBookIds, saveFavBooks, uploadAvatar } = useSocialContext()
+  const { books }                            = useBooksContext()
 
   const [firstName, setFirstName]       = useState(myFirstName || '')
   const [lastName, setLastName]         = useState(myLastName  || '')
@@ -367,6 +371,13 @@ function ProfileSubPage({ onBack }) {
   const [handleSaving, setHandleSaving]   = useState(false)
   const [handleError, setHandleError]     = useState(null)
   const [handleChanged, setHandleChanged] = useState(false)
+  const [favEditorOpen, setFavEditorOpen] = useState(false)
+  const [favSelected, setFavSelected]     = useState([...(topBookIds || [])])
+  const [avatarUploading, setAvatarUploading] = useState(false)
+  const [avatarError, setAvatarError]         = useState(null)
+
+  const read     = (books || []).filter(b => b.status === 'read' || b.status === 'dnf')
+  const favBooks = (topBookIds || []).map(id => books?.find(b => b.id === id)).filter(Boolean)
 
   async function handleSave() {
     setSaving(true); setError(null); setSaved(false)
@@ -392,9 +403,44 @@ function ProfileSubPage({ onBack }) {
     window.location.reload()
   }
 
+  function toggleFav(id) {
+    setFavSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : prev.length >= 10 ? prev : [...prev, id])
+  }
+
+  async function handleSaveFavs() {
+    await saveFavBooks(favSelected)
+    setFavEditorOpen(false)
+  }
+
+  async function handleAvatarChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setAvatarUploading(true); setAvatarError(null)
+    const { error } = await uploadAvatar(file)
+    if (error) setAvatarError(error)
+    setAvatarUploading(false)
+    e.target.value = ''
+  }
+
   return (
     <SubPage title="Edit profile" onBack={onBack}>
+      {/* Avatar */}
       <div className="rt-card" style={{ marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+          <div style={{ width: 60, height: 60, borderRadius: '50%', overflow: 'hidden', background: 'var(--rt-surface)', flexShrink: 0, border: '2px solid var(--rt-border)' }}>
+            {myAvatarUrl
+              ? <img src={myAvatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', fontWeight: 700, color: 'var(--rt-t3)' }}>{(myFirstName || myUsername || '?')[0].toUpperCase()}</div>}
+          </div>
+          <div>
+            <label style={{ display: 'inline-block', background: 'none', border: '1px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)', padding: '0.45rem 0.85rem', fontSize: '0.78rem', color: 'var(--rt-t2)', cursor: avatarUploading ? 'not-allowed' : 'pointer', fontWeight: 500 }}>
+              {avatarUploading ? 'Uploading…' : 'Change photo'}
+              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarChange} disabled={avatarUploading} />
+            </label>
+            {avatarError && <div style={{ fontSize: '0.72rem', color: '#991b1b', marginTop: '0.3rem' }}>{avatarError}</div>}
+          </div>
+        </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.5rem' }}>
           <div>
             <label className="rt-field-label">First name</label>
@@ -462,6 +508,146 @@ function ProfileSubPage({ onBack }) {
         <button className="rt-submit-btn" onClick={handleSave} disabled={saving}>
           {saving ? 'Saving…' : 'Save changes'}
         </button>
+      </div>
+
+      {/* Favourite books */}
+      <div className="rt-card" style={{ marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+          <div>
+            <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)' }}>Favourite books</div>
+            <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginTop: '0.1rem' }}>Pin up to 10 favourites. Shown on your public profile.</div>
+          </div>
+          <button
+            onClick={() => { setFavSelected([...(topBookIds || [])]); setFavEditorOpen(true) }}
+            style={{ background: 'none', border: '0.5px solid var(--rt-border-md)', borderRadius: 'var(--rt-r3)', padding: '0.45rem 0.75rem', fontSize: '0.78rem', color: 'var(--rt-amber)', fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+            {favBooks.length > 0 ? 'Edit' : 'Add books'}
+          </button>
+        </div>
+        {favBooks.length > 0 ? (
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {favBooks.map(book => (
+              <div key={book.id} style={{ width: 46, textAlign: 'center' }}>
+                <CoverImage coverId={book.coverId} olKey={book.olKey} coverUrl={book.coverUrl} title={book.title} size="S" />
+                <div style={{ fontSize: '0.55rem', color: 'var(--rt-t3)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 46 }}>{book.title}</div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)' }}>No favourites set yet.</div>
+        )}
+      </div>
+
+      {/* Fav books editor modal */}
+      {favEditorOpen && (
+        <ModalShell onClose={() => setFavEditorOpen(false)} maxWidth={560}>
+          <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--rt-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+            <div>
+              <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1rem', fontWeight: 600, color: 'var(--rt-navy)' }}>Choose favourites</div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>Pick up to 10 ({favSelected.length}/10)</div>
+            </div>
+            <button onClick={() => setFavEditorOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.3rem', color: 'var(--rt-t3)' }}>×</button>
+          </div>
+          <div style={{ overflowY: 'auto', flex: 1, padding: '0.75rem 1.25rem' }}>
+            {read.length === 0 ? (
+              <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>Mark some books as read first.</div>
+            ) : read.map(book => {
+              const selected = favSelected.includes(book.id)
+              return (
+                <div key={book.id} onClick={() => toggleFav(book.id)}
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0', borderBottom: '1px solid var(--rt-border)', cursor: 'pointer' }}>
+                  <div style={{ width: 20, height: 20, borderRadius: 4, border: '2px solid', borderColor: selected ? 'var(--rt-amber)' : 'var(--rt-border-md)', background: selected ? 'var(--rt-amber)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    {selected && <span style={{ color: '#fff', fontSize: '0.75rem', fontWeight: 700 }}>✓</span>}
+                  </div>
+                  <CoverImage coverId={book.coverId} olKey={book.olKey} coverUrl={book.coverUrl} title={book.title} size="S" />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{book.title}</div>
+                    {book.author && <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)' }}>{book.author}</div>}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <div style={{ padding: '0.85rem 1.25rem', borderTop: '1px solid var(--rt-border)', flexShrink: 0 }}>
+            <button className="rt-submit-btn" style={{ width: '100%' }} onClick={handleSaveFavs}>Save favourites</button>
+          </div>
+        </ModalShell>
+      )}
+    </SubPage>
+  )
+}
+
+// ── Sub-page: View profile ────────────────────────────────────
+function ViewProfileSubPage({ onBack, onEdit }) {
+  const { user }   = useAuthContext()
+  const { myUsername, myDisplayName, myBio, myAvatarUrl, topBookIds } = useSocialContext()
+  const { books }  = useBooksContext()
+  const [followerCount, setFollowerCount]   = useState(null)
+  const [followingCount, setFollowingCount] = useState(null)
+
+  useEffect(() => {
+    if (!user) return
+    sb.from('follows').select('id', { count: 'exact', head: true }).eq('following_id', user.id)
+      .then(({ count }) => setFollowerCount(count || 0))
+    sb.from('follows').select('id', { count: 'exact', head: true }).eq('follower_id', user.id)
+      .then(({ count }) => setFollowingCount(count || 0))
+  }, [user])
+
+  const favBooks    = (topBookIds || []).map(id => books?.find(b => b.id === id)).filter(Boolean)
+  const displayName = myDisplayName || myUsername || 'Reader'
+  const avatarBg    = avatarColour(user?.id || 'x')
+  const avatarLetter = avatarInitial(displayName)
+
+  return (
+    <SubPage title="Your profile" onBack={onBack}>
+      {/* Profile hero */}
+      <div style={{ background: 'var(--rt-navy)', borderRadius: 'var(--rt-r3)', padding: '1.5rem 1.25rem', marginBottom: '1rem', position: 'relative' }}>
+        <button
+          onClick={onEdit}
+          style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'rgba(255,255,255,0.12)', border: 'none', borderRadius: 99, padding: '0.3rem 0.75rem', fontSize: '0.72rem', fontWeight: 600, color: '#fff', cursor: 'pointer' }}>
+          Edit
+        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '0.85rem' }}>
+          <div style={{ width: 56, height: 56, borderRadius: '50%', background: avatarBg, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', fontWeight: 700, color: '#fff', overflow: 'hidden', border: '2px solid rgba(255,255,255,0.25)' }}>
+            {myAvatarUrl
+              ? <img src={myAvatarUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              : avatarLetter}
+          </div>
+          <div>
+            <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: '#fff' }}>{displayName}</div>
+            {myUsername && <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.55)', marginTop: '0.1rem' }}>@{myUsername}</div>}
+          </div>
+        </div>
+        {myBio && <div style={{ fontSize: '0.82rem', color: 'rgba(255,255,255,0.75)', lineHeight: 1.5, marginBottom: '1rem' }}>{myBio}</div>}
+        <div style={{ display: 'flex', gap: '1.5rem' }}>
+          {[['Followers', followerCount], ['Following', followingCount]].map(([label, count]) => (
+            <div key={label}>
+              <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.1rem', fontWeight: 700, color: '#fff' }}>{count === null ? '—' : count}</div>
+              <div style={{ fontSize: '0.7rem', color: 'rgba(255,255,255,0.5)' }}>{label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Favourite books */}
+      {favBooks.length > 0 && (
+        <div className="rt-card" style={{ marginBottom: '1rem' }}>
+          <div style={{ fontFamily: 'var(--rt-font-display)', fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.75rem' }}>Favourite books</div>
+          <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            {favBooks.map(book => (
+              <div key={book.id} style={{ width: 46, textAlign: 'center' }}>
+                <CoverImage coverId={book.coverId} olKey={book.olKey} coverUrl={book.coverUrl} title={book.title} size="S" />
+                <div style={{ fontSize: '0.55rem', color: 'var(--rt-t3)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 46 }}>{book.title}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div style={{ textAlign: 'center', padding: '0.5rem 0 1rem' }}>
+        <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', lineHeight: 1.5 }}>
+          This is how your profile appears to other readers.<br />
+          <button onClick={onEdit} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--rt-amber)', fontWeight: 600, fontSize: 'inherit', cursor: 'pointer', textDecoration: 'underline', textUnderlineOffset: 2 }}>Edit your profile</button> to update your bio and favourites.
+        </div>
       </div>
     </SubPage>
   )
@@ -626,6 +812,7 @@ export default function AccountSettings({ onNavigate }) {
 
   // Sub-page routing
   if (subPage === 'profile')       return <ProfileSubPage       onBack={() => setSubPage(null)} />
+  if (subPage === 'view-profile')  return <ViewProfileSubPage   onBack={() => setSubPage(null)} onEdit={() => setSubPage('profile')} />
   if (subPage === 'social')        return <SocialSubPage         onBack={() => setSubPage(null)} />
   if (subPage === 'notifications') return <NotificationsSubPage  onBack={() => setSubPage(null)} user={user} notificationPrefs={notificationPrefs} setNotificationPrefs={setNotificationPrefs} />
   if (subPage === 'app')           return <AppSubPage            onBack={() => setSubPage(null)} />
@@ -644,20 +831,21 @@ export default function AccountSettings({ onNavigate }) {
       <h2 style={{ fontFamily: 'var(--rt-font-display)', fontSize: '1.2rem', fontWeight: 600, color: 'var(--rt-navy)', margin: '0 0 1.5rem' }}>Settings</h2>
 
       <SettingsGroup heading="Your profile">
-        <SettingsRow icon="👤" label="Edit profile" sublabel={myBio ? myBio.slice(0, 40) + (myBio.length > 40 ? '…' : '') : `@${myUsername || ''}`} onPress={() => setSubPage('profile')} />
+        <SettingsRow label="Edit profile"   sublabel={myBio ? myBio.slice(0, 40) + (myBio.length > 40 ? '…' : '') : `@${myUsername || ''}`} onPress={() => setSubPage('profile')} />
+        <SettingsRow label="View profile"   sublabel="See your public profile as others see it"                                               onPress={() => setSubPage('view-profile')} />
       </SettingsGroup>
 
       <SettingsGroup heading="Social & privacy">
-        <SettingsRow icon="👥" label="Social & privacy" sublabel="Default visibility, followers" onPress={() => setSubPage('social')} />
+        <SettingsRow label="Social & privacy" sublabel="Default visibility, followers" onPress={() => setSubPage('social')} />
       </SettingsGroup>
 
       <SettingsGroup heading="App">
-        <SettingsRow icon="🔔" label="Notifications"    sublabel="Push notifications and preferences" onPress={() => setSubPage('notifications')} />
-        <SettingsRow icon="📦" label="App"              sublabel="Image cache and other settings"     onPress={() => setSubPage('app')} />
+        <SettingsRow label="Notifications" sublabel="Push notifications and preferences" onPress={() => setSubPage('notifications')} />
+        <SettingsRow label="App"           sublabel="Image cache and other settings"     onPress={() => setSubPage('app')} />
       </SettingsGroup>
 
       <SettingsGroup heading="Account">
-        <SettingsRow icon="🔑" label="Account"          sublabel={user?.email}                        onPress={() => setSubPage('account')} />
+        <SettingsRow label="Account" sublabel={user?.email} onPress={() => setSubPage('account')} />
       </SettingsGroup>
 
       {/* Legal — inline, no sub-page */}

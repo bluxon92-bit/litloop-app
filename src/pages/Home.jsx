@@ -211,8 +211,18 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
         created_at: n.date_finished || n.date_started || null,
       }
     })
+    // Deduplicate: for same book prefer posted_review over finished
+    const moments = (events || []).filter(e => e.event_type === 'book_moment')
+    const reviewEvs = (events || []).filter(e => e.event_type === 'posted_review' || e.event_type === 'finished')
+    const seen = new Map()
+    for (const ev of reviewEvs) {
+      const key = ev.book_ol_key || ev.book_title || ev.id
+      const existing = seen.get(key)
+      if (!existing || ev.event_type === 'posted_review') seen.set(key, ev)
+    }
     const combined = [
-      ...(events || []).map(e => ({ ...e, _type: e.event_type === 'book_moment' ? e.moment_type || 'moment' : 'review' })),
+      ...[...seen.values()].map(e => ({ ...e, _type: 'review' })),
+      ...moments.map(e => ({ ...e, _type: e.moment_type || 'moment' })),
       ...notes,
     ].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
     setJournalEntries(combined)
@@ -422,24 +432,26 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
 
         return (
           <div style={{ marginBottom: '1.25rem' }}>
-            {/* Section heading */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-              <div className="rt-section-heading" style={{ margin: 0 }}>Your Journal</div>
-              <button
-                onClick={() => setPendingMoment({ book: null, page: null, total: null })}
-                style={{ background: 'var(--rt-amber-pale)', border: 'none', borderRadius: 99, padding: '0.25rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--rt-amber)', cursor: 'pointer' }}
-              >
-                + Add entry
-              </button>
-            </div>
-
-            {/* Filter pills */}
-            <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.5rem', marginBottom: '0.85rem', scrollbarWidth: 'none' }}>
-              {FILTERS.map(f => (
-                <button key={f.id} onClick={() => setJournalFilter(f.id)} style={pillStyle(journalFilter === f.id)}>
-                  {f.label}
+            {/* Section heading + filter pills — sticky */}
+            <div style={{ position: 'sticky', top: 0, zIndex: 5, background: 'var(--rt-cream)', paddingBottom: '0.5rem', marginBottom: '0.35rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.75rem', paddingTop: '0.25rem' }}>
+                <div className="rt-section-heading" style={{ margin: 0 }}>Your Journal</div>
+                <button
+                  onClick={() => setPendingMoment({ book: null, page: null, total: null })}
+                  style={{ background: 'var(--rt-amber-pale)', border: 'none', borderRadius: 99, padding: '0.25rem 0.75rem', fontSize: '0.7rem', fontWeight: 700, color: 'var(--rt-amber)', cursor: 'pointer' }}
+                >
+                  + Add entry
                 </button>
-              ))}
+              </div>
+
+              {/* Filter pills */}
+              <div style={{ display: 'flex', gap: '0.4rem', overflowX: 'auto', paddingBottom: '0.25rem', scrollbarWidth: 'none' }}>
+                {FILTERS.map(f => (
+                  <button key={f.id} onClick={() => setJournalFilter(f.id)} style={pillStyle(journalFilter === f.id)}>
+                    {f.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Entries */}

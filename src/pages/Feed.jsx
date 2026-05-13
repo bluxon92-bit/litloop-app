@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { sb } from '../lib/supabase'
 import { useAuthContext } from '../context/AuthContext'
 import { useSocialContext } from '../context/SocialContext'
@@ -183,10 +183,13 @@ function SuggestedCard({ person, onFollowed }) {
 
 // ── Feed card ──────────────────────────────────────────────────
 function FeedCard({ ev, user, isFriend, isFollowing, onOpenThread, onOpenDetail, onFollowChange }) {
-  const profile     = ev.profiles || ev
-  const displayName = ev.display_name || profile?.display_name || 'Reader'
-  const username    = ev.username    || profile?.username    || ''
-  const avatarUrl   = ev.avatar_url  || profile?.avatar_url  || null
+  // Profile data may be:
+  // - top-level fields (from public_reading_events view)
+  // - nested under ev.profiles (from SocialContext friends feed)
+  const p           = ev.profiles || {}
+  const displayName = ev.display_name || p.display_name || p.username || 'Reader'
+  const username    = ev.username    || p.username    || ''
+  const avatarUrl   = ev.avatar_url  || p.avatar_url  || null
   const colour      = avatarColour(ev.user_id)
   const init        = avatarInitial(displayName)
   const coverId     = ev.cover_id    || null
@@ -362,6 +365,8 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
   const [friendFeed, setFriendFeed]         = useState([])
   const [followingFeed, setFollowingFeed]   = useState([])
   const [suggested, setSuggested]           = useState(null)
+  const [recentlyActive, setRecentlyActive] = useState(null)
+  const [recentlyActiveLoading, setRecentlyActiveLoading] = useState(false)
   const [followingIds, setFollowingIds]     = useState(new Set())
   const [loading, setLoading]               = useState(true)
   const [activeReview, setActiveReview]     = useState(null)
@@ -372,7 +377,6 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
   const [collapsed, setCollapsed]           = useState(false)
   const [toast, setToast]                   = useState(null)
 
-  const scrollRef    = useRef(null)
   const searchRef    = useRef(null)
   const toastTimer   = useRef(null)
   const searchTimer  = useRef(null)
@@ -446,10 +450,32 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
     setSuggested(data || [])
   }
 
-  // ── Scroll collapse ────────────────────────────────────────
-  function handleScroll(e) {
-    setCollapsed(e.currentTarget.scrollTop > 60)
+  // ── Load recently active (fallback for suggested tab) ─────
+  useEffect(() => {
+    if (!user || feedFilter !== 'suggested') return
+    if (recentlyActive !== null) return
+    loadRecentlyActive()
+  }, [feedFilter, user, suggested])
+
+  async function loadRecentlyActive() {
+    setRecentlyActiveLoading(true)
+    const { data } = await sb
+      .from('public_reading_events')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(30)
+    setRecentlyActive(data || [])
+    setRecentlyActiveLoading(false)
   }
+
+  // ── Scroll collapse — listen on window (AppShell scrolls the root) ──
+  useEffect(() => {
+    function handleScroll() {
+      setCollapsed(window.scrollY > 80)
+    }
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    return () => window.removeEventListener('scroll', handleScroll)
+  }, [])
 
   // ── Search ─────────────────────────────────────────────────
   function handleSearchChange(e) {
@@ -554,8 +580,6 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
     <div
       className="rt-page"
       style={{ maxWidth: 760, margin: '0 auto', position: 'relative' }}
-      onScroll={handleScroll}
-      ref={scrollRef}
     >
 
       {/* ── Collapsing header ── */}
@@ -658,26 +682,52 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
         {feedFilter === 'suggested' && (
           suggested === null ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--rt-t3)', fontSize: '0.85rem' }}>Loading…</div>
-          ) : suggested.length === 0 ? (
-            <div className="rt-card" style={{ textAlign: 'center', padding: '2.5rem 1.5rem' }}>
-              <div style={{ fontSize: '1.5rem', marginBottom: '0.5rem' }}>🔍</div>
-              <div style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)', marginBottom: '0.25rem' }}>No suggestions yet</div>
-              <div style={{ fontSize: '0.8rem', color: 'var(--rt-t3)', lineHeight: 1.5 }}>
-                As you rate and review more books, we'll find readers with similar taste.
-              </div>
-            </div>
           ) : (
             <>
-              <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.85rem', lineHeight: 1.5 }}>
-                Readers you might enjoy following, based on books you've both read.
+              {/* Suggested readers based on taste */}
+              {suggested.length > 0 && (
+                <>
+                  <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>
+                    Based on your taste
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.85rem', lineHeight: 1.5 }}>
+                    Readers with similar books, ratings, and reading history.
+                  </div>
+                  {suggested.map(p => (
+                    <SuggestedCard key={p.user_id} person={p} onFollowed={() => handleFollowChange(p.user_id, true)} />
+                  ))}
+                </>
+              )}
+
+              {/* Recently active — always shown, deprioritised when suggestions exist */}
+              <div style={{ marginTop: suggested.length > 0 ? '1.5rem' : 0 }}>
+                <div style={{ fontSize: '0.65rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>
+                  Recently active readers
+                </div>
+                <div style={{ fontSize: '0.72rem', color: 'var(--rt-t3)', marginBottom: '0.85rem', lineHeight: 1.5 }}>
+                  {suggested.length === 0
+                    ? 'Rate and review more books to get personalised suggestions. In the meantime, explore what others are reading.'
+                    : 'Other readers active on Litloop.'}
+                </div>
+                {recentlyActiveLoading || recentlyActive === null ? (
+                  <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--rt-t3)', fontSize: '0.82rem' }}>Loading…</div>
+                ) : recentlyActive.length === 0 ? (
+                  <div style={{ fontSize: '0.82rem', color: 'var(--rt-t3)', padding: '1rem 0' }}>No recent activity yet.</div>
+                ) : (
+                  recentlyActive.map(ev => (
+                    <FeedCard
+                      key={ev.id}
+                      ev={ev}
+                      user={user}
+                      isFriend={false}
+                      isFollowing={followingIds.has(ev.user_id)}
+                      onOpenThread={openThread}
+                      onOpenDetail={book => setDetailBook(book)}
+                      onFollowChange={handleFollowChange}
+                    />
+                  ))
+                )}
               </div>
-              {suggested.map(p => (
-                <SuggestedCard
-                  key={p.user_id}
-                  person={p}
-                  onFollowed={() => handleFollowChange(p.user_id, true)}
-                />
-              ))}
             </>
           )
         )}
