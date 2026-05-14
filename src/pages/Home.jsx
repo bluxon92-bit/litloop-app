@@ -824,7 +824,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
           books={books}
           editMode={true}
           initialMoment={{
-            id:              editingMoment.moment_id || editingMoment.id,
+            id:              editingMoment.id,
             moment_type:     editingMoment.moment_type || editingMoment._type || 'update',
             moment_body:     editingMoment.moment_body || '',
             page_ref:        editingMoment.page_ref    || null,

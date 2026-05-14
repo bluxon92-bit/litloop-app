@@ -66,12 +66,13 @@ export default function MomentComposer({ user, books, onClose, onPosted, presele
     try {
       if (editMode && initialMoment) {
         // Update existing feed_event row directly
-        await sb.from('feed_events').update({
+        const { error } = await sb.from('feed_events').update({
           moment_body:     body.trim(),
           moment_type:     momentType,
           page_ref:        pageRef ? parseInt(pageRef, 10) : null,
           spoiler_warning: spoilerWarning,
         }).eq('id', initialMoment.id)
+        if (error) { console.error('[MomentComposer] update error:', error); setPosting(false); return }
       } else {
         await sb.rpc('create_book_moment', {
           p_user_id:     user.id,
