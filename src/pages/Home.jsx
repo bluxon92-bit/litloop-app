@@ -606,7 +606,6 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
                         <button
                           onClick={e => { e.stopPropagation(); setEditingMoment(ev) }}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.1rem 0.25rem', color: 'var(--rt-t3)', lineHeight: 1, flexShrink: 0 }}
-                          title="Edit"
                         >
                           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                         </button>
@@ -648,9 +647,12 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
                       {vbadge && <span style={{ background: vbadge.bg, color: vbadge.col, borderRadius: 99, padding: '0.15em 0.55em', fontSize: '0.65rem', fontWeight: 700 }}>{vbadge.label}</span>}
                       <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginLeft: 'auto' }}>{dateStr}</span>
                       <button
-                        onClick={e => { e.stopPropagation(); setEditBook({ id: ev.id, title: ev.book_title, author: ev.book_author, coverId: ev.cover_id, coverUrl: ev.cover_url, olKey: ev.book_ol_key, _initialMode: 'review' }) }}
+                        onClick={e => {
+                          e.stopPropagation()
+                          const realBook = books.find(b => (ev.book_ol_key && b.olKey === ev.book_ol_key) || b.title === ev.book_title)
+                          if (realBook) openDetail(realBook, 'mylist-history')
+                        }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.1rem 0.25rem', color: 'var(--rt-t3)', lineHeight: 1, flexShrink: 0 }}
-                        title="Edit"
                       >
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                       </button>

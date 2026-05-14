@@ -986,7 +986,7 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
       </div>
 
       {/* ── Feed content ── pushes below fixed header */}
-      <div style={{ paddingTop: collapsed ? '120px' : '200px', paddingBottom: '4rem', transition: 'padding-top 0.2s' }}>
+      <div style={{ paddingTop: collapsed ? '100px' : '170px', paddingBottom: '4rem', transition: 'padding-top 0.2s' }}>
 
         {/* Suggested — people cards, not a post feed */}
         {feedFilter === 'suggested' && (
