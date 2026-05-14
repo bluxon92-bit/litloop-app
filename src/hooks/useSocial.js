@@ -80,77 +80,54 @@ export function useSocial(user) {
 
   async function loadSocialData() {
     try {
-      const [friendsRes, pendingRes, outgoingRes] = await Promise.all([
+      // ── Step 1: fire all independent queries simultaneously ──────────────────
+      const ownEventsQuery = sb
+        .from('feed_events')
+        .select('id, user_id, event_type, book_ol_key, book_title, book_author, cover_id, review_body, rating, created_at, moment_id, page_ref, moment_type, moment_body, spoiler_warning')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(40)
+
+      const [friendsRes, pendingRes, outgoingRes, recsRes, ownEventsRes] = await Promise.all([
         sb.from('friendships')
           .select('id, requester_id, addressee_id, status')
           .or(`requester_id.eq.${user.id},addressee_id.eq.${user.id}`)
           .eq('status', 'accepted'),
-        // Incoming — others requested me
         sb.from('friendships')
           .select('id, requester_id')
           .eq('addressee_id', user.id)
           .eq('status', 'pending'),
-        // Outgoing — I sent, still pending
         sb.from('friendships')
           .select('id, addressee_id')
           .eq('requester_id', user.id)
           .eq('status', 'pending'),
-      ])
-
-      // Recs — try full columns, fall back if migration not run
-      let recsData = []
-      const { data: recsFull, error: recsErr } = await sb
-        .from('book_recommendations')
-        .select('id, created_at, from_user_id, book_ol_key, book_title, book_author, cover_id, cover_url, message, status')
-        .eq('to_user_id', user.id)
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false })
-      if (recsErr) {
-        const { data: recsFallback } = await sb
-          .from('book_recommendations')
-          .select('id, created_at, from_user_id, book_ol_key, message, status')
+        sb.from('book_recommendations')
+          .select('id, created_at, from_user_id, book_ol_key, book_title, book_author, cover_id, cover_url, message, status')
           .eq('to_user_id', user.id)
           .eq('status', 'pending')
-          .order('created_at', { ascending: false })
-        recsData = recsFallback || []
-      } else {
-        recsData = recsFull || []
-      }
+          .order('created_at', { ascending: false }),
+        ownEventsQuery,
+      ])
 
       const friendIds   = (friendsRes.data || []).map(f =>
         f.requester_id === user.id ? f.addressee_id : f.requester_id)
       const pendingIds  = (pendingRes.data  || []).map(f => f.requester_id)
       const outgoingIds = (outgoingRes.data || []).map(f => f.addressee_id)
+      const recsData    = recsRes.data || []
       const recIds      = recsData.map(r => r.from_user_id)
 
-      // Feed — try RPC first, fall back to own events
-      let feedData = []
-      if (friendIds.length > 0) {
-        const { data: rpcFeed, error: rpcErr } = await sb.rpc('get_friend_feed_events', {
-          p_user_id: user.id, p_friend_ids: friendIds
-        })
-        if (!rpcErr && Array.isArray(rpcFeed)) {
-          feedData = rpcFeed
-        } else {
-          const { data: own } = await sb
-            .from('feed_events')
-            .select('id, user_id, event_type, book_ol_key, book_title, book_author, cover_id, review_body, rating, created_at, moment_id, page_ref, moment_type, moment_body, spoiler_warning')
-            .eq('user_id', user.id)
-            .order('created_at', { ascending: false })
-            .limit(40)
-          feedData = own || []
-        }
-      } else {
-        const { data: own } = await sb
-          .from('feed_events')
-          .select('id, user_id, event_type, book_ol_key, book_title, book_author, cover_id, review_body, rating, created_at, moment_id, page_ref, moment_type, moment_body, spoiler_warning')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(40)
-        feedData = own || []
-      }
+      // ── Step 2: friend feed RPC + profiles batch in parallel ────────────────
+      const feedPromise = friendIds.length > 0
+        ? sb.rpc('get_friend_feed_events', { p_user_id: user.id, p_friend_ids: friendIds })
+            .then(({ data, error }) =>
+              (!error && Array.isArray(data)) ? data : (ownEventsRes.data || [])
+            )
+        : Promise.resolve(ownEventsRes.data || [])
 
-      // Batch-fetch profiles via RPC
+      // We can't batch profiles until we know feedData user_ids, so resolve feed first
+      // but this is now only ONE round trip instead of two sequential ones
+      const feedData = await feedPromise
+
       const allIds = [...new Set([...friendIds, ...pendingIds, ...outgoingIds, ...feedData.map(e => e.user_id), ...recIds])]
       let profileMap = {}
       if (allIds.length) {
@@ -158,6 +135,7 @@ export function useSocial(user) {
         ;(profiles || []).forEach(p => { profileMap[p.id] = p })
       }
 
+      // ── Step 3: set all state at once ───────────────────────────────────────
       setFriends((friendsRes.data || []).map(f => {
         const fid  = f.requester_id === user.id ? f.addressee_id : f.requester_id
         const prof = profileMap[fid] || {}

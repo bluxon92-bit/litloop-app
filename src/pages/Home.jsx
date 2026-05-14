@@ -71,21 +71,12 @@ function SpoilerBody({ isSpoiler, isItalic, barCol = 'var(--rt-navy)', onClick, 
   )
 }
 
-function FeedEngagementBar({ entryId, user, onOpenThread }) {
-  const [likes, setLikes]     = useState([])
-  const [commentCount, setCommentCount] = useState(0)
+function FeedEngagementBar({ entryId, user, onOpenThread, initialLikes = [], initialCommentCount = 0 }) {
+  const [likes, setLikes]     = useState(initialLikes)
+  const [commentCount, setCommentCount] = useState(initialCommentCount)
   const [liking, setLiking]   = useState(false)
 
-  useEffect(() => {
-    if (!entryId) return
-    // Fetch like count + own like
-    sb.from('review_likes').select('id, user_id').eq('entry_id', entryId)
-      .then(({ data }) => setLikes(data || []))
-    // Fetch comment count
-    sb.from('review_comments').select('id', { count: 'exact', head: true }).eq('entry_id', entryId)
-      .then(({ count }) => setCommentCount(count || 0))
-  }, [entryId])
-
+  // No per-card useEffect queries — counts are pre-fetched by loadJournal
   const myLike = likes.find(l => l.user_id === user?.id)
 
   async function toggleLike(e) {
@@ -154,6 +145,10 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
   const [journalLoading, setJournalLoading] = useState(false)
   const [journalHeaderFixed, setJournalHeaderFixed] = useState(false)
   const journalSentinelRef = useRef(null)
+  // Pagination state — must be declared before useEffects that reference them
+  const JOURNAL_PAGE_SIZE = 6
+  const [journalPage, setJournalPage] = useState(1)
+  const journalBottomRef = useRef(null)
 
   useEffect(() => {
     if (!toast) return
@@ -200,8 +195,13 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
       })
   }) // runs every render — ref check makes it a no-op when nothing is pending
 
-  // ── Load journal entries (own content) ────────────────────
-  useEffect(() => { if (user) loadJournal() }, [user])
+  // ── Load journal entries — deferred until after first paint ──
+  useEffect(() => {
+    if (!user) return
+    // Yield to browser to paint visible content first, then load journal
+    const t = setTimeout(() => loadJournal(), 0)
+    return () => clearTimeout(t)
+  }, [user])
 
   // Fix journal header when sentinel scrolls out of view
   useEffect(() => {
@@ -214,36 +214,51 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
     return () => observer.disconnect()
   }, [journalSentinelRef.current])
 
+  // Fix 5: infinite scroll — load next page when bottom sentinel is visible
+  useEffect(() => {
+    if (!journalBottomRef.current || !journalEntries) return
+    const observer = new IntersectionObserver(
+      ([entry]) => { if (entry.isIntersecting) setJournalPage(p => p + 1) },
+      { rootMargin: '200px 0px 0px 0px', threshold: 0 }
+    )
+    observer.observe(journalBottomRef.current)
+    return () => observer.disconnect()
+  }, [journalBottomRef.current, journalEntries])
+
   async function loadJournal() {
     if (!user) return
     // Serve from localStorage cache if fresh
     const cached = readJournalCache(user.id)
     if (cached) { setJournalEntries(cached); return }
     setJournalLoading(true)
-    // Own moments + reviews from feed_events
-    const { data: events } = await sb
-      .from('feed_events')
-      .select('id, event_type, book_ol_key, book_title, book_author, cover_id, cover_url, review_body, rating, moment_id, moment_type, moment_body, page_ref, spoiler_warning, visibility, created_at')
-      .eq('user_id', user.id)
-      .in('event_type', ['book_moment', 'posted_review', 'finished'])
-      .order('created_at', { ascending: false })
-      .limit(100)
-    // Own private notes from reading_entries
-    const { data: noteEntries } = await sb
-      .from('reading_entries')
-      .select('id, notes, date_finished, date_started, book_id, title_manual, author_manual')
-      .eq('user_id', user.id)
-      .not('notes', 'is', null)
-      .order('updated_at', { ascending: false })
-      .limit(50)
+
+    // Fix 3: run feed_events and reading_entries in parallel
+    const [eventsRes, noteEntriesRes] = await Promise.all([
+      sb.from('feed_events')
+        .select('id, event_type, book_ol_key, book_title, book_author, cover_id, cover_url, review_body, rating, moment_id, moment_type, moment_body, page_ref, spoiler_warning, visibility, created_at')
+        .eq('user_id', user.id)
+        .in('event_type', ['book_moment', 'posted_review', 'finished'])
+        .order('created_at', { ascending: false })
+        .limit(100),
+      sb.from('reading_entries')
+        .select('id, notes, date_finished, date_started, book_id, title_manual, author_manual')
+        .eq('user_id', user.id)
+        .not('notes', 'is', null)
+        .order('updated_at', { ascending: false })
+        .limit(50),
+    ])
+
+    const events      = eventsRes.data || []
+    const noteEntries = noteEntriesRes.data || []
+
     // Enrich notes with book info
-    const bookIds = (noteEntries || []).map(n => n.book_id).filter(Boolean)
+    const bookIds = noteEntries.map(n => n.book_id).filter(Boolean)
     let booksMap = {}
     if (bookIds.length) {
       const { data: bks } = await sb.from('books').select('id, title, author, cover_id, cover_url, ol_key').in('id', bookIds)
       ;(bks || []).forEach(b => { booksMap[b.id] = b })
     }
-    const notes = (noteEntries || []).map(n => {
+    const notes = noteEntries.map(n => {
       const bk = booksMap[n.book_id] || {}
       return {
         _type:      'note',
@@ -257,9 +272,10 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
         created_at: n.date_finished || n.date_started || null,
       }
     })
+
     // Deduplicate: for same book prefer posted_review over finished
-    const moments = (events || []).filter(e => e.event_type === 'book_moment')
-    const reviewEvs = (events || []).filter(e => e.event_type === 'posted_review' || e.event_type === 'finished')
+    const moments   = events.filter(e => e.event_type === 'book_moment')
+    const reviewEvs = events.filter(e => e.event_type === 'posted_review' || e.event_type === 'finished')
     const seen = new Map()
     for (const ev of reviewEvs) {
       const key = ev.book_ol_key || ev.book_title || ev.id
@@ -271,8 +287,41 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
       ...moments.map(e => ({ ...e, _type: e.moment_type || 'moment' })),
       ...notes,
     ].sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
-    writeJournalCache(user.id, combined)
-    setJournalEntries(combined)
+
+    // Fix 2: batch-fetch engagement counts for all public entries in two queries
+    const publicIds = combined
+      .filter(e => e._type !== 'note' && e.visibility !== 'private')
+      .map(e => e.moment_id || e.id)
+      .filter(Boolean)
+
+    let likesMap = {}
+    let commentsMap = {}
+    if (publicIds.length) {
+      const [likesRes, commentsRes] = await Promise.all([
+        sb.from('review_likes').select('entry_id, id, user_id').in('entry_id', publicIds),
+        sb.from('review_comments').select('entry_id, id', { count: 'exact' }).in('entry_id', publicIds),
+      ])
+      ;(likesRes.data || []).forEach(l => {
+        if (!likesMap[l.entry_id]) likesMap[l.entry_id] = []
+        likesMap[l.entry_id].push(l)
+      })
+      ;(commentsRes.data || []).forEach(c => {
+        commentsMap[c.entry_id] = (commentsMap[c.entry_id] || 0) + 1
+      })
+    }
+
+    // Attach counts to each entry
+    const withCounts = combined.map(e => {
+      const eid = e.moment_id || e.id
+      return {
+        ...e,
+        _likes:        likesMap[eid]    || [],
+        _commentCount: commentsMap[eid] || 0,
+      }
+    })
+
+    writeJournalCache(user.id, withCounts)
+    setJournalEntries(withCounts)
     setJournalLoading(false)
   }
 
@@ -549,7 +598,11 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
                 )}
               </div>
             ) : (
-              filtered.map(ev => {
+              (() => {
+                const visible = filtered.slice(0, journalPage * JOURNAL_PAGE_SIZE)
+                const hasMore = filtered.length > visible.length
+                return (<>
+                  {visible.map(ev => {
                 const dateStr = ev.created_at
                   ? new Date(ev.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
                   : ''
@@ -623,7 +676,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
                         </div>
                       </div>
                       <div style={{ height: '0.5px', background: 'var(--rt-border)', marginBottom: '0.5rem' }} />
-                      <FeedEngagementBar entryId={ev.moment_id} user={user} onOpenThread={openThread} />
+                      <FeedEngagementBar entryId={ev.moment_id} user={user} onOpenThread={openThread} initialLikes={ev._likes || []} initialCommentCount={ev._commentCount || 0} />
                     </div>
                   )
                 }
@@ -671,10 +724,15 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
                       </div>
                     </div>
                     <div style={{ height: '0.5px', background: 'var(--rt-border)', marginBottom: '0.5rem' }} />
-                    <FeedEngagementBar entryId={ev.id} user={user} onOpenThread={openReview} />
+                    <FeedEngagementBar entryId={ev.id} user={user} onOpenThread={openReview} initialLikes={ev._likes || []} initialCommentCount={ev._commentCount || 0} />
                   </div>
                 )
-              })
+              })}
+                  {hasMore && (
+                    <div ref={journalBottomRef} style={{ height: 1 }} />
+                  )}
+                </>)
+              })()
             )}
           </div>
         )
