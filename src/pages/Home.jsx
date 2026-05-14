@@ -145,6 +145,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
   const [crCarouselIdx, setCrCarouselIdx]   = useState(0)
   const [toast, setToast]                   = useState(null)
   const [pendingMoment, setPendingMoment]   = useState(null)
+  const [editingMoment, setEditingMoment]   = useState(null)
   const toastTimer                          = useRef(null)
 
   // ── Journal state ──────────────────────────────────────────
@@ -602,6 +603,13 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
                         </span>
                         {vbadge && <span style={{ background: vbadge.bg, color: vbadge.col, borderRadius: 99, padding: '0.15em 0.55em', fontSize: '0.65rem', fontWeight: 700 }}>{vbadge.label}</span>}
                         <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginLeft: 'auto' }}>{dateStr}</span>
+                        <button
+                          onClick={e => { e.stopPropagation(); setEditingMoment(ev) }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.1rem 0.25rem', color: 'var(--rt-t3)', lineHeight: 1, flexShrink: 0 }}
+                          title="Edit"
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                        </button>
                       </div>
                       <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: '0.6rem' }}>
                         <div style={{ width: 56, height: 82, borderRadius: 6, overflow: 'hidden', flexShrink: 0, background: 'var(--rt-surface)', boxShadow: '0 2px 8px rgba(26,39,68,0.13)' }}>
@@ -639,6 +647,13 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
                       {stars && <span style={{ fontSize: '0.82rem', color: 'var(--rt-amber)', letterSpacing: '0.5px' }}>{stars}</span>}
                       {vbadge && <span style={{ background: vbadge.bg, color: vbadge.col, borderRadius: 99, padding: '0.15em 0.55em', fontSize: '0.65rem', fontWeight: 700 }}>{vbadge.label}</span>}
                       <span style={{ fontSize: '0.65rem', color: 'var(--rt-t3)', marginLeft: 'auto' }}>{dateStr}</span>
+                      <button
+                        onClick={e => { e.stopPropagation(); setEditBook({ id: ev.id, title: ev.book_title, author: ev.book_author, coverId: ev.cover_id, coverUrl: ev.cover_url, olKey: ev.book_ol_key, _initialMode: 'review' }) }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0.1rem 0.25rem', color: 'var(--rt-t3)', lineHeight: 1, flexShrink: 0 }}
+                        title="Edit"
+                      >
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                      </button>
                     </div>
                     <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: '0.6rem' }}
                       onClick={() => openDetail({ id: ev.id, title: ev.book_title, author: ev.book_author, coverId: ev.cover_id, coverUrl: ev.cover_url, olKey: ev.book_ol_key }, 'home-journal')}>
@@ -798,7 +813,32 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
             setPendingMoment(null)
             invalidateJournalCache(user.id)
             loadJournal()
-            loadSocialData()
+          }}
+        />
+      )}
+
+      {/* ── Moment composer — edit existing moment/quote ── */}
+      {editingMoment && (
+        <MomentComposer
+          user={user}
+          books={books}
+          editMode={true}
+          initialMoment={{
+            id:              editingMoment.moment_id || editingMoment.id,
+            moment_type:     editingMoment.moment_type || editingMoment._type || 'update',
+            moment_body:     editingMoment.moment_body || '',
+            page_ref:        editingMoment.page_ref    || null,
+            spoiler_warning: editingMoment.spoiler_warning || false,
+            book_title:      editingMoment.book_title  || '',
+            book_author:     editingMoment.book_author || '',
+            cover_id:        editingMoment.cover_id    || null,
+            book_ol_key:     editingMoment.book_ol_key || null,
+          }}
+          onClose={() => setEditingMoment(null)}
+          onPosted={() => {
+            setEditingMoment(null)
+            invalidateJournalCache(user.id)
+            loadJournal()
           }}
         />
       )}

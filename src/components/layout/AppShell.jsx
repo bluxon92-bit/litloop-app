@@ -14,6 +14,7 @@ const Profile         = lazy(() => import('../../pages/Profile'))
 const Feed            = lazy(() => import('../../pages/Feed'))
 const AccountSettings = lazy(() => import('../../pages/AccountSettings'))
 import AddBookModal from '../books/AddBookModal'
+import MomentComposer from '../MomentComposer'
 import { avatarColour, avatarInitial, timeAgo } from '../../lib/utils'
 import { sb } from '../../lib/supabase'
 import { IcoBook, IcoChat as IcoChatBubble, IcoUsers as IcoUsersGroup } from '../icons'
