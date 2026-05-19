@@ -68,9 +68,18 @@ function toCloudRow(bookData, userId) {
 export function useBooks(user) {
   const [books, setBooks]   = useState(localLoad)
   const [syncing, setSyncing] = useState(false)
+  // Tracks whether we've had a confirmed user this session, so we don't wipe
+  // the localStorage cache during the brief null window on optimistic render.
+  const [everHadUser, setEverHadUser] = useState(false)
 
   useEffect(() => {
-    if (!user) { setBooks([]); return }
+    if (!user) {
+      // Only clear books on a genuine logout, not the transient null before
+      // auth resolves when App.jsx renders AppShell optimistically.
+      if (everHadUser) setBooks([])
+      return
+    }
+    setEverHadUser(true)
     syncFromCloud()
   }, [user?.id])
 

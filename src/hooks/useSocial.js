@@ -27,16 +27,23 @@ export function useSocial(user) {
   const channelRef                          = useRef(null)
   const recsChannelRef                      = useRef(null)
   const notifChannelRef                     = useRef(null)
+  // Tracks whether we've had a confirmed user this session, so we don't wipe
+  // cached display name / username during the transient null on optimistic render.
+  const everHadUserRef = useRef(false)
 
   useEffect(() => {
     if (!user) {
-      setFriends([]); setPending([]); setOutgoingPending([])
-      setFeed([]); setRecs([])
-      setLoaded(false); setMyUsername(''); setMyDisplayName(''); setMyBio('')
-      setMyAvatarUrl(null)
-      try { localStorage.removeItem('ll_display_name'); localStorage.removeItem('ll_username') } catch {}
+      // Only do a full clear on genuine logout, not the brief null before auth resolves.
+      if (everHadUserRef.current) {
+        setFriends([]); setPending([]); setOutgoingPending([])
+        setFeed([]); setRecs([])
+        setLoaded(false); setMyUsername(''); setMyDisplayName(''); setMyBio('')
+        setMyAvatarUrl(null)
+        try { localStorage.removeItem('ll_display_name'); localStorage.removeItem('ll_username') } catch {}
+      }
       return
     }
+    everHadUserRef.current = true
     loadProfile()
     loadSocialData()
     loadNotifications()

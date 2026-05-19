@@ -10,6 +10,7 @@ import ReviewThreadSheet from '../components/ReviewThreadSheet'
 import BookDetailPanel from '../components/books/BookDetailPanel'
 import { ModalShell } from '../components/books/BookSheet'
 import { uploadCoverToSupabase } from '../lib/coverCache'
+import ReportSheet from '../components/ReportSheet'
 
 // ── Background cover upgrader ──────────────────────────────────
 // Runs after feed loads. For events missing cover_url but having coverId+olKey,
@@ -378,7 +379,7 @@ function SuggestedCard({ person, onFollowed, onOpenProfile }) {
 }
 
 // ── Feed card ──────────────────────────────────────────────────
-function FeedCard({ ev, user, isFriend, isFollowing, onOpenThread, onOpenDetail, onFollowChange, onOpenProfile }) {
+function FeedCard({ ev, user, isFriend, isFollowing, onOpenThread, onOpenDetail, onFollowChange, onOpenProfile, onReport }) {
   // Profile data may be:
   // - top-level fields (from public_reading_events view)
   // - nested under ev.profiles (from SocialContext friends feed)
@@ -446,6 +447,13 @@ function FeedCard({ ev, user, isFriend, isFollowing, onOpenThread, onOpenDetail,
           {!isFriend && (
             <FollowButton userId={ev.user_id} initialFollowing={isFollowing} onFollowChange={following => onFollowChange?.(ev.user_id, following)} />
           )}
+          {user?.id !== ev.user_id && (
+            <button
+              onClick={e => { e.stopPropagation(); onReport?.({ userId: ev.user_id, contentType: 'feed_event', contentId: ev.moment_id || ev.id }) }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rt-t3)', fontSize: '1rem', padding: '0 0.1rem', lineHeight: 1, flexShrink: 0 }}
+              title="Report"
+            >⋯</button>
+          )}
         </div>
         <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', marginBottom: '0.5rem' }}>
           <span style={{ background: badgeBg, color: badgeCol, borderRadius: 99, padding: '0.15em 0.55em', fontSize: '0.65rem', fontWeight: 700 }}>
@@ -481,6 +489,13 @@ function FeedCard({ ev, user, isFriend, isFollowing, onOpenThread, onOpenDetail,
         {!isFriend && (
           <FollowButton userId={ev.user_id} initialFollowing={isFollowing} onFollowChange={following => onFollowChange?.(ev.user_id, following)} />
         )}
+        {user?.id !== ev.user_id && (
+          <button
+            onClick={e => { e.stopPropagation(); onReport?.({ userId: ev.user_id, contentType: 'feed_event', contentId: ev.id }) }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rt-t3)', fontSize: '1rem', padding: '0 0.1rem', lineHeight: 1, flexShrink: 0 }}
+            title="Report"
+          >⋯</button>
+        )}
       </div>
       {stars && <div style={{ fontSize: '0.82rem', color: 'var(--rt-amber)', letterSpacing: '0.5px', marginBottom: '0.5rem' }}>{stars}</div>}
       <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: '0.6rem' }}
@@ -515,7 +530,7 @@ function SearchDropdown({ results, onSelectUser, onSelectBook, onClose }) {
         <>
           <div style={{ padding: '0.4rem 0.85rem', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.08em', color: 'var(--rt-t3)', textTransform: 'uppercase', borderBottom: '1px solid var(--rt-border)' }}>People</div>
           {users.map(u => (
-            <div key={u.id} onClick={() => { onSelectUser(u); onClose() }}
+            <div key={u.id} onMouseDown={e => e.preventDefault()} onClick={() => { onSelectUser(u); onClose() }}
               style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.6rem 0.85rem', cursor: 'pointer', borderBottom: '1px solid var(--rt-border)' }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--rt-surface)'}
               onMouseLeave={e => e.currentTarget.style.background = ''}
@@ -535,7 +550,7 @@ function SearchDropdown({ results, onSelectUser, onSelectBook, onClose }) {
         <>
           <div style={{ padding: '0.4rem 0.85rem', fontSize: '0.6rem', fontWeight: 700, letterSpacing: '0.08em', color: 'var(--rt-t3)', textTransform: 'uppercase', borderBottom: '1px solid var(--rt-border)' }}>Books</div>
           {books.map(b => (
-            <div key={b.id} onClick={() => { onSelectBook(b); onClose() }}
+            <div key={b.id} onMouseDown={e => e.preventDefault()} onClick={() => { onSelectBook(b); onClose() }}
               style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.6rem 0.85rem', cursor: 'pointer', borderBottom: '0.5px solid var(--rt-border)' }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--rt-surface)'}
               onMouseLeave={e => e.currentTarget.style.background = ''}
@@ -560,7 +575,7 @@ function SearchDropdown({ results, onSelectUser, onSelectBook, onClose }) {
 // ── Main Feed page ─────────────────────────────────────────────
 export default function Feed({ onNavigate, onOpenChatModal }) {
   const { user }                          = useAuthContext()
-  const { myDisplayName, myAvatarUrl, myBio, myUsername, friends, feed, blockedIds } = useSocialContext()
+  const { myDisplayName, myAvatarUrl, myBio, myUsername, friends, feed, blockedIds, submitReport, blockUser, loaded: socialLoaded } = useSocialContext()
   const { chats, startOrOpenChat }        = useChatContext()
   const { books, addBook, findDuplicate } = useBooksContext()
 
@@ -581,6 +596,7 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
   const [collapsed, setCollapsed]           = useState(false)
   const [toast, setToast]                   = useState(null)
   const [viewingProfile, setViewingProfile] = useState(null) // userId
+  const [reportTarget, setReportTarget]     = useState(null)    // { userId, contentType, contentId }
 
   const searchRef    = useRef(null)
   const toastTimer   = useRef(null)
@@ -606,10 +622,12 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
   }, [user])
 
   // ── Load feeds ─────────────────────────────────────────────
+  // Re-runs when socialLoaded flips true so friend feed is built from real
+  // data, not the empty state present during the optimistic render window.
   useEffect(() => {
-    if (!user) return
+    if (!user || !socialLoaded) return
     loadFeeds()
-  }, [user])
+  }, [user, socialLoaded])
 
   async function loadFeeds() {
     setLoading(true)
@@ -783,6 +801,24 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
     setSearchResults({ users: users || [], books: books || [] })
   }
 
+  // ── Report + block handlers ───────────────────────────────
+  function handleReport({ userId, contentType, contentId }) {
+    setReportTarget({ reportedUserId: userId, contentType, contentId })
+  }
+
+  async function handleBlock(userId) {
+    if (!userId) return
+    await blockUser(userId)
+    // Optimistically remove their posts from all feed slices
+    setFriendFeed(prev => prev.filter(ev => ev.user_id !== userId))
+    setFollowingFeed(prev => prev.filter(ev => ev.user_id !== userId))
+    setRecentlyActive(prev => prev ? prev.filter(ev => ev.user_id !== userId) : prev)
+    // Invalidate caches so they don't reappear on next load
+    clearCached('following')
+    clearCached('recentlyActive')
+    setToast('User blocked')
+  }
+
   // ── Follow change handler ──────────────────────────────────
   function handleFollowChange(userId, nowFollowing) {
     setFollowingIds(prev => {
@@ -939,7 +975,7 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
                   onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
                 />
                 <svg style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--rt-t3)" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-                {searchFocused && <SearchDropdown results={searchResults} onSelectUser={() => {}} onSelectBook={() => {}} onClose={() => { setSearchQuery(''); setSearchResults(null) }} />}
+                {searchFocused && <SearchDropdown results={searchResults} onSelectUser={u => { setViewingProfile(u.id); setSearchQuery(''); setSearchResults(null) }} onSelectBook={b => { setDetailBook({ title: b.title, author: b.author, coverId: b.cover_id, coverUrl: b.cover_url, olKey: b.ol_key }); setSearchQuery(''); setSearchResults(null) }} onClose={() => { setSearchQuery(''); setSearchResults(null) }} />}
               </div>
             </div>
           </div>
@@ -971,7 +1007,7 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
               onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
             />
             <svg style={{ position: 'absolute', left: '0.6rem', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--rt-t3)" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-            {searchFocused && !collapsed && <SearchDropdown results={searchResults} onSelectUser={() => {}} onSelectBook={() => {}} onClose={() => { setSearchQuery(''); setSearchResults(null) }} />}
+            {searchFocused && !collapsed && <SearchDropdown results={searchResults} onSelectUser={u => { setViewingProfile(u.id); setSearchQuery(''); setSearchResults(null) }} onSelectBook={b => { setDetailBook({ title: b.title, author: b.author, coverId: b.cover_id, coverUrl: b.cover_url, olKey: b.ol_key }); setSearchQuery(''); setSearchResults(null) }} onClose={() => { setSearchQuery(''); setSearchResults(null) }} />}
           </div>
         </div>
 
@@ -1035,6 +1071,7 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
                       onOpenDetail={book => setDetailBook(book)}
                       onFollowChange={handleFollowChange}
                       onOpenProfile={userId => setViewingProfile(userId)}
+                      onReport={handleReport}
                     />
                   ))
                 )}
@@ -1073,6 +1110,7 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
                 onOpenDetail={book => setDetailBook(book)}
                 onFollowChange={handleFollowChange}
                 onOpenProfile={userId => setViewingProfile(userId)}
+                onReport={handleReport}
               />
             ))
           )
@@ -1125,7 +1163,7 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
           }}
           onViewProfile={() => setActiveReview(null)}
           onAddFriend={() => {}}
-          submitReport={() => {}}
+          submitReport={submitReport}
         />
       )}
 
@@ -1152,6 +1190,21 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
           onCoverUpdate={() => {}}
         />
       )}
+
+      {/* ── ReportSheet ── */}
+      <ReportSheet
+        open={!!reportTarget}
+        onClose={() => setReportTarget(null)}
+        title="Report content"
+        description="Help us understand what's wrong."
+        onSubmit={async (reason, note) => {
+          await submitReport({ ...reportTarget, reason, note })
+        }}
+        onBlock={reportTarget?.reportedUserId ? async () => {
+          await handleBlock(reportTarget.reportedUserId)
+          setReportTarget(null)
+        } : undefined}
+      />
 
       {/* ── Toast ── */}
       {toast && (

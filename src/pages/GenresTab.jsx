@@ -24,6 +24,32 @@ const ALL_GENRES = [
 const DEFAULT_FAVOURITES = ['fantasy', 'crime-mystery', 'romance']
 const MAX_FAVOURITES = 3
 const INITIAL_SHOW = 15
+const FAV_GENRES_KEY = 'litloop_fav_genres'
+const GENRE_CACHE_KEY = 'litloop_genre_'
+
+function loadCachedFavourites() {
+  try {
+    const raw = sessionStorage.getItem(FAV_GENRES_KEY)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return null
+}
+
+function saveCachedFavourites(favs) {
+  try { sessionStorage.setItem(FAV_GENRES_KEY, JSON.stringify(favs)) } catch {}
+}
+
+function loadCachedGenre(slug) {
+  try {
+    const raw = sessionStorage.getItem(GENRE_CACHE_KEY + slug)
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return null
+}
+
+function saveCachedGenre(slug, books, listId) {
+  try { sessionStorage.setItem(GENRE_CACHE_KEY + slug, JSON.stringify({ books, listId })) } catch {}
+}
 
 // ── Status colours (matching stats page palette) ─────────────────
 const STATUS_COLOUR = {
@@ -402,7 +428,7 @@ export default function GenresTab({ user, addBook, onSelectBook }) {
   const [selectedSlug, setSelectedSlug] = useState(
     () => sessionStorage.getItem('litloop_genre_tab') || null
   )
-  const [favourites, setFavourites]     = useState(DEFAULT_FAVOURITES)
+  const [favourites, setFavourites]     = useState(() => loadCachedFavourites() || DEFAULT_FAVOURITES)
   const [showEditFavs, setShowEditFavs] = useState(false)
   const [books, setBooks]               = useState([])
   const [listId, setListId]             = useState(null)
@@ -411,7 +437,8 @@ export default function GenresTab({ user, addBook, onSelectBook }) {
   const [showDismissed, setShowDismissed] = useState(false)
   const [savingFavs, setSavingFavs]     = useState(false)
 
-  // Load user's saved favourite genres
+  // Load user's saved favourite genres — serve from sessionStorage cache instantly,
+  // then refresh from DB in background so it's always up to date.
   useEffect(() => {
     if (!user) return
     async function loadFavs() {
@@ -422,6 +449,7 @@ export default function GenresTab({ user, addBook, onSelectBook }) {
         .maybeSingle()
       if (data?.favourite_genres?.length) {
         setFavourites(data.favourite_genres)
+        saveCachedFavourites(data.favourite_genres)
       }
     }
     loadFavs()
@@ -445,27 +473,41 @@ export default function GenresTab({ user, addBook, onSelectBook }) {
   }, [selectedSlug, user?.id])
 
   const fetchList = useCallback(async (slug) => {
+    // Fix 2: serve from sessionStorage cache immediately — no spinner for repeat visits
+    const cached = loadCachedGenre(slug)
+    if (cached) {
+      setBooks(cached.books)
+      setListId(cached.listId)
+      setLoading(false)
+      // Refresh in background so user status changes are reflected next visit
+      fetchAndUpdate(slug)
+      return
+    }
     setLoading(true)
     setBooks([])
-    try {
-      const { data, error } = await sb.rpc('get_genre_list_for_user', {
-        p_list_slug: slug,
-        p_user_id:   user?.id ?? null,
-      })
-      if (error) throw error
+    await fetchAndUpdate(slug)
+    setLoading(false)
+  }, [user?.id])
 
-      // Get the list_id for dismissals
-      const { data: listRow } = await sb
-        .from('reading_lists')
-        .select('id')
-        .eq('slug', slug)
-        .maybeSingle()
-      setListId(listRow?.id ?? null)
-      setBooks(data || [])
+  // Fix 1: RPC and list_id lookup run in parallel (were sequential before)
+  const fetchAndUpdate = useCallback(async (slug) => {
+    try {
+      const [rpcResult, listResult] = await Promise.all([
+        sb.rpc('get_genre_list_for_user', {
+          p_list_slug: slug,
+          p_user_id:   user?.id ?? null,
+        }),
+        sb.from('reading_lists').select('id').eq('slug', slug).maybeSingle(),
+      ])
+      if (rpcResult.error) throw rpcResult.error
+      const books  = rpcResult.data || []
+      const listId = listResult.data?.id ?? null
+      setBooks(books)
+      setListId(listId)
+      saveCachedGenre(slug, books, listId)
     } catch (err) {
       console.error('[GenresTab] fetch error:', err)
     }
-    setLoading(false)
   }, [user?.id])
 
   function handleSelectGenre(slug) {
@@ -475,6 +517,7 @@ export default function GenresTab({ user, addBook, onSelectBook }) {
 
   async function handleSaveFavourites(newFavs) {
     setFavourites(newFavs)
+    saveCachedFavourites(newFavs)
     setSavingFavs(true)
     if (user) {
       await sb

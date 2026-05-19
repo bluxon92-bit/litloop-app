@@ -1,25 +1,30 @@
-import { useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuthContext } from './context/AuthContext'
-import { useBooksContext } from './context/BooksContext'
 import AuthForms from './components/auth/AuthForms'
 import AppShell from './components/layout/AppShell'
-import { parseIntentFromURL, saveIntent, loadIntent, clearIntent } from './lib/readingListIntent'
+import { parseIntentFromURL, saveIntent } from './lib/readingListIntent'
 
 function App() {
   const { user, loading } = useAuthContext()
 
-  // On mount: read URL params and either fire the action (if logged in)
-  // or persist to localStorage for after auth completes.
+  // If we have a cached username, the user was previously logged in.
+  // Show AppShell immediately rather than blocking on the Supabase session check —
+  // auth context will update once the session is confirmed in the background.
+  // On mobile cold-start this saves 3–5 seconds of blank loading screen.
+  const [hadCachedSession] = useState(() => {
+    try { return !!localStorage.getItem('ll_username') } catch { return false }
+  })
+
   useEffect(() => {
     const urlIntent = parseIntentFromURL()
     if (urlIntent) {
       saveIntent(urlIntent)
-      // Clean the URL so params don't persist visually
       window.history.replaceState({}, '', window.location.pathname)
     }
   }, [])
 
-  if (loading) return (
+  // True cold start — never logged in, or explicitly logged out
+  if (loading && !hadCachedSession) return (
     <div style={{
       minHeight: '100vh', display: 'flex', alignItems: 'center',
       justifyContent: 'center', background: 'var(--rt-cream)',
@@ -29,7 +34,10 @@ function App() {
     </div>
   )
 
-  if (!user) return <AuthForms />
+  // Session expired or logged out — auth resolved with no user
+  if (!loading && !user) return <AuthForms />
+
+  // Returning user (optimistic) or confirmed session
   return <AppShell />
 }
 

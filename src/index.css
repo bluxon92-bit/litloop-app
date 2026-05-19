@@ -47,6 +47,19 @@
 .rt-topnav-mobile   { display: flex; }
 .rt-tabbar-mobile   { display: flex; }
 
+/* Unified main — single mount point, responsive via media query */
+.rt-unified-main {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  min-height: 100vh;
+  box-sizing: border-box;
+  /* Mobile: offset for fixed top nav + bottom tab bar */
+  padding-top: calc(56px + env(safe-area-inset-top, 0px));
+  padding-bottom: 80px;
+  width: 100%;
+}
+
 @media (min-width: 768px) {
   .fab-modal-backdrop { align-items: center !important; }
   .fab-modal-sheet    { border-radius: 16px !important; }
@@ -66,6 +79,13 @@
     min-width: 0;
     max-width: calc(100vw - 220px);
     box-sizing: border-box;
+  }
+  .rt-unified-main {
+    margin-left: 220px;
+    padding-top: 0;
+    padding-bottom: 2rem;
+    width: auto;
+    max-width: calc(100vw - 220px);
   }
   .rt-main-mobile   { display: none !important; }
   .rt-topnav-mobile { display: none !important; }

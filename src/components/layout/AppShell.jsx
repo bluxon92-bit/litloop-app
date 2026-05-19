@@ -4,6 +4,10 @@ import { useChatContext } from '../../context/ChatContext'
 import { useSocialContext } from '../../context/SocialContext'
 import { startBackgroundImport } from '../../lib/importManager'
 import { useBooksContext } from '../../context/BooksContext'
+
+// Lazy imports preserved for bundle splitting — chunks still download on first visit.
+// But pages are never unmounted after first visit (keep-alive pattern via PageContainer),
+// so switching tabs is instant and data is never re-fetched.
 const Home            = lazy(() => import('../../pages/Home'))
 const MyList          = lazy(() => import('../../pages/MyList'))
 const Stats           = lazy(() => import('../../pages/Stats'))
@@ -13,6 +17,24 @@ const ChatThreadModal = lazy(() => import('../../pages/Chat').then(m => ({ defau
 const Profile         = lazy(() => import('../../pages/Profile'))
 const Feed            = lazy(() => import('../../pages/Feed'))
 const AccountSettings = lazy(() => import('../../pages/AccountSettings'))
+
+// ── Keep-alive page container ─────────────────────────────────
+// Mounts a page on first visit, then keeps it alive with display:none when inactive.
+// Preserves all component state and prevents re-fetches on tab switch.
+// Uses display:contents when active so the page layout is unaffected.
+function PageContainer({ id, activeTab, children }) {
+  const [everShown, setEverShown] = useState(false)
+  const isActive = activeTab === id
+  useEffect(() => {
+    if (isActive && !everShown) setEverShown(true)
+  }, [isActive])
+  if (!everShown) return null
+  return (
+    <div style={{ display: isActive ? 'contents' : 'none' }}>
+      {children}
+    </div>
+  )
+}
 import AddBookModal from '../books/AddBookModal'
 import MomentComposer from '../MomentComposer'
 import { avatarColour, avatarInitial, timeAgo } from '../../lib/utils'
@@ -1363,18 +1385,39 @@ export default function AppShell() {
     }).filter(Boolean),
   ].slice(0, 15)
 
-  function renderPage() {
-    switch (activeTab) {
-      case 'home':     return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} onViewFriendProfile={f => { setActiveTab('chat'); setActiveFriendProfile(f) }} onAddFriend={() => setFabAction('friend')} pendingReviewOpen={pendingReviewOpen} pendingReviewTrigger={pendingReviewTrigger} />
-      case 'mylist':   return <MyList          onNavigate={onNavigate} onOpenChatModal={openChatModal} />
-      case 'stats':    return <Stats           onNavigate={onNavigate} />
-      case 'discover': return <Discover        onNavigate={onNavigate} onOpenChatModal={openChatModal} onRecommend={() => setFabAction('recommend')} pendingRecOpen={pendingRecOpen} />
-      case 'chat':     return <Chat            onNavigate={onNavigate} onOpenChatModal={openChatModal} onAddFriend={() => setFabAction('friend')} onOpenChatWithFriend={openChatWithFriend} initialFriendProfile={activeFriendProfile} onClearFriendProfile={() => setActiveFriendProfile(null)} />
-      case 'feed':     return <Feed            onNavigate={onNavigate} onOpenChatModal={openChatModal} />
-      case 'profile':  return <Profile         onNavigate={onNavigate} onOpenChatModal={openChatModal} />
-      case 'account':  return <AccountSettings onNavigate={onNavigate} />
-      default:         return <Home            onNavigate={onNavigate} onOpenChatModal={openChatModal} />
-    }
+  // ── Keep-alive page tree ──────────────────────────────────────
+  // All pages rendered here once. PageContainer mounts on first visit,
+  // then uses display:none to hide rather than unmount — state and data survive tab switches.
+  // Note: account/profile share the profile keep-alive slot; activeTab drives which shows.
+  function renderPages() {
+    return (
+      <Suspense fallback={<div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--rt-t3)' }}>Loading…</div>}>
+        <PageContainer id="home" activeTab={activeTab}>
+          <Home onNavigate={onNavigate} onOpenChatModal={openChatModal} onViewFriendProfile={f => { setActiveTab('chat'); setActiveFriendProfile(f) }} onAddFriend={() => setFabAction('friend')} pendingReviewOpen={pendingReviewOpen} pendingReviewTrigger={pendingReviewTrigger} />
+        </PageContainer>
+        <PageContainer id="mylist" activeTab={activeTab}>
+          <MyList onNavigate={onNavigate} onOpenChatModal={openChatModal} />
+        </PageContainer>
+        <PageContainer id="stats" activeTab={activeTab}>
+          <Stats onNavigate={onNavigate} />
+        </PageContainer>
+        <PageContainer id="discover" activeTab={activeTab}>
+          <Discover onNavigate={onNavigate} onOpenChatModal={openChatModal} onRecommend={() => setFabAction('recommend')} pendingRecOpen={pendingRecOpen} />
+        </PageContainer>
+        <PageContainer id="chat" activeTab={activeTab}>
+          <Chat onNavigate={onNavigate} onOpenChatModal={openChatModal} onAddFriend={() => setFabAction('friend')} onOpenChatWithFriend={openChatWithFriend} initialFriendProfile={activeFriendProfile} onClearFriendProfile={() => setActiveFriendProfile(null)} />
+        </PageContainer>
+        <PageContainer id="feed" activeTab={activeTab}>
+          <Feed onNavigate={onNavigate} onOpenChatModal={openChatModal} />
+        </PageContainer>
+        <PageContainer id="profile" activeTab={activeTab}>
+          <Profile onNavigate={onNavigate} onOpenChatModal={openChatModal} />
+        </PageContainer>
+        <PageContainer id="account" activeTab={activeTab}>
+          <AccountSettings onNavigate={onNavigate} />
+        </PageContainer>
+      </Suspense>
+    )
   }
 
   return (
@@ -1475,11 +1518,10 @@ export default function AppShell() {
         </div>
       </nav>
 
-      {/* Desktop main */}
-      <main className="rt-main-desktop" style={{ marginLeft: 220, flex: 1, minWidth: 0, minHeight: '100vh', paddingBottom: '2rem', boxSizing: 'border-box' }}>
-        <Suspense fallback={<div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--rt-t3)' }}>Loading…</div>}>
-         {renderPage()}
-       </Suspense>
+      {/* Unified main — single mount point for all pages.
+          Responsive layout handled by .rt-unified-main in index.css */}
+      <main className="rt-unified-main">
+        {renderPages()}
       </main>
 
       {/* ── Mobile top nav ──────────────────────────────── */}
@@ -1579,13 +1621,6 @@ export default function AppShell() {
           </div>
         </div>
       </header>
-
-      {/* Mobile page content */}
-      <main className="rt-main-mobile" style={{ flex: 1, paddingTop: 'calc(56px + env(safe-area-inset-top, 0px))', paddingBottom: 80, width: '100%' }}>
-        <Suspense fallback={<div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--rt-t3)' }}>Loading…</div>}>
-          {renderPage()}
-       </Suspense>
-      </main>
 
       {/* ── Mobile bottom tab bar ──────────────────────── */}
       <nav className="rt-tabbar-mobile" style={{
