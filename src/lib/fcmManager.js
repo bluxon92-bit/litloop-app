@@ -15,10 +15,8 @@ export function initFcmEarly() {
   PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => {
     const data = notification.data || {}
     if (onRouteCallback) {
-      // Listeners already set up — route immediately
       onRouteCallback(data)
     } else {
-      // Store for later consumption
       pendingLaunchNotification = data
     }
   })
@@ -43,10 +41,15 @@ export async function registerFcmToken(userId) {
 
 async function saveFcmToken(userId, token) {
   const platform = Capacitor.getPlatform()
-  await sb.from('fcm_tokens').upsert(
+  const { error } = await sb.from('fcm_tokens').upsert(
     { user_id: userId, token, platform, updated_at: new Date().toISOString() },
     { onConflict: 'user_id,platform' }
   )
+  if (error) {
+    console.warn('[FCM] Error saving token to Supabase:', error.message)
+  } else {
+    console.log('[FCM] Token saved to Supabase for user:', userId)
+  }
 }
 
 export async function unregisterFcmToken(userId) {
@@ -57,18 +60,26 @@ export async function unregisterFcmToken(userId) {
 
 let listenersAdded = false
 
-// isReady: optional function that returns true when app data is loaded
-// Used to delay cold-start routing until chats/data are available
 export function setupFcmListeners(userId, onRoute, isReady) {
   if (!isNative() || listenersAdded) return
   listenersAdded = true
   onRouteCallback = onRoute
 
   PushNotifications.addListener('registration', async ({ value: token }) => {
-    console.log('[FCM] Token received:', token?.substring(0, 30), '... platform:', Capacitor.getPlatform())
-    console.log('[FCM] Full token length:', token?.length)
+    const platform = Capacitor.getPlatform()
+    console.log('[FCM] registration event — platform:', platform, 'token prefix:', token?.substring(0, 30))
+
+    if (platform === 'ios') {
+      // On iOS, this event fires with the APNs device token, NOT the FCM token.
+      // The real FCM token is captured by AppDelegate's MessagingDelegate and
+      // saved to Supabase directly via native HTTP. Nothing to do here on iOS.
+      console.log('[FCM] iOS: ignoring registration event (AppDelegate handles FCM token)')
+      return
+    }
+
+    // Android: Capacitor registration event gives the real FCM token directly.
+    console.log('[FCM] Android: saving FCM token from registration event')
     await saveFcmToken(userId, token)
-    console.log('[FCM] Token saved to Supabase for user:', userId)
   })
 
   PushNotifications.addListener('registrationError', (err) => {
@@ -76,7 +87,7 @@ export function setupFcmListeners(userId, onRoute, isReady) {
   })
 
   PushNotifications.addListener('pushNotificationReceived', (notification) => {
-    console.log('FCM foreground notification:', notification.title)
+    console.log('[FCM] Foreground notification:', notification.title)
   })
 
   // Background tap (app was open in background)
@@ -91,7 +102,6 @@ export function setupFcmListeners(userId, onRoute, isReady) {
     pendingLaunchNotification = null
 
     if (isReady && !isReady()) {
-      // Poll until ready, max 5 seconds
       let attempts = 0
       const poll = setInterval(() => {
         attempts++

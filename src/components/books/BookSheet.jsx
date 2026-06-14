@@ -374,7 +374,7 @@ function FriendItem({ friend, dateRead, selected, onToggle }) {
   )
 }
 
-export function FinishModal({ book, user, onClose, onSaved, onOpenChatModal }) {
+export function FinishModal({ book, user, onClose, onSaved, onOpenChatModal, onOpenSpace }) {
   const { friends, sendRecommendation, feed } = useSocialContext()
   const { startOrOpenChat, chats } = useChatContext()
 
@@ -760,6 +760,26 @@ export function FinishModal({ book, user, onClose, onSaved, onOpenChatModal }) {
             Follow them to see their reviews, quotes, and reading updates in your feed.
           </div>
 
+          {/* ── Visit Space CTA ── */}
+          {book.olKey && onOpenSpace && (
+            <div style={{ marginBottom: '1rem', padding: '0.85rem 1rem', background: 'var(--rt-navy)', borderRadius: 'var(--rt-r3)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+              <div>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#fff', marginBottom: '0.15rem' }}>
+                  Join the {book.title} Space
+                </div>
+                <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.55)', lineHeight: 1.4 }}>
+                  See all the conversations about this book
+                </div>
+              </div>
+              <button
+                onClick={() => { onClose(); onOpenSpace(book) }}
+                style={{ flexShrink: 0, background: 'var(--rt-amber)', color: '#fff', border: 'none', borderRadius: 99, padding: '0.4rem 0.9rem', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                Visit Space →
+              </button>
+            </div>
+          )}
+
           {discoveryReaders.map(reader => {
             const colour   = avatarColour(reader.user_id)
             const init     = avatarInitial(reader.display_name || reader.username)
@@ -823,7 +843,7 @@ export function FinishModal({ book, user, onClose, onSaved, onOpenChatModal }) {
 // BOOKSHEET — view / edit sheet for existing books
 // (opened from My List / history — not the finish workflow)
 // ─────────────────────────────────────────────────────────────
-export default function BookSheet({ book, onClose, onSaved, onDeleted, user, initialMode = 'view' }) {
+export default function BookSheet({ book, onClose, onSaved, onDeleted, user, initialMode = 'view', onOpenSpace }) {
   const [mode, setMode]         = useState(initialMode)
   const [rating, setRating]     = useState(book.rating || 0)
   const [status, setStatus]     = useState(book.status)
@@ -885,6 +905,35 @@ export default function BookSheet({ book, onClose, onSaved, onDeleted, user, ini
               : <div style={{ fontSize: '0.82rem', color: 'var(--rt-t3)', marginBottom: '0.5rem' }}>No rating yet</div>
             }
             {book.dateRead && <div style={{ fontSize: '0.75rem', color: 'var(--rt-t3)', marginBottom: '0.75rem' }}>Finished {fmtDate(book.dateRead)}</div>}
+
+            {/* ── Visit Space CTA ── prominent for currently reading, quiet for others */}
+            {book.olKey && onOpenSpace && (
+              book.status === 'reading' ? (
+                <div style={{ marginBottom: '0.85rem', padding: '0.75rem 0.9rem', background: 'var(--rt-navy)', borderRadius: 'var(--rt-r3)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                  <div>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#fff', marginBottom: '0.15rem' }}>Join the conversation</div>
+                    <div style={{ fontSize: '0.68rem', color: 'rgba(255,255,255,0.55)' }}>See what other readers are saying</div>
+                  </div>
+                  <button
+                    onClick={() => { onClose(); onOpenSpace(book) }}
+                    style={{ flexShrink: 0, background: 'var(--rt-amber)', color: '#fff', border: 'none', borderRadius: 99, padding: '0.4rem 0.9rem', fontSize: '0.75rem', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                  >
+                    Visit Space →
+                  </button>
+                </div>
+              ) : (
+                <div style={{ marginBottom: '0.75rem' }}>
+                  <button
+                    onClick={() => { onClose(); onOpenSpace(book) }}
+                    style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, color: 'var(--rt-t3)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}
+                  >
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                    Visit Space →
+                  </button>
+                </div>
+              )
+            )}
+
             {book.notes && (
               <div style={{ marginBottom: '0.75rem' }}>
                 <div style={{ fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--rt-t3)', marginBottom: '0.3rem' }}>Private notes</div>

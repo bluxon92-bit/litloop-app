@@ -206,6 +206,73 @@ function UserProfileSheet({ userId, user, followingIds, onFollowChange, onClose 
   )
 }
 
+// ── Post action sheet (⋯ menu) ────────────────────────────────
+// Replaces the single ⋯ report button with a 3-option bottom sheet:
+// Flag Spoiler / Block User / Report
+function PostActionSheet({ open, onClose, onFlagSpoiler, onBlock, onReport, alreadyFlagged }) {
+  if (!open) return null
+  const itemStyle = {
+    display: 'flex', alignItems: 'center', gap: '0.75rem',
+    padding: '0.9rem 1.25rem',
+    background: 'none', border: 'none', width: '100%',
+    textAlign: 'left', cursor: 'pointer',
+    fontSize: '0.88rem', fontWeight: 600, color: 'var(--rt-navy)',
+    borderBottom: '1px solid var(--rt-border)',
+  }
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(10,15,30,0.45)', zIndex: 500, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div style={{ background: 'var(--rt-white)', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, paddingBottom: 'env(safe-area-inset-bottom, 0px)', overflow: 'hidden' }}>
+        {/* Handle */}
+        <div style={{ width: 36, height: 4, borderRadius: 99, background: 'var(--rt-border-md)', margin: '10px auto 4px' }} />
+
+        {/* Flag spoiler */}
+        <button style={itemStyle} onClick={() => { onFlagSpoiler(); onClose() }}>
+          <span style={{ fontSize: '1rem' }}>⚠️</span>
+          <div>
+            <div>{alreadyFlagged ? 'Remove spoiler flag' : 'Flag as spoiler'}</div>
+            <div style={{ fontSize: '0.72rem', fontWeight: 400, color: 'var(--rt-t3)', marginTop: '0.1rem' }}>
+              {alreadyFlagged ? 'Remove your spoiler flag from this post' : 'Mark this post as containing unmarked spoilers'}
+            </div>
+          </div>
+        </button>
+
+        {/* Block */}
+        <button style={{ ...itemStyle, color: '#991b1b' }} onClick={() => { onBlock(); onClose() }}>
+          <span style={{ fontSize: '1rem' }}>🚫</span>
+          <div>
+            <div>Block user</div>
+            <div style={{ fontSize: '0.72rem', fontWeight: 400, color: 'var(--rt-t3)', marginTop: '0.1rem' }}>
+              Their posts won't appear in your feed or Spaces
+            </div>
+          </div>
+        </button>
+
+        {/* Report */}
+        <button style={{ ...itemStyle, borderBottom: 'none', color: '#991b1b' }} onClick={() => { onReport(); onClose() }}>
+          <span style={{ fontSize: '1rem' }}>🚩</span>
+          <div>
+            <div>Report post</div>
+            <div style={{ fontSize: '0.72rem', fontWeight: 400, color: 'var(--rt-t3)', marginTop: '0.1rem' }}>
+              Let us know if this content breaks our guidelines
+            </div>
+          </div>
+        </button>
+
+        {/* Cancel */}
+        <button
+          onClick={onClose}
+          style={{ display: 'block', width: '100%', padding: '1rem', background: 'var(--rt-surface)', border: 'none', cursor: 'pointer', fontSize: '0.88rem', fontWeight: 700, color: 'var(--rt-t2)', marginTop: '0.5rem' }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )
+}
+
 // ── Spoiler-aware body ─────────────────────────────────────────
 function SpoilerBody({ isSpoiler, isItalic, barCol = 'var(--rt-navy)', onClick, children }) {
   const [revealed, setRevealed] = useState(false)
@@ -235,18 +302,13 @@ function SpoilerBody({ isSpoiler, isItalic, barCol = 'var(--rt-navy)', onClick, 
 }
 
 // ── Engagement bar ─────────────────────────────────────────────
-function FeedEngagementBar({ entryId, user, onOpenThread }) {
-  const [likes, setLikes]           = useState([])
-  const [commentCount, setCommentCount] = useState(0)
+// Counts are pre-fetched by loadFeeds in two batched queries and passed as props.
+// No per-card useEffect queries — that pattern caused 40+ simultaneous Supabase
+// requests on feed load which saturated the connection pool for 15+ seconds.
+function FeedEngagementBar({ entryId, user, onOpenThread, initialLikes = [], initialCommentCount = 0 }) {
+  const [likes, setLikes]           = useState(initialLikes)
+  const [commentCount, setCommentCount] = useState(initialCommentCount)
   const [liking, setLiking]         = useState(false)
-
-  useEffect(() => {
-    if (!entryId) return
-    sb.from('review_likes').select('id, user_id').eq('entry_id', entryId)
-      .then(({ data }) => setLikes(data || []))
-    sb.from('review_comments').select('id', { count: 'exact', head: true }).eq('entry_id', entryId)
-      .then(({ count }) => setCommentCount(count || 0))
-  }, [entryId])
 
   const myLike = likes.find(l => l.user_id === user?.id)
 
@@ -379,7 +441,11 @@ function SuggestedCard({ person, onFollowed, onOpenProfile }) {
 }
 
 // ── Feed card ──────────────────────────────────────────────────
-function FeedCard({ ev, user, isFriend, isFollowing, onOpenThread, onOpenDetail, onFollowChange, onOpenProfile, onReport }) {
+function FeedCard({ ev, user, isFriend, isFollowing, onOpenThread, onOpenDetail, onFollowChange, onOpenProfile, onReport, onBlock, onFlagSpoiler }) {
+  const [actionSheetOpen, setActionSheetOpen] = useState(false)
+  const [localFlagCount, setLocalFlagCount]   = useState(ev._flagCount || 0)
+  const [myFlagged, setMyFlagged]             = useState(ev._myFlagged || false)
+
   // Profile data may be:
   // - top-level fields (from public_reading_events view)
   // - nested under ev.profiles (from SocialContext friends feed)
@@ -396,10 +462,28 @@ function FeedCard({ ev, user, isFriend, isFollowing, onOpenThread, onOpenDetail,
   const rating      = ev.rating      || 0
   const stars       = rating ? '★'.repeat(rating) + '☆'.repeat(5 - rating) : ''
   const reviewText  = ev.review_body || ''
-  const isSpoiler   = !!ev.spoiler_warning
+  // Blur if original spoiler_warning OR community flags hit threshold (3)
+  const isSpoiler   = !!ev.spoiler_warning || localFlagCount >= 3
   const dateStr     = ev.created_at
     ? new Date(ev.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
     : ''
+
+  async function handleFlagSpoiler() {
+    const eventId = ev.moment_id || ev.id
+    if (myFlagged) {
+      // Remove flag
+      await sb.from('post_flags').delete()
+        .eq('flagged_by', user.id).eq('event_id', eventId).eq('flag_type', 'spoiler')
+      setMyFlagged(false)
+      setLocalFlagCount(c => Math.max(0, c - 1))
+    } else {
+      // Add flag
+      await sb.from('post_flags').insert({ flagged_by: user.id, event_id: eventId, flag_type: 'spoiler' })
+      setMyFlagged(true)
+      setLocalFlagCount(c => c + 1)
+    }
+    onFlagSpoiler?.()
+  }
 
   const cardStyle = {
     background: 'var(--rt-white)', border: '1px solid var(--rt-border)',
@@ -449,9 +533,9 @@ function FeedCard({ ev, user, isFriend, isFollowing, onOpenThread, onOpenDetail,
           )}
           {user?.id !== ev.user_id && (
             <button
-              onClick={e => { e.stopPropagation(); onReport?.({ userId: ev.user_id, contentType: 'feed_event', contentId: ev.moment_id || ev.id }) }}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rt-t3)', fontSize: '1rem', padding: '0 0.1rem', lineHeight: 1, flexShrink: 0 }}
-              title="Report"
+              onClick={e => { e.stopPropagation(); setActionSheetOpen(true) }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rt-t3)', fontSize: '1.1rem', padding: '0 0.1rem', lineHeight: 1, flexShrink: 0, letterSpacing: '0.05em' }}
+              title="More options"
             >⋯</button>
           )}
         </div>
@@ -459,6 +543,11 @@ function FeedCard({ ev, user, isFriend, isFollowing, onOpenThread, onOpenDetail,
           <span style={{ background: badgeBg, color: badgeCol, borderRadius: 99, padding: '0.15em 0.55em', fontSize: '0.65rem', fontWeight: 700 }}>
             {badgeTxt}{ev.page_ref ? ` · ${ev.page_ref}%` : ''}
           </span>
+          {localFlagCount >= 3 && (
+            <span style={{ background: '#fef3c7', color: '#92400e', borderRadius: 99, padding: '0.15em 0.55em', fontSize: '0.62rem', fontWeight: 700 }}>
+              ⚠ Spoiler flagged
+            </span>
+          )}
         </div>
         <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: '0.6rem' }}>
           {coverEl}
@@ -471,7 +560,15 @@ function FeedCard({ ev, user, isFriend, isFollowing, onOpenThread, onOpenDetail,
           </div>
         </div>
         <div style={{ height: '0.5px', background: 'var(--rt-border)', marginBottom: '0.5rem' }} />
-        <FeedEngagementBar entryId={ev.moment_id} user={user} onOpenThread={() => onOpenThread(ev)} />
+        <FeedEngagementBar entryId={ev.moment_id} user={user} onOpenThread={() => onOpenThread(ev)} initialLikes={ev._likes || []} initialCommentCount={ev._commentCount || 0} />
+        <PostActionSheet
+          open={actionSheetOpen}
+          onClose={() => setActionSheetOpen(false)}
+          alreadyFlagged={myFlagged}
+          onFlagSpoiler={handleFlagSpoiler}
+          onBlock={() => onBlock?.(ev.user_id)}
+          onReport={() => onReport?.({ userId: ev.user_id, contentType: 'feed_event', contentId: ev.moment_id || ev.id })}
+        />
       </div>
     )
   }
@@ -491,13 +588,20 @@ function FeedCard({ ev, user, isFriend, isFollowing, onOpenThread, onOpenDetail,
         )}
         {user?.id !== ev.user_id && (
           <button
-            onClick={e => { e.stopPropagation(); onReport?.({ userId: ev.user_id, contentType: 'feed_event', contentId: ev.id }) }}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rt-t3)', fontSize: '1rem', padding: '0 0.1rem', lineHeight: 1, flexShrink: 0 }}
-            title="Report"
+            onClick={e => { e.stopPropagation(); setActionSheetOpen(true) }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--rt-t3)', fontSize: '1.1rem', padding: '0 0.1rem', lineHeight: 1, flexShrink: 0, letterSpacing: '0.05em' }}
+            title="More options"
           >⋯</button>
         )}
       </div>
       {stars && <div style={{ fontSize: '0.82rem', color: 'var(--rt-amber)', letterSpacing: '0.5px', marginBottom: '0.5rem' }}>{stars}</div>}
+      {localFlagCount >= 3 && (
+        <div style={{ marginBottom: '0.5rem' }}>
+          <span style={{ background: '#fef3c7', color: '#92400e', borderRadius: 99, padding: '0.15em 0.55em', fontSize: '0.62rem', fontWeight: 700 }}>
+            ⚠ Spoiler flagged
+          </span>
+        </div>
+      )}
       <div style={{ display: 'flex', gap: '0.65rem', alignItems: 'center', marginBottom: '0.6rem' }}
         onClick={() => onOpenDetail({ id: ev.id, title: ev.book_title, author: ev.book_author, coverId, coverUrl, olKey })}>
         {coverEl}
@@ -510,7 +614,15 @@ function FeedCard({ ev, user, isFriend, isFollowing, onOpenThread, onOpenDetail,
         </div>
       </div>
       <div style={{ height: '0.5px', background: 'var(--rt-border)', marginBottom: '0.5rem' }} />
-      <FeedEngagementBar entryId={ev.id} user={user} onOpenThread={() => onOpenThread(ev)} />
+      <FeedEngagementBar entryId={ev.id} user={user} onOpenThread={() => onOpenThread(ev)} initialLikes={ev._likes || []} initialCommentCount={ev._commentCount || 0} />
+      <PostActionSheet
+        open={actionSheetOpen}
+        onClose={() => setActionSheetOpen(false)}
+        alreadyFlagged={myFlagged}
+        onFlagSpoiler={handleFlagSpoiler}
+        onBlock={() => onBlock?.(ev.user_id)}
+        onReport={() => onReport?.({ userId: ev.user_id, contentType: 'feed_event', contentId: ev.id })}
+      />
     </div>
   )
 }
@@ -619,7 +731,7 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
       .then(({ data }) => {
         setFollowingIds(new Set((data || []).map(r => r.following_id)))
       })
-  }, [user])
+  }, [user?.id])
 
   // ── Load feeds ─────────────────────────────────────────────
   // Re-runs when socialLoaded flips true so friend feed is built from real
@@ -627,7 +739,7 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
   useEffect(() => {
     if (!user || !socialLoaded) return
     loadFeeds()
-  }, [user, socialLoaded])
+  }, [user?.id, socialLoaded])
 
   async function loadFeeds() {
     setLoading(true)
@@ -648,7 +760,32 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
     }
     const moments = ff.filter(ev => ev.event_type === 'book_moment')
     const friendFeedData = [...moments, ...seen.values()].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    setFriendFeed(friendFeedData)
+
+    // Batch-fetch engagement counts for all friend feed entries in two queries
+    const friendEntryIds = friendFeedData
+      .map(e => e.moment_id || e.id)
+      .filter(Boolean)
+    let friendLikesMap = {}
+    let friendCommentsMap = {}
+    if (friendEntryIds.length) {
+      const [likesRes, commentsRes] = await Promise.all([
+        sb.from('review_likes').select('entry_id, id, user_id').in('entry_id', friendEntryIds),
+        sb.from('review_comments').select('entry_id, id').in('entry_id', friendEntryIds),
+      ])
+      ;(likesRes.data || []).forEach(l => {
+        if (!friendLikesMap[l.entry_id]) friendLikesMap[l.entry_id] = []
+        friendLikesMap[l.entry_id].push(l)
+      })
+      ;(commentsRes.data || []).forEach(c => {
+        friendCommentsMap[c.entry_id] = (friendCommentsMap[c.entry_id] || 0) + 1
+      })
+    }
+    const friendFeedWithCounts = friendFeedData.map(e => {
+      const eid = e.moment_id || e.id
+      return { ...e, _likes: friendLikesMap[eid] || [], _commentCount: friendCommentsMap[eid] || 0 }
+    })
+
+    setFriendFeed(friendFeedWithCounts)
     // Show friend feed immediately — don't wait for following feed
     setLoading(false)
 
@@ -675,14 +812,37 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
       const existing = followSeen.get(key)
       if (!existing || ev.event_type === 'posted_review') followSeen.set(key, ev)
     }
-    const result = [...followMoments, ...followSeen.values()]
+    const followResult = [...followMoments, ...followSeen.values()]
       .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-    setCached('following', result)
-    setFollowingFeed(result)
+
+    // Batch engagement counts for following feed too
+    const followEntryIds = followResult.map(e => e.moment_id || e.id).filter(Boolean)
+    let followLikesMap = {}
+    let followCommentsMap = {}
+    if (followEntryIds.length) {
+      const [likesRes, commentsRes] = await Promise.all([
+        sb.from('review_likes').select('entry_id, id, user_id').in('entry_id', followEntryIds),
+        sb.from('review_comments').select('entry_id, id').in('entry_id', followEntryIds),
+      ])
+      ;(likesRes.data || []).forEach(l => {
+        if (!followLikesMap[l.entry_id]) followLikesMap[l.entry_id] = []
+        followLikesMap[l.entry_id].push(l)
+      })
+      ;(commentsRes.data || []).forEach(c => {
+        followCommentsMap[c.entry_id] = (followCommentsMap[c.entry_id] || 0) + 1
+      })
+    }
+    const followResultWithCounts = followResult.map(e => {
+      const eid = e.moment_id || e.id
+      return { ...e, _likes: followLikesMap[eid] || [], _commentCount: followCommentsMap[eid] || 0 }
+    })
+
+    setCached('following', followResultWithCounts)
+    setFollowingFeed(followResultWithCounts)
 
     // Background: upgrade any feed events missing cover_url
     // Runs after render so it never blocks the UI
-    setTimeout(() => upgradeCovers(result), 2000)
+    setTimeout(() => upgradeCovers(followResultWithCounts), 2000)
   }
 
   // ── Load suggested readers + recently active in parallel ──
@@ -1072,6 +1232,7 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
                       onFollowChange={handleFollowChange}
                       onOpenProfile={userId => setViewingProfile(userId)}
                       onReport={handleReport}
+                      onBlock={handleBlock}
                     />
                   ))
                 )}
@@ -1111,6 +1272,7 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
                 onFollowChange={handleFollowChange}
                 onOpenProfile={userId => setViewingProfile(userId)}
                 onReport={handleReport}
+                onBlock={handleBlock}
               />
             ))
           )
@@ -1200,10 +1362,6 @@ export default function Feed({ onNavigate, onOpenChatModal }) {
         onSubmit={async (reason, note) => {
           await submitReport({ ...reportTarget, reason, note })
         }}
-        onBlock={reportTarget?.reportedUserId ? async () => {
-          await handleBlock(reportTarget.reportedUserId)
-          setReportTarget(null)
-        } : undefined}
       />
 
       {/* ── Toast ── */}

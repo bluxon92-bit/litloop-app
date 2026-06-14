@@ -37,6 +37,7 @@ function PageContainer({ id, activeTab, children }) {
 }
 import AddBookModal from '../books/AddBookModal'
 import MomentComposer from '../MomentComposer'
+import BookSpace from '../../pages/BookSpace'
 import { avatarColour, avatarInitial, timeAgo } from '../../lib/utils'
 import { sb } from '../../lib/supabase'
 import { IcoBook, IcoChat as IcoChatBubble, IcoUsers as IcoUsersGroup } from '../icons'
@@ -1069,6 +1070,8 @@ export default function AppShell() {
   const [fabOpen, setFabOpen]             = useState(false)
   const [fabAction, setFabAction]         = useState(null) // 'addbook'|'recommend'|'chat'|'friend'|'moment'
   const [fabChatPreselect, setFabChatPreselect] = useState(null) // userId to pre-select in FabChatModal
+  const [activeSpace, setActiveSpace]     = useState(null) // book object — opens BookSpace overlay
+  const [momentPreselect, setMomentPreselect] = useState(null) // book to pre-select in MomentComposer
   const [dismissedRequests, setDismissedRequests] = useState(new Set()) // friendshipIds hidden by ×
   // Pending deep-link actions set by notification clicks, consumed by page components
   const pendingReviewOpen = useRef(null) // { entryId, bookTitle, bookAuthor, coverId, olKey, reviewBody, rating, reviewer }
@@ -1402,7 +1405,7 @@ export default function AppShell() {
           <Stats onNavigate={onNavigate} />
         </PageContainer>
         <PageContainer id="discover" activeTab={activeTab}>
-          <Discover onNavigate={onNavigate} onOpenChatModal={openChatModal} onRecommend={() => setFabAction('recommend')} pendingRecOpen={pendingRecOpen} />
+          <Discover onNavigate={onNavigate} onOpenChatModal={openChatModal} onRecommend={() => setFabAction('recommend')} pendingRecOpen={pendingRecOpen} onOpenSpace={book => setActiveSpace(book)} />
         </PageContainer>
         <PageContainer id="chat" activeTab={activeTab}>
           <Chat onNavigate={onNavigate} onOpenChatModal={openChatModal} onAddFriend={() => setFabAction('friend')} onOpenChatWithFriend={openChatWithFriend} initialFriendProfile={activeFriendProfile} onClearFriendProfile={() => setActiveFriendProfile(null)} />
@@ -1745,12 +1748,13 @@ export default function AppShell() {
       </button>
 
       {/* ── FAB action modals ── */}
-      {fabAction === 'moment' && (
+      {(fabAction === 'moment' || momentPreselect) && (
         <MomentComposer
           user={user}
           books={books}
-          onClose={() => setFabAction(null)}
-          onPosted={() => { setFabAction(null); loadSocialData() }}
+          preselectedBook={momentPreselect || null}
+          onClose={() => { setFabAction(null); setMomentPreselect(null) }}
+          onPosted={() => { setFabAction(null); setMomentPreselect(null); loadSocialData() }}
         />
       )}
       {fabAction === 'addbook' && (
@@ -1845,6 +1849,19 @@ export default function AppShell() {
         dismissedRequests={dismissedRequests}
         setDismissedRequests={setDismissedRequests}
       />
+
+      {/* ── BookSpace overlay ── */}
+      {activeSpace && (
+        <BookSpace
+          book={activeSpace}
+          user={user}
+          onClose={() => setActiveSpace(null)}
+          onOpenMomentComposer={book => {
+            setActiveSpace(null)
+            setMomentPreselect(book)
+          }}
+        />
+      )}
     </div>
   )
 }

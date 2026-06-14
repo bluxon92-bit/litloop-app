@@ -8,9 +8,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate {
 
     var window: UIWindow?
 
+    // ── Supabase config ────────────────────────────────────────
+    // supabaseAnon: paste your anon key (the long eyJ... string from
+    // Supabase dashboard → Settings → API → anon/public key)
     let supabaseUrl  = "https://afwvsrjbaxutfonmmxjd.supabase.co"
-    // Paste your anon key below (same as VITE_SUPABASE_ANON_KEY in your .env)
-    let supabaseAnon = "YOUR_SUPABASE_ANON_KEY"
+    let supabaseAnon = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFmd3ZzcmpiYXh1dGZvbm1teGpkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMTI0NTIsImV4cCI6MjA4OTU4ODQ1Mn0.HkOFceoIDLdtgMjWHC0NFhPz3vXFBDdAbu_98Kqgcek"
+    // ──────────────────────────────────────────────────────────
+
+    // How long to keep retrying if no session found yet (seconds)
+    private let retryDuration: TimeInterval = 30
+    private let retryInterval: TimeInterval = 2
+    private var retryTimer: Timer?
+    private var retryStart: Date?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         FirebaseApp.configure()
@@ -32,52 +41,115 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate {
         return ApplicationDelegateProxy.shared.application(application, continue: userActivity, restorationHandler: restorationHandler)
     }
 
+    // APNs token → hand to Firebase so it can exchange for FCM token
     func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
         print("[FCM] APNs device token received, length: \(deviceToken.count)")
         Messaging.messaging().apnsToken = deviceToken
-        Messaging.messaging().token { token, error in
-            if let error = error {
-                print("[FCM] Error fetching FCM token: \(error.localizedDescription)")
-            } else if let token = token {
-                print("[FCM] FCM token fetched: \(token.prefix(30))...")
-            }
-        }
+        print("[FCM] APNs token handed to Firebase Messaging")
     }
 
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
-        print("[FCM] Failed to register: \(error.localizedDescription)")
+        print("[FCM] Failed to register for remote notifications: \(error.localizedDescription)")
     }
 
-    // Called by Firebase when FCM token is available or refreshed
+    // ── Firebase calls this when the FCM token is ready or refreshed ──
+    // This is the ONLY reliable place to get the real FCM token on iOS.
+    // fcmManager.js registration event gives an APNs token, not FCM — ignore it for saving.
     func messaging(_ messaging: Messaging, didReceiveRegistrationToken fcmToken: String?) {
-        guard let token = fcmToken else { return }
-        print("[FCM] MessagingDelegate token received: \(token.prefix(30))...")
+        guard let token = fcmToken else {
+            print("[FCM] MessagingDelegate called with nil token")
+            return
+        }
+        print("[FCM] Real FCM token received: \(token.prefix(30))...")
 
+        // Try to save immediately if a session exists
         if let accessToken = getSupabaseAccessToken() {
+            print("[FCM] Session found — saving token now")
+            stopRetryTimer()
             saveFcmToken(token: token, accessToken: accessToken)
         } else {
-            print("[FCM] No Supabase session yet — storing token for later")
+            // No session yet (app launched before login) — store and retry
+            print("[FCM] No session yet — storing token and starting retry loop")
             UserDefaults.standard.set(token, forKey: "pendingFcmToken")
+            startRetryTimer()
         }
     }
 
+    // ── Retry loop: called by JS bridge after login completes ──
+    // AppShell calls window.webkit.messageHandlers.flushPendingFcmToken.postMessage('')
+    // after the Supabase session is established. See fcmManager.js for the call site.
+    private func startRetryTimer() {
+        stopRetryTimer()
+        retryStart = Date()
+        retryTimer = Timer.scheduledTimer(withTimeInterval: retryInterval, repeats: true) { [weak self] _ in
+            self?.attemptPendingTokenSave()
+        }
+    }
+
+    private func stopRetryTimer() {
+        retryTimer?.invalidate()
+        retryTimer = nil
+        retryStart = nil
+    }
+
+    private func attemptPendingTokenSave() {
+        // Give up after retryDuration seconds
+        if let start = retryStart, Date().timeIntervalSince(start) > retryDuration {
+            print("[FCM] Retry timeout — giving up on pending token save")
+            stopRetryTimer()
+            return
+        }
+
+        guard let token = UserDefaults.standard.string(forKey: "pendingFcmToken") else {
+            print("[FCM] No pending token in UserDefaults — stopping retry")
+            stopRetryTimer()
+            return
+        }
+
+        guard let accessToken = getSupabaseAccessToken() else {
+            print("[FCM] Retry: still no session")
+            return
+        }
+
+        print("[FCM] Retry: session now available — saving token")
+        stopRetryTimer()
+        UserDefaults.standard.removeObject(forKey: "pendingFcmToken")
+        saveFcmToken(token: token, accessToken: accessToken)
+    }
+
+    // ── Read Supabase session from UserDefaults ────────────────
+    // Supabase JS stores the session under a key like:
+    //   sb-<project-ref>-auth-token
+    // The value is a JSON string with access_token inside.
     private func getSupabaseAccessToken() -> String? {
         let key = "sb-afwvsrjbaxutfonmmxjd-auth-token"
-        if let data = UserDefaults.standard.string(forKey: key),
-           let jsonData = data.data(using: .utf8),
-           let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-           let accessToken = json["access_token"] as? String {
-            return accessToken
+
+        // Try direct string (older Supabase JS versions)
+        if let raw = UserDefaults.standard.string(forKey: key),
+           let data = raw.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let token = json["access_token"] as? String {
+            return token
         }
+
+        // Try Data (some Capacitor builds store it differently)
+        if let data = UserDefaults.standard.data(forKey: key),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let token = json["access_token"] as? String {
+            return token
+        }
+
         return nil
     }
 
+    // ── Save FCM token to Supabase via REST upsert ─────────────
     private func saveFcmToken(token: String, accessToken: String) {
-        guard let url = URL(string: "\(supabaseUrl)/rest/v1/fcm_tokens") else { return }
         guard let userId = getUserIdFromJWT(accessToken) else {
-            print("[FCM] Could not decode user ID from JWT")
+            print("[FCM] Could not decode user ID from JWT — not saving token")
             return
         }
+
+        guard let url = URL(string: "\(supabaseUrl)/rest/v1/fcm_tokens") else { return }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -85,12 +157,13 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(supabaseAnon, forHTTPHeaderField: "apikey")
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        // Upsert: if a row with (user_id, platform) already exists, update it
         request.setValue("resolution=merge-duplicates", forHTTPHeaderField: "Prefer")
 
         let body: [String: Any] = [
-            "user_id": userId,
-            "token": token,
-            "platform": "ios",
+            "user_id":    userId,
+            "token":      token,
+            "platform":   "ios",
             "updated_at": ISO8601DateFormatter().string(from: Date())
         ]
 
@@ -98,13 +171,19 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate {
 
         URLSession.shared.dataTask(with: request) { data, response, error in
             if let error = error {
-                print("[FCM] Failed to save token: \(error.localizedDescription)")
+                print("[FCM] Failed to save token to Supabase: \(error.localizedDescription)")
             } else if let http = response as? HTTPURLResponse {
-                print("[FCM] Token saved, status: \(http.statusCode)")
+                if http.statusCode == 200 || http.statusCode == 201 {
+                    print("[FCM] ✅ Token saved to Supabase — status \(http.statusCode)")
+                } else {
+                    let body = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+                    print("[FCM] ⚠️ Unexpected status \(http.statusCode): \(body)")
+                }
             }
         }.resume()
     }
 
+    // ── Decode user ID from JWT payload ───────────────────────
     private func getUserIdFromJWT(_ token: String) -> String? {
         let parts = token.components(separatedBy: ".")
         guard parts.count == 3 else { return nil }
@@ -115,7 +194,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate {
         if remainder > 0 { base64 += String(repeating: "=", count: 4 - remainder) }
         guard let data = Data(base64Encoded: base64),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let sub = json["sub"] as? String else { return nil }
+              let sub  = json["sub"] as? String else { return nil }
         return sub
     }
 }

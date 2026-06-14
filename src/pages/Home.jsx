@@ -149,6 +149,9 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
   const JOURNAL_PAGE_SIZE = 6
   const [journalPage, setJournalPage] = useState(1)
   const journalBottomRef = useRef(null)
+  // Concurrency guard — prevents loadJournal running multiple times in parallel
+  // when the user object reference changes during optimistic render startup
+  const journalLoadingRef = useRef(false)
 
   useEffect(() => {
     if (!toast) return
@@ -201,7 +204,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
     // Yield to browser to paint visible content first, then load journal
     const t = setTimeout(() => loadJournal(), 0)
     return () => clearTimeout(t)
-  }, [user])
+  }, [user?.id])
 
   // Fix journal header when sentinel scrolls out of view
   useEffect(() => {
@@ -225,12 +228,26 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
     return () => observer.disconnect()
   }, [journalBottomRef.current, journalEntries])
 
-  async function loadJournal() {
+  async function loadJournal({ backgroundRefresh = false } = {}) {
     if (!user) return
-    // Serve from localStorage cache if fresh
+    // Prevent concurrent loads — if already fetching, skip.
+    // backgroundRefresh is exempt so SWR can run alongside a cached render.
+    if (!backgroundRefresh && journalLoadingRef.current) return
+    journalLoadingRef.current = true
+    try {
+    // Stale-while-revalidate: serve cache instantly, refresh silently in background
     const cached = readJournalCache(user.id)
-    if (cached) { setJournalEntries(cached); return }
-    setJournalLoading(true)
+    if (cached) {
+      setJournalEntries(cached)
+      setJournalLoading(false)
+      if (!backgroundRefresh) {
+        // Kick off a silent background refresh so data stays fresh
+        // without showing a spinner or blocking the UI
+        setTimeout(() => loadJournal({ backgroundRefresh: true }), 0)
+      }
+      return
+    }
+    if (!backgroundRefresh) setJournalLoading(true)
 
     // Fix 3: run feed_events and reading_entries in parallel
     const [eventsRes, noteEntriesRes] = await Promise.all([
@@ -241,7 +258,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
         .order('created_at', { ascending: false })
         .limit(100),
       sb.from('reading_entries')
-        .select('id, notes, date_finished, date_started, book_id, title_manual, author_manual')
+        .select('id, notes, date_finished, date_started, book_id, title_manual, author_manual, books(title, author, cover_id, cover_url, ol_key)')
         .eq('user_id', user.id)
         .not('notes', 'is', null)
         .order('updated_at', { ascending: false })
@@ -251,15 +268,9 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
     const events      = eventsRes.data || []
     const noteEntries = noteEntriesRes.data || []
 
-    // Enrich notes with book info
-    const bookIds = noteEntries.map(n => n.book_id).filter(Boolean)
-    let booksMap = {}
-    if (bookIds.length) {
-      const { data: bks } = await sb.from('books').select('id, title, author, cover_id, cover_url, ol_key').in('id', bookIds)
-      ;(bks || []).forEach(b => { booksMap[b.id] = b })
-    }
+    // Books are now joined inline — no separate round trip needed
     const notes = noteEntries.map(n => {
-      const bk = booksMap[n.book_id] || {}
+      const bk = n.books || {}
       return {
         _type:      'note',
         id:         n.id,
@@ -322,7 +333,10 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
 
     writeJournalCache(user.id, withCounts)
     setJournalEntries(withCounts)
-    setJournalLoading(false)
+    if (!backgroundRefresh) setJournalLoading(false)
+    } finally {
+      journalLoadingRef.current = false
+    }
   }
 
   const year     = new Date().getFullYear()
@@ -872,7 +886,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
           onPosted={() => {
             setPendingMoment(null)
             invalidateJournalCache(user.id)
-            loadJournal()
+            loadJournal({ backgroundRefresh: false })
           }}
         />
       )}
@@ -898,7 +912,7 @@ export default function Home({ onNavigate, onOpenChatModal, onViewFriendProfile,
           onPosted={() => {
             setEditingMoment(null)
             invalidateJournalCache(user.id)
-            loadJournal()
+            loadJournal({ backgroundRefresh: false })
           }}
         />
       )}

@@ -15,7 +15,9 @@ export function useChat(user) {
 
   useEffect(() => {
     if (user) {
-      loadChatList()
+      // Defer chat loading so it doesn't compete with books/journal/social
+      // on startup. Unread badge is non-critical for first paint.
+      setTimeout(() => loadChatList(), 800)
       setupListRealtime()
     }
     return () => {

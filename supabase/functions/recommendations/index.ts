@@ -32,29 +32,42 @@ serve(async (req) => {
       )
     }
 
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    const sb = createClient(supabaseUrl, supabaseKey)
-
-    // Extract user from JWT
+    // Decode JWT payload directly rather than calling sb.auth.getUser().
+    // Newer Supabase projects issue ES256-signed tokens; the supabase-js v2
+    // auth client attempts HS256 verification and throws
+    // UNAUTHORIZED_UNSUPPORTED_TOKEN_ALGORITHM. The Supabase gateway has
+    // already validated the token before this function runs, so we only need
+    // to extract the user ID from the payload — no re-verification needed.
     const jwt = authHeader.replace('Bearer ', '')
-    const { data: { user }, error: authError } = await sb.auth.getUser(jwt)
-    if (authError || !user) {
+    let userId: string | null = null
+    try {
+      const payload = JSON.parse(atob(jwt.split('.')[1]))
+      if (payload.sub && payload.role === 'authenticated') {
+        userId = payload.sub
+      }
+    } catch {
+      // malformed JWT
+    }
+    if (!userId) {
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')!
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    const sb = createClient(supabaseUrl, supabaseKey)
+
     // ── Rate limit check ──────────────────────────────────────
     const { data: profile } = await sb
       .from('profiles')
       .select('ai_picks')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single()
 
-    const picks = profile?.ai_picks || null
-    const savedAt      = picks?.savedAt      ? new Date(picks.savedAt)  : null
+    const picks        = profile?.ai_picks || null
+    const savedAt      = picks?.savedAt ? new Date(picks.savedAt) : null
     const refreshCount = picks?.refreshCount ?? 0
     const hasExisting  = picks?.recs?.length > 0
 
@@ -78,8 +91,7 @@ serve(async (req) => {
     }
 
     // ── Increment refreshCount before calling API ─────────────
-    // We write this now so a user can't spam concurrent requests
-    // to race past the rate limit check
+    // Write now so concurrent requests can't race past the rate limit check
     const newRefreshCount = hasExisting ? refreshCount + 1 : 0
     await sb.from('profiles').update({
       ai_picks: {
@@ -87,7 +99,7 @@ serve(async (req) => {
         refreshCount: newRefreshCount,
         savedAt: new Date().toISOString(),
       }
-    }).eq('id', user.id)
+    }).eq('id', userId)
 
     // ── Call Anthropic ────────────────────────────────────────
     const apiKey = Deno.env.get('ANTHROPIC_API_KEY')
@@ -108,14 +120,14 @@ serve(async (req) => {
     })
 
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(`Anthropic API error ${res.status}: ${errData?.error?.message || res.statusText}`);
+      const errData = await res.json().catch(() => ({}))
+      throw new Error(`Anthropic API error ${res.status}: ${errData?.error?.message || res.statusText}`)
     }
 
-    const data = await res.json();
-    const text = data.content?.find((c: any) => c.type === 'text')?.text || '';
+    const data = await res.json()
+    const text = data.content?.find((c: any) => c.type === 'text')?.text || ''
 
-    if (!text) throw new Error('Empty content from Anthropic API');
+    if (!text) throw new Error('Empty content from Anthropic API')
 
     return new Response(
       JSON.stringify({ text, refreshCount: newRefreshCount }),
@@ -128,4 +140,4 @@ serve(async (req) => {
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
-});
+})

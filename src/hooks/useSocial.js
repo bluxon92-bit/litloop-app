@@ -17,7 +17,7 @@ export function useSocial(user) {
   const [topBookIds, setTopBookIds]         = useState([])
   const [preferredMoods, setPreferredMoods] = useState([])
   const [profileLoaded, setProfileLoaded]   = useState(false)
-  const [myAvatarUrl, setMyAvatarUrl]       = useState(null)
+  const [myAvatarUrl, setMyAvatarUrl]       = useState(() => { try { return localStorage.getItem('ll_avatar_url') || null } catch { return null } })
   const [onboardingComplete, setOnboardingComplete] = useState(null)
   const [notificationPrefs, setNotificationPrefs]   = useState({
     messages: true, friend_requests: true, recommendations: true, review_comments: true
@@ -39,7 +39,7 @@ export function useSocial(user) {
         setFeed([]); setRecs([])
         setLoaded(false); setMyUsername(''); setMyDisplayName(''); setMyBio('')
         setMyAvatarUrl(null)
-        try { localStorage.removeItem('ll_display_name'); localStorage.removeItem('ll_username') } catch {}
+        try { localStorage.removeItem('ll_display_name'); localStorage.removeItem('ll_username'); localStorage.removeItem('ll_avatar_url') } catch {}
       }
       return
     }
@@ -79,6 +79,7 @@ export function useSocial(user) {
       setTopBookIds(data.top_book_ids || [])
       setPreferredMoods(data.preferred_moods || [])
       setMyAvatarUrl(data.avatar_url || null)
+      try { if (data.avatar_url) localStorage.setItem('ll_avatar_url', data.avatar_url) } catch {}
       setOnboardingComplete(data.onboarding_complete === true ? true : false)
       setNotificationPrefs(data.notification_prefs || { messages: true, friend_requests: true, recommendations: true, review_comments: true })
     }
@@ -411,6 +412,7 @@ export function useSocial(user) {
       if (dbError) return { error: dbError.message }
 
       setMyAvatarUrl(urlWithBust)
+      try { localStorage.setItem('ll_avatar_url', urlWithBust) } catch {}
       return { url: urlWithBust }
     } catch (err) {
       return { error: err.message }

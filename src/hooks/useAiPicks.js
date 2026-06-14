@@ -6,6 +6,31 @@ const SUPABASE_URL  = import.meta.env.SUPABASE_URL  || 'https://afwvsrjbaxutfonm
 const SUPABASE_ANON = import.meta.env.SUPABASE_ANON || ''
 
 async function callRecsAPI(prompt) {
+  // getSession() can return an anon session on Capacitor before the WebView
+  // auth state is fully hydrated. We decode the JWT role claim client-side
+  // to detect this and force a refreshSession() if needed.
+  const { data: { session } } = await sb.auth.getSession()
+  let token = session?.access_token
+
+  if (!token || session?.user == null) {
+    throw new Error('Not signed in — please refresh and try again.')
+  }
+
+  // Decode JWT role claim to catch anon tokens sneaking through
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    if (payload.role === 'anon' || !payload.sub) {
+      // Anon token — force a session refresh to get the real user token
+      const { data: refreshed } = await sb.auth.refreshSession()
+      if (!refreshed?.session?.access_token) {
+        throw new Error('Session expired — please sign in again.')
+      }
+      token = refreshed.session.access_token
+    }
+  } catch (decodeErr) {
+    // If decode fails, proceed — server will reject if truly invalid
+  }
+
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), 20000)
   try {
@@ -13,14 +38,13 @@ async function callRecsAPI(prompt) {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON}`,
+        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({ prompt }),
       signal: controller.signal,
     })
     const data = await res.json()
     if (res.status === 429) {
-      // Rate limited — throw with the human-readable message from the server
       throw new Error(data.error || 'Too many requests — please try again later.')
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -40,8 +64,6 @@ async function searchOLCover(title, author) {
   const cleanTitle = (title || '').replace(/\s*\([^)]*#\d[^)]*\)/g, '').replace(/[:\u2014\u2013].*/u, '').trim()
   if (!cleanTitle) return { coverId: null, olKey: null, coverUrl: null }
   try {
-    const SUPABASE_URL  = import.meta.env.SUPABASE_URL  || 'https://afwvsrjbaxutfonmmxjd.supabase.co'
-    const SUPABASE_ANON = import.meta.env.SUPABASE_ANON || ''
     const res = await fetch(`${SUPABASE_URL}/functions/v1/book-search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${SUPABASE_ANON}` },
@@ -58,16 +80,14 @@ async function searchOLCover(title, author) {
 }
 
 export function useAiPicks(user, books) {
-  const [state, setState]       = useState('idle') // idle | loading | done | error
-  const [recs, setRecs]         = useState([])     // [{title,author,why,desc,coverId,olKey}]
+  const [state, setState]         = useState('idle') // idle | loading | done | error
+  const [recs, setRecs]           = useState([])
   const [dismissed, setDismissed] = useState(new Set())
-  const [added, setAdded]       = useState(new Set())
-  const [error, setError]       = useState(null)
-  const [loaded, setLoaded]     = useState(false)
-
+  const [added, setAdded]         = useState(new Set())
+  const [error, setError]         = useState(null)
+  const [loaded, setLoaded]       = useState(false)
   const [refreshCount, setRefreshCount] = useState(0)
 
-  // Load persisted picks from Supabase on login
   useEffect(() => {
     if (!user) {
       setState('idle'); setRecs([]); setDismissed(new Set()); setAdded(new Set())
@@ -93,25 +113,25 @@ export function useAiPicks(user, books) {
     setLoaded(true)
   }
 
-  async function saveToDB(newRecs, newDismissed, newAdded, refreshCount) {
+  async function saveToDB(newRecs, newDismissed, newAdded, rc) {
     if (!user) return
     await sb.from('profiles').update({
       ai_picks: {
         recs: newRecs,
         dismissed: [...newDismissed],
         added: [...newAdded],
-        refreshCount: refreshCount ?? 0,
+        refreshCount: rc ?? 0,
         savedAt: new Date().toISOString(),
       }
     }).eq('id', user.id)
   }
 
   function buildPrompt() {
-    const read    = books.filter(b => b.status === 'read')
-    const reading = books.filter(b => b.status === 'reading')
-    const dnf     = books.filter(b => b.status === 'dnf').slice(0, 4)
-    const tbr     = books.filter(b => b.status === 'tbr').slice(0, 5)
-    const genres  = [...new Set(books.map(b => b.genre).filter(Boolean))]
+    const read     = books.filter(b => b.status === 'read')
+    const reading  = books.filter(b => b.status === 'reading')
+    const dnf      = books.filter(b => b.status === 'dnf').slice(0, 4)
+    const tbr      = books.filter(b => b.status === 'tbr').slice(0, 5)
+    const genres   = [...new Set(books.map(b => b.genre).filter(Boolean))]
     const topRated = read.filter(b => b.rating >= 4).slice(0, 8)
     const sample   = topRated.length ? topRated : read.slice(0, 6)
     const safe = s => (s || '').replace(/[\r\n]+/g, ' ').slice(0, 200)
@@ -127,27 +147,25 @@ export function useAiPicks(user, books) {
     }
     setState('loading'); setError(null)
     try {
-      const { recs: result, refreshCount } = await callRecsAPI(buildPrompt())
+      const { recs: result, refreshCount: rc } = await callRecsAPI(buildPrompt())
       if (!Array.isArray(result) || !result.length) throw new Error('No recommendations returned.')
 
-      const enriched = [...result]
-      const newRecs = result.map(r => ({ ...r, coverId: null, olKey: null }))
-      setRecs(newRecs)
-      setState('done')
+      const enriched     = [...result]
+      const newRecs      = result.map(r => ({ ...r, coverId: null, olKey: null }))
       const newDismissed = new Set()
-      const newAdded = new Set()
+      const newAdded     = new Set()
+      setRecs(newRecs)
       setDismissed(newDismissed)
       setAdded(newAdded)
-      await saveToDB(newRecs, newDismissed, newAdded, refreshCount)
+      setState('done')
+      await saveToDB(newRecs, newDismissed, newAdded, rc)
 
-      // Fetch covers and upload to Storage in background
+      // Fetch covers in background
       ;(async () => {
         for (let i = 0; i < enriched.length; i++) {
           const { coverId, olKey, coverUrl: foundCoverUrl } = await searchOLCover(enriched[i].title, enriched[i].author)
           let coverUrl = foundCoverUrl || null
-          if (coverId && olKey && !coverUrl) {
-            coverUrl = await uploadCoverToSupabase(coverId, olKey)
-          }
+          if (coverId && olKey && !coverUrl) coverUrl = await uploadCoverToSupabase(coverId, olKey)
           enriched[i] = { ...enriched[i], coverId, olKey, coverUrl }
           setRecs(prev => {
             const updated = [...prev]
@@ -156,7 +174,7 @@ export function useAiPicks(user, books) {
           })
           await new Promise(r => setTimeout(r, 300))
         }
-        await saveToDB(enriched, newDismissed, newAdded, refreshCount)
+        await saveToDB(enriched, newDismissed, newAdded, rc)
       })()
 
     } catch (err) {
@@ -166,8 +184,7 @@ export function useAiPicks(user, books) {
 
   function dismiss(index) {
     setDismissed(prev => {
-      const next = new Set(prev)
-      next.add(index)
+      const next = new Set(prev); next.add(index)
       saveToDB(recs, next, added, refreshCount)
       return next
     })
@@ -175,8 +192,7 @@ export function useAiPicks(user, books) {
 
   function markAdded(index) {
     setAdded(prev => {
-      const next = new Set(prev)
-      next.add(index)
+      const next = new Set(prev); next.add(index)
       saveToDB(recs, dismissed, next, refreshCount)
       return next
     })
@@ -188,23 +204,14 @@ export function useAiPicks(user, books) {
     saveToDB([], new Set(), new Set(), refreshCount)
   }
 
-  // Visible = not dismissed. Empty state when all dismissed or added
-  const visibleRecs = recs.map((r, i) => ({ ...r, _index: i }))
-    .filter(r => !dismissed.has(r._index))
-
-  const allActedOn = recs.length > 0 &&
-    recs.every((_, i) => dismissed.has(i) || added.has(i))
+  const visibleRecs = recs.map((r, i) => ({ ...r, _index: i })).filter(r => !dismissed.has(r._index))
+  const allActedOn  = recs.length > 0 && recs.every((_, i) => dismissed.has(i) || added.has(i))
 
   return {
     state: allActedOn ? 'idle' : state,
     recs: visibleRecs,
-    dismissed,
-    added,
+    dismissed, added,
     error: allActedOn ? null : error,
-    loaded,
-    fetchPicks,
-    dismiss,
-    markAdded,
-    refresh,
+    loaded, fetchPicks, dismiss, markAdded, refresh,
   }
 }
